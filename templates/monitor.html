@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block title %}实时监测 - WindSight{% endblock %}
+{% block page_title %}实时监测{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* 实时监测页面背景色 - 更淡的蓝色调，不影响波形观看（参考旧版风格） */
+    body {
+        background: radial-gradient(circle at 50% -20%, #2d5a8a 0%, #1a2d4a 100%) fixed !important;
+        background-color: #1a2d4a !important;
+    }
+
+    .main-content {
+        background: transparent !important;
+    }
+
+    /* 卡片选择样式（参考旧版 card-select/card-active 交互） */
+    .ws-card-select {
+        cursor: pointer;
+        transition: all 0.2s ease-in-out;
+        border: 2px solid transparent;
+    }
+    .ws-card-select:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.12) !important;
+    }
+    .ws-card-active {
+        background-color: rgba(255,255,255,0.92) !important;
+        border-color: #0d6efd !important;
+        box-shadow: 0 0 16px rgba(13, 110, 253, 0.25) !important;
+    }
+    .ws-card-active .ws-select-badge {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    .ws-select-badge {
+        opacity: 0;
+        transform: translateY(6px);
+        transition: all 0.2s;
+        font-size: 0.85rem;
+        font-weight: bold;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+    <!-- 左侧：节点列表 + 控制面板 -->
+    <div class="col-lg-3">
+        <div class="card mb-3">
+            <div class="card-header bg-dark text-white">
+                <h6 class="mb-0">
+                    <i class="bi bi-diagram-3"></i> 节点列表
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush" id="nodeList" style="max-height: 520px; overflow-y: auto;">
+                    <div class="text-center text-muted py-4">
+                        <i class="bi bi-hourglass-split"></i> 加载中...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <h6 class="mb-0">
+                    <i class="bi bi-sliders"></i> 筛选控制
+                </h6>
+            </div>
+            <div class="card-body">
+                <label class="form-label text-muted small fw-bold" for="nodeSelect">节点选择</label>
+                <select class="form-select mb-3" id="nodeSelect" aria-label="选择节点">
+                    <option value="">加载中...</option>
+                </select>
+
+                <label class="form-label text-muted small fw-bold" for="historyLimit">回放点数</label>
+                <div class="input-group mb-3">
+                    <span class="input-group-text"><i class="bi bi-clock-history"></i></span>
+                    <input type="number" class="form-control" id="historyLimit" value="600" min="50" max="20000" step="100"
+                           aria-label="回放点数" title="回放点数">
+                    <button class="btn btn-primary" id="btnReload" type="button">
+                        <i class="bi bi-arrow-clockwise me-1"></i>加载
+                    </button>
+                </div>
+                <div class="form-text mb-3">每次读取最近 N 条记录（默认 600，最多 20000）。实时监测页不提供“回放时段”，如需按时间筛选请到“数据概览”。</div>
+
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="text-muted small fw-bold">通道选择（CH1~CH32）</div>
+                    <div class="text-muted small">已选 <span class="fw-bold" id="selectedCount">0</span>/32</div>
+                </div>
+                <div class="d-flex gap-2 mb-2">
+                    <button class="btn btn-outline-primary btn-sm" id="btnSelectAll" type="button">
+                        <i class="bi bi-check2-square me-1"></i>全选
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" id="btnSelectNone" type="button">
+                        <i class="bi bi-square me-1"></i>全不选
+                    </button>
+                </div>
+                <div class="border rounded-3 p-2" style="max-height: 280px; overflow: auto; background: rgba(248,250,252,0.92);">
+                    <div class="row g-2" id="channelCheckboxGrid"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右侧：卡片选择 + 大图表 -->
+    <div class="col-lg-9">
+        <div class="row g-3 mb-3">
+            <div class="col-md-4">
+                <div class="card h-100 shadow-sm ws-card-select ws-card-active" id="wsMetricCardVoltage"
+                     style="border-top: 4px solid #0d6efd;">
+                    <div class="card-body text-center p-3 d-flex flex-column justify-content-center">
+                        <h6 class="text-muted small fw-bold mb-1">电压</h6>
+                        <h3 class="fw-bold text-primary mb-0" id="wsCardValueVoltage">--</h3>
+                        <small class="text-muted" id="wsCardUnitVoltage">V</small>
+                        <div class="ws-select-badge text-primary mt-2">
+                            <i class="bi bi-check-circle-fill me-1"></i>已选中
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card h-100 shadow-sm ws-card-select" id="wsMetricCardCurrent"
+                     style="border-top: 4px solid #0dcaf0;">
+                    <div class="card-body text-center p-3 d-flex flex-column justify-content-center">
+                        <h6 class="text-muted small fw-bold mb-1">电流</h6>
+                        <h3 class="fw-bold text-info mb-0" id="wsCardValueCurrent">--</h3>
+                        <small class="text-muted" id="wsCardUnitCurrent">A</small>
+                        <div class="ws-select-badge text-info mt-2">
+                            <i class="bi bi-check-circle-fill me-1"></i>已选中
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card h-100 shadow-sm ws-card-select" id="wsMetricCardSpeed"
+                     style="border-top: 4px solid #ffc107;">
+                    <div class="card-body text-center p-3 d-flex flex-column justify-content-center">
+                        <h6 class="text-muted small fw-bold mb-1">转速</h6>
+                        <h3 class="fw-bold text-warning mb-0" id="wsCardValueSpeed">--</h3>
+                        <small class="text-muted" id="wsCardUnitSpeed">rpm</small>
+                        <div class="ws-select-badge text-warning mt-2">
+                            <i class="bi bi-check-circle-fill me-1"></i>已选中
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-graph-up"></i>
+                    <span>主曲线窗口（卡片切换：电压/电流/转速）</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-sm btn-outline-light" id="wsResetZoomMain" type="button" title="重置缩放">
+                        <i class="bi bi-arrow-counterclockwise"></i> 重置缩放
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <small class="text-muted">
+                        <i class="bi bi-info-circle"></i>
+                        滚轮缩放：在X轴区域缩放时间，在Y轴区域缩放幅值；鼠标按住拖拽可平移（Grab 模式）
+                    </small>
+                    <small class="text-muted">
+                        最近数据：<span id="wsLastDataTime" class="fw-bold">--</span>
+                    </small>
+                </div>
+                <div id="wsMainChart" style="width: 100%; height: 620px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}
+
+

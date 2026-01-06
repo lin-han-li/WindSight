@@ -1,0 +1,73 @@
+# EdgeWind Project Cursor Rules
+
+You are an expert in Industrial IoT, Flask, Real-time Signal Processing, and Web Visualization. You are working on the "EdgeWind" project (基于边缘计算的风电场直流系统故障监测平台).
+
+## 1. Project Context & Tech Stack
+- **Backend**: Python 3 (Flask), Flask-SocketIO (Real-time), SQLAlchemy (SQLite), NumPy/SciPy (Signal Processing).
+- **Frontend**: HTML5, Vanilla JavaScript (ES6+), Bootstrap 5 (UI Framework), ECharts 5 (Waveform/Spectrum).
+- **Hardware Simulation**: Digital Twin simulating STM32H7 + ADS131A04 behavior (5.12kHz sampling).
+- **Language**: All comments, documentation, and UI text MUST be in **Simplified Chinese (简体中文)**.
+
+## 2. Critical Business Logic (Domain Knowledge)
+You must strictly adhere to the following fault definitions defined in the project:
+- **E00**: System Normal (系统正常)
+- **E01**: AC Intrusion (交流窜入 - 50Hz/150Hz harmonic overlay)
+- **E02**: Insulation Fault (绝缘故障 - Resistance drop)
+- **E03**: DC Bus Capacitor Aging (直流母线电容老化 - High freq ripple)
+- **E04**: Converter IGBT Open Circuit (变流器IGBT开路 - Half-wave rectification effect)
+- **E05**: DC Bus Grounding Fault (直流母线接地故障)
+
+## 3. Frontend Development Rules
+
+### UI & Styling
+- Use **Bootstrap 5** classes for layout and styling. Do not write custom CSS unless necessary for animations (e.g., `pulse`).
+- **Color Coding Standards** (Strict Adherence):
+  - **Voltage (+)**: Blue (`#0d6efd`) / Bootstrap `primary`
+  - **Voltage (-)**: Red (`#dc3545`) / Bootstrap `danger`
+  - **Current**: Cyan (`#0dcaf0`) / Bootstrap `info`
+  - **Leakage**: Yellow (`#ffc107`) / Bootstrap `warning`
+  - **Fault Status**: Red (`#dc3545`)
+  - **Normal Status**: Green (`#198754`)
+
+### ECharts Configuration (CRITICAL)
+- **Time Domain Charts**:
+  - **Y-Axis**: MUST allow seeing 0V. **NEVER** set `scale: true` on the Y-axis. Always allow it to include 0.
+  - **Interaction (Grab Mode)**:
+    - We use a custom "Grab" interaction logic (Paper Panning).
+    - **Native Drag**: MUST be disabled (`moveOnMouseMove: false` in `dataZoom`).
+    - **Custom Logic**:
+      - Mouse Drag **Right** -> Waveform moves **Right** (Window moves Left).
+      - Mouse Drag **Up** -> Waveform moves **Up** (Window moves Down).
+- **Frequency Domain Charts**:
+  - Use `type: 'line'` with `areaStyle`.
+  - Colors must sync with the selected channel color.
+- **Performance**:
+  - Always use `animation: false` for real-time waveform updates.
+  - Use `lazyUpdate: false` inside `requestAnimationFrame` for high-frequency updates.
+
+### JavaScript Logic
+- Use `const` and `let`, avoid `var`.
+- **Socket.IO**: Listen for `monitor_update` events. Ensure data existence checks before rendering (`msg.data && msg.data.channels`).
+- **Safety**: Always check if DOM elements exist (`document.getElementById`) before manipulating them to avoid null pointer errors.
+
+## 4. Backend Development Rules (Flask)
+- **Structure**: Keep logic separated. Routes in `app.py`, simulation logic in `simulate_hardware.py`.
+- **Concurrency**: The simulation runs in a separate daemon thread. Use thread-safe operations when modifying global states.
+- **Database**: Use SQLAlchemy models (`Device`, `DataPoint`, `WorkOrder`).
+- **Knowledge Graph**: When generating graph data, ensure nodes link Fault -> Reason -> Solution.
+
+## 5. Coding Style & Formatting
+- **Python**: Follow PEP 8. Use snake_case for variables/functions.
+- **JavaScript**: Use camelCase.
+- **Comments**: MANDATORY. Explain complex logic (especially FFT processing and dataZoom math) in Chinese.
+
+## 6. Specific Instructions for "simulate_hardware.py"
+- This file acts as the "Edge Node".
+- It performs FFT analysis locally before sending data.
+- Ensure waveform generation uses mathematical models (sine waves, noise, harmonics) to realistically simulate the E01-E05 faults.
+
+## 7. Interaction Behavior Reference
+If modifying the chart panning logic, remember the "Grab Mode" formula:
+- X-Shift: `-(dx * speed)`
+- Y-Shift: `(dy * speed)`
+This ensures the waveform follows the mouse cursor exactly.
