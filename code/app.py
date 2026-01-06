@@ -7,7 +7,7 @@ WindSight 智风监测系统 - Flask 后端主程序
 3. 配置日志和中间件
 4. 启动应用
 
-大部分业务逻辑已移至 edgewind 模块（历史包名，保留以减少重命名风险），保持此文件简洁。
+大部分业务逻辑已移至 windsight 模块，保持此文件简洁。
 """
 import os
 import logging
@@ -15,6 +15,7 @@ import threading
 import time
 import secrets
 import string
+from pathlib import Path
 from logging.handlers import RotatingFileHandler
 from flask import Flask
 from flask_cors import CORS
@@ -23,28 +24,39 @@ from flask_login import LoginManager
 from concurrent.futures import ThreadPoolExecutor
 from sqlalchemy import text
 
+# ==================== 工作目录固定（关键）====================
+# 说明：
+# - 用户可能从项目根目录执行：python code/app.py
+# - 若不固定工作目录，日志/配置/SQLite 相对路径会跑到“当前启动目录”，导致生成很多杂文件，甚至找不到 windsight.env
+# - 这里统一切换到 app.py 所在目录（即 code/）
+BASE_DIR = Path(__file__).resolve().parent
+try:
+    os.chdir(str(BASE_DIR))
+except Exception:
+    pass
+
 # ==================== 环境变量加载 ====================
 try:
     from dotenv import load_dotenv
     # 说明：部分环境（例如某些 IDE/全局忽略规则）会阻止创建/读取 .env。
     # 为了让“配置文件激活”更稳定，这里支持按优先级加载：
     # 1) 环境变量 WINDSIGHT_ENV_FILE 指定的文件
-    # 2) 项目根目录下的 edgewind.env（推荐）
+    # 2) 项目根目录下的 windsight.env（推荐）
     # 3) 默认的 .env（如果存在）
     env_file = os.environ.get("WINDSIGHT_ENV_FILE")
     if env_file and str(env_file).strip():
         load_dotenv(str(env_file).strip())
     else:
-        # 先尝试 edgewind.env（不容易被忽略规则拦截）
-        load_dotenv("edgewind.env")
+        # 先尝试 windsight.env（不容易被忽略规则拦截）
+        load_dotenv(str(BASE_DIR / "windsight.env"))
         # 再尝试默认 .env（如果存在）
-        load_dotenv()
+        load_dotenv(str(BASE_DIR / ".env"))
 except ImportError:
     pass
 
 # ==================== 导入配置和模型 ====================
-from edgewind.config import Config
-from edgewind.models import db, User
+from windsight.config import Config
+from windsight.models import db, User
 
 # ==================== Flask应用初始化 ====================
 app = Flask(__name__)
@@ -238,9 +250,9 @@ NODE_TIMEOUT = 10
 db_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="DB-Worker")
 
 # ==================== 注册蓝图 ====================
-from edgewind.routes.auth import auth_bp
-from edgewind.routes.pages import pages_bp
-from edgewind.routes.api import api_bp, init_api_blueprint
+from windsight.routes.auth import auth_bp
+from windsight.routes.pages import pages_bp
+from windsight.routes.api import api_bp, init_api_blueprint
 
 # 初始化API蓝图
 init_api_blueprint(app, socketio, db_executor, active_nodes, node_commands)
@@ -253,7 +265,7 @@ app.register_blueprint(api_bp)
 app.logger.info("所有路由蓝图已注册")
 
 # ==================== WebSocket事件初始化 ====================
-from edgewind.socket_events import init_socket_events
+from windsight.socket_events import init_socket_events
 init_socket_events(socketio, active_nodes)
 app.logger.info("WebSocket事件处理器已初始化")
 
@@ -340,7 +352,7 @@ with app.app_context():
                 app.logger.warning(
                     f"未设置 WINDSIGHT_DEFAULT_ADMIN_PASSWORD，已为首次启动生成随机管理员密码：{default_admin_password}"
                 )
-                app.logger.warning("请尽快登录后修改密码，或在 edgewind.env 中设置固定管理员密码。")
+                app.logger.warning("请尽快登录后修改密码，或在 windsight.env 中设置固定管理员密码。")
 
             admin.set_password(default_admin_password, app.config)
             db.session.add(admin)
@@ -359,7 +371,7 @@ app.logger.info("数据库初始化完成")
 # ==================== 后台定时任务 ====================
 def auto_cleanup_old_data():
     """后台定时任务：自动清理过期数据（仅清理 NodeData）"""
-    from edgewind.models import NodeData
+    from windsight.models import NodeData
     from datetime import timedelta, datetime
     
     while True:

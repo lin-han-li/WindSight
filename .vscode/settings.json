@@ -1,0 +1,19 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}\\\\venv311\\\\Scripts\\\\python.exe",
+  "python.terminal.activateEnvironment": true,
+  "terminal.integrated.profiles.windows": {
+    "EdgeWind(venv311)": {
+      "path": "C:\\\\WINDOWS\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe",
+      "args": [
+        "-NoExit",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "& { if (Test-Path '.\\\\venv311\\\\Scripts\\\\Activate.ps1') { . '.\\\\venv311\\\\Scripts\\\\Activate.ps1' } }"
+      ]
+    }
+  },
+  "terminal.integrated.defaultProfile.windows": "EdgeWind(venv311)"
+}
+
+

@@ -17,9 +17,12 @@ class Config:
     SECRET_KEY = _sk if _sk else secrets.token_urlsafe(32)
     
     # ==================== 数据库配置 ====================
-    # 重要：默认使用 instance/ 目录下的数据库文件，保持与原项目一致（避免“看起来没有识别到数据库”的错觉）
     # 如需自定义数据库路径，请设置环境变量 DATABASE_URL
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', 'sqlite:///instance/windsight.db')
+    # 目录结构约定（根目录只保留 code/ 与 database/）：
+    # - 代码在 code/
+    # - 数据库在 database/
+    # 因此默认指向：code/../database/wind_farm.db
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', 'sqlite:///../database/wind_farm.db')
 
     # ==================== SQLite 路径稳健性处理（Windows 重点）====================
     # 说明：

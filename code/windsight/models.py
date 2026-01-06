@@ -105,7 +105,7 @@ class NodeData(db.Model):
 
     def to_dict(self):
         """转换为 API 输出格式（时间为北京时间 ISO，数组为 list[float]）。"""
-        from edgewind.time_utils import iso_beijing
+        from windsight.time_utils import iso_beijing
         return {
             'id': self.id,
             'node_id': self.node_id,

@@ -23,7 +23,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request
 from flask_login import login_required
 
-from edgewind.models import NodeData, SystemConfig, db
+from windsight.models import NodeData, SystemConfig, db
 from sqlalchemy import text
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
@@ -251,7 +251,7 @@ def list_nodes():
         # 2) union active_nodes（避免 DB 为空时下拉框无数据）
         all_ids = set(db_last.keys()) | set(active_nodes.keys())
 
-        from edgewind.time_utils import iso_beijing
+        from windsight.time_utils import iso_beijing
 
         items: list[dict] = []
         for node_id in sorted(all_ids):
@@ -293,7 +293,7 @@ def get_node_data():
         limit = max(1, min(limit, MAX_HISTORY_LIMIT))
 
         # 时间范围筛选（可选）
-        from edgewind.time_utils import parse_client_datetime_to_utc
+        from windsight.time_utils import parse_client_datetime_to_utc
 
         start_raw = request.args.get("start") or request.args.get("start_time")
         end_raw = request.args.get("end") or request.args.get("end_time")
@@ -351,7 +351,7 @@ def get_data():
         limit = int(request.args.get("limit", 600))
         limit = max(1, min(limit, MAX_HISTORY_LIMIT))
 
-        from edgewind.time_utils import parse_client_datetime_to_utc
+        from windsight.time_utils import parse_client_datetime_to_utc
 
         start_raw = request.args.get("start") or request.args.get("start_time")
         end_raw = request.args.get("end") or request.args.get("end_time")
@@ -406,7 +406,7 @@ def data_meta():
         if mode not in ("nth", "count"):
             return jsonify({"status": "error", "error": "缺少/错误的 mode（应为 nth 或 count）"}), 400
 
-        from edgewind.time_utils import parse_client_datetime_to_utc, iso_beijing
+        from windsight.time_utils import parse_client_datetime_to_utc, iso_beijing
 
         start_raw = request.args.get("start") or request.args.get("start_time")
         end_raw = request.args.get("end") or request.args.get("end_time")
@@ -505,7 +505,7 @@ def dashboard_stats():
         )
         latest_ts = db.session.query(db.func.max(NodeData.timestamp)).scalar()
 
-        from edgewind.time_utils import iso_beijing
+        from windsight.time_utils import iso_beijing
 
         # 数据库大小（SQLite）
         db_uri = (app_instance.config.get("SQLALCHEMY_DATABASE_URI") if app_instance else "") or ""
@@ -539,7 +539,7 @@ def get_active_nodes():
     """兼容旧前端：返回当前在线节点列表（轻量）"""
     try:
         now_ts = _now_ts()
-        from edgewind.time_utils import iso_beijing
+        from windsight.time_utils import iso_beijing
 
         nodes = []
         for node_id, info in list(active_nodes.items()):
@@ -565,7 +565,7 @@ def devices_compat():
     """兼容旧页面：返回 devices 字段（实际为 nodes）"""
     try:
         now_ts = _now_ts()
-        from edgewind.time_utils import iso_beijing
+        from windsight.time_utils import iso_beijing
 
         # 只返回 DB 中出现过的节点（避免 active_nodes 只是短期在线时造成误解）
         rows = (

@@ -31,10 +31,6 @@ ENV/
 env.bak/
 venv.bak/
 
-# Gemini 上传辅助目录（代码/数据库分离）
-code/
-database/
-
 # Flask
 instance/
 .webassets-cache
