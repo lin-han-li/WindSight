@@ -95,30 +95,32 @@ def _gen_32ch_series(
 
 def build_payload(node: NodeSimState, t: float) -> dict:
     """构建单次上传 payload（严格 32 长度）。"""
-    # 电压：实验室示例（约 12V），每通道略有差异
+    # 电压：风电场直流系统（690V 基准，范围约 650-750V），每通道略有差异
+    # 690V 是常见的风电场直流电压等级
     voltages = _gen_32ch_series(
         t=t,
-        base=12.0 + (hash(node.node_id) % 7) * 0.3,
-        amp=1.2,
-        noise=0.02,
+        base=690.0 + (hash(node.node_id) % 7) * 5.0,  # 690V ± 35V 基准差异
+        amp=25.0,  # ±25V 波动幅度
+        noise=1.5,  # 1.5V 噪声标准差
         w_base=0.8,
         rng=node.rng,
     )
-    # 电流：约 1A
+    # 电流：风电场直流系统（100A 基准，范围约 80-120A）
+    # 根据功率等级，风电场直流电流通常在几十到几百安培
     currents = _gen_32ch_series(
         t=t,
-        base=1.2 + (hash(node.node_id) % 5) * 0.1,
-        amp=0.25,
-        noise=0.01,
+        base=100.0 + (hash(node.node_id) % 5) * 3.0,  # 100A ± 15A 基准差异
+        amp=8.0,  # ±8A 波动幅度
+        noise=0.5,  # 0.5A 噪声标准差
         w_base=1.1,
         rng=node.rng,
     )
-    # 转速：约 120（示例单位）
+    # 转速：风电机组转速（约 10-20 rpm，转换为更合理的范围）
     speeds = _gen_32ch_series(
         t=t,
-        base=120.0 + (hash(node.node_id) % 9) * 3.0,
-        amp=8.0,
-        noise=0.05,
+        base=15.0 + (hash(node.node_id) % 9) * 0.5,  # 15 rpm ± 4.5 rpm 基准差异
+        amp=2.0,  # ±2 rpm 波动幅度
+        noise=0.1,  # 0.1 rpm 噪声标准差
         w_base=0.35,
         rng=node.rng,
     )
