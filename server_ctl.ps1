@@ -246,7 +246,7 @@ function Start-WindSight {
     Write-Host "  [√] 启动成功！" -ForegroundColor Green
     Write-Host ""
     Write-AccessUrls -Port $port
-    Write-Host "  账号密码: WindSight / Gentle9532" -ForegroundColor DarkGray
+    Write-Host "  默认管理员: 由后端首次启动自动创建（可在 edgewind.env 配置 WINDSIGHT_DEFAULT_ADMIN_*）" -ForegroundColor DarkGray
     Write-Host "  日志文件: logs\server_eventlet_stdout.log" -ForegroundColor DarkGray
   } else {
     Write-Host "  [!] 端口未在 5 秒内监听，可能启动较慢或启动失败" -ForegroundColor Yellow

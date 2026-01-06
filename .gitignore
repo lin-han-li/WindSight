@@ -116,7 +116,8 @@ logs/*.log
 *.bak
 *.swp
 *~
-23.0.0  # 临时版本文件
+# 临时文件（避免误提交）
+*.tmp
 
 # OS
 Thumbs.db

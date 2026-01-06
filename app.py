@@ -13,6 +13,8 @@ import os
 import logging
 import threading
 import time
+import secrets
+import string
 from logging.handlers import RotatingFileHandler
 from flask import Flask
 from flask_cors import CORS
@@ -289,34 +291,68 @@ with app.app_context():
         db.session.rollback()
         app.logger.warning(f"数据库清理失败（可忽略，不影响启动）：{e}")
     
-    # 创建默认管理员账户（WindSight）
-    # 说明：历史版本使用 Edge_Wind 作为默认账号，这里做一次兼容迁移：
-    # - 若 WindSight 不存在但 Edge_Wind 存在：重命名为 WindSight
-    # - 否则：创建 WindSight / Gentle9532
-    admin = User.query.filter_by(username='WindSight').first()
+    # 创建默认管理员账户（用于首次登录）
+    # 说明：
+    # - 为了便于演示/部署，这里支持“首次启动自动创建管理员”
+    # - 公开仓库不再写死默认密码，请通过环境变量指定；未指定则生成随机密码并打印到日志
+    default_admin_enabled = (os.environ.get("WINDSIGHT_DEFAULT_ADMIN_ENABLED", "1").strip() == "1")
+    default_admin_username = (os.environ.get("WINDSIGHT_DEFAULT_ADMIN_USERNAME", "WindSight") or "WindSight").strip()
+    default_admin_password = (os.environ.get("WINDSIGHT_DEFAULT_ADMIN_PASSWORD") or "").strip()
+
+    def _gen_password(min_len: int = 12) -> str:
+        """
+        生成一个满足常见密码策略的随机密码（至少包含：大写/小写/数字）。
+        说明：本项目默认不强制特殊字符，因此无需包含符号也可通过验证。
+        """
+        min_len = max(8, int(min_len or 12))
+        alphabet = string.ascii_letters + string.digits
+        pw = [
+            secrets.choice(string.ascii_uppercase),
+            secrets.choice(string.ascii_lowercase),
+            secrets.choice(string.digits),
+        ]
+        for _ in range(max(0, min_len - len(pw))):
+            pw.append(secrets.choice(alphabet))
+        secrets.SystemRandom().shuffle(pw)
+        return "".join(pw)
+
+    # 兼容迁移：历史版本使用 Edge_Wind 作为默认账号
+    admin = User.query.filter_by(username=default_admin_username).first()
     legacy_admin = User.query.filter_by(username='Edge_Wind').first()
 
-    if not admin and legacy_admin:
+    if default_admin_enabled and (not admin) and legacy_admin:
         try:
-            legacy_admin.username = 'WindSight'
+            legacy_admin.username = default_admin_username
             db.session.commit()
-            app.logger.info("默认管理员账户已迁移 (WindSight/Gentle9532)")
+            app.logger.info(f"默认管理员账户已迁移（用户名已改为 {default_admin_username}，密码保持不变）")
         except Exception as e:
             db.session.rollback()
             app.logger.warning(f"迁移默认管理员失败: {e}")
 
-    admin = User.query.filter_by(username='WindSight').first()
-    if not admin:
-        admin = User(username='WindSight')
+    admin = User.query.filter_by(username=default_admin_username).first()
+    if default_admin_enabled and (not admin):
+        admin = User(username=default_admin_username)
         try:
-            admin.set_password('Gentle9532', app.config)
+            # 若未指定默认密码，则生成随机密码（更适合公开仓库/生产部署）
+            if not default_admin_password:
+                min_len = int(app.config.get("PASSWORD_MIN_LENGTH", 12) or 12)
+                default_admin_password = _gen_password(min_len=min_len)
+                app.logger.warning(
+                    f"未设置 WINDSIGHT_DEFAULT_ADMIN_PASSWORD，已为首次启动生成随机管理员密码：{default_admin_password}"
+                )
+                app.logger.warning("请尽快登录后修改密码，或在 edgewind.env 中设置固定管理员密码。")
+
+            admin.set_password(default_admin_password, app.config)
             db.session.add(admin)
             db.session.commit()
-            app.logger.info("默认管理员账户已创建 (WindSight/Gentle9532)")
+            app.logger.info(f"默认管理员账户已创建（用户名：{default_admin_username}）")
         except ValueError as e:
             app.logger.warning(f"创建默认管理员失败: {e}")
     else:
-        app.logger.info("管理员账户已存在（WindSight）")
+        if default_admin_enabled:
+            app.logger.info(f"管理员账户已存在（{default_admin_username}）")
+        else:
+            app.logger.info("已关闭默认管理员自动创建（WINDSIGHT_DEFAULT_ADMIN_ENABLED=0）")
 
 app.logger.info("数据库初始化完成")
 

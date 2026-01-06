@@ -3,13 +3,18 @@
 集中管理所有配置项，支持环境变量
 """
 import os
+import secrets
 from sqlalchemy.pool import NullPool
 
 class Config:
     """应用配置类（支持环境变量）"""
     
     # ==================== 安全配置 ====================
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'windsight-secret-key-2026')
+    # 说明：
+    # - 生产环境务必设置环境变量 SECRET_KEY（否则会导致会话/登录状态在重启后失效）
+    # - 为了避免把“固定弱口令密钥”写死到公开仓库，这里在未配置时自动生成随机密钥（仅适合本地/演示）
+    _sk = (os.environ.get('SECRET_KEY') or '').strip()
+    SECRET_KEY = _sk if _sk else secrets.token_urlsafe(32)
     
     # ==================== 数据库配置 ====================
     # 重要：默认使用 instance/ 目录下的数据库文件，保持与原项目一致（避免“看起来没有识别到数据库”的错觉）
