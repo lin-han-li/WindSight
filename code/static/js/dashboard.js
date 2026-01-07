@@ -361,14 +361,14 @@
   }
 
   function autoFitMainChartHeight() {
-    // 目标：让主图尽量撑满“剩余视口高度”，解决大屏下窗口过小问题。
+    // 目标：让主图尽量撑满"剩余视口高度"，解决大屏下窗口过小问题。
     // 注意：getBoundingClientRect().top 是相对视口的；当页面滚动导致 top<0 时，按 0 处理避免高度异常变大。
     try {
       const rect = elMainChart.getBoundingClientRect();
       const vh = window.innerHeight || document.documentElement.clientHeight || 800;
       const top = Math.max(0, rect.top);
       const bottomSafe = 24;
-      const minH = 520; // 兜底：保证波形足够大
+      const minH = 650; // 兜底：保证波形足够大（已从520px增加到650px）
       const target = Math.max(minH, Math.floor(vh - top - bottomSafe));
       elMainChart.style.height = `${target}px`;
       chart.resize();
@@ -921,13 +921,16 @@
   }
 
   function zoomAroundAnchorValue(axis, anchorValue, factor) {
-    // 以“鼠标所在数据坐标(anchorValue)”为锚点缩放：
+    // 以"鼠标所在数据坐标(anchorValue)"为锚点缩放：
     // - 放大：窗口变小，但鼠标指向的数据点尽量保持在原来的相对位置
     // - 缩小：窗口变大，同理
     if (!Number.isFinite(Number(anchorValue))) {
+      // 如果无法获取锚点值，尝试使用中心缩放
       zoomAroundCenterValue(axis, factor);
       return;
     }
+    
+    // 确保能够获取当前窗口的值域范围
     if (!ensureValueWindow(axis)) {
       // 兜底：无法获取 value 窗口时退回到中心缩放（百分比缩放易随数据范围漂移）
       zoomAroundCenterValue(axis, factor);
@@ -944,9 +947,15 @@
 
     const a = Number(anchorValue);
     const range0 = Math.max(1e-9, e0 - s0);
-    const ratio = clampNumber((a - s0) / range0, 0, 1); // 鼠标点在窗口中的相对位置
+    
+    // 计算鼠标点在当前窗口中的相对位置（0-1之间）
+    const ratio = clampNumber((a - s0) / range0, 0, 1);
+    
+    // 计算缩放后的新范围
     const range1 = Math.max(1e-9, range0 / factor);
 
+    // 以锚点为中心计算新窗口
+    // 保持锚点在窗口中的相对位置不变
     let ns = a - ratio * range1;
     let ne = ns + range1;
 
@@ -955,14 +964,32 @@
     if (ext && Number.isFinite(ext.min) && Number.isFinite(ext.max) && ext.max > ext.min) {
       const full = ext.max - ext.min;
       if (range1 >= full) {
+        // 如果新范围大于等于全量范围，则显示全量
         ns = ext.min;
         ne = ext.max;
       } else {
-        if (ns < ext.min) { ne += (ext.min - ns); ns = ext.min; }
-        if (ne > ext.max) { ns -= (ne - ext.max); ne = ext.max; }
+        // 调整窗口位置，确保不超出边界
+        if (ns < ext.min) { 
+          const offset = ext.min - ns;
+          ns = ext.min;
+          ne += offset;
+        }
+        if (ne > ext.max) { 
+          const offset = ne - ext.max;
+          ne = ext.max;
+          ns -= offset;
+        }
         // 二次保护（极端情况下仍可能越界）
-        ns = Math.max(ext.min, Math.min(ext.max - range1, ns));
-        ne = ns + range1;
+        if (ns < ext.min) ns = ext.min;
+        if (ne > ext.max) ne = ext.max;
+        if (ne - ns < range1) {
+          // 如果调整后范围变小，重新计算以保持范围
+          const center = (ns + ne) / 2;
+          ns = center - range1 / 2;
+          ne = center + range1 / 2;
+          if (ns < ext.min) { ne += (ext.min - ns); ns = ext.min; }
+          if (ne > ext.max) { ns -= (ne - ext.max); ne = ext.max; }
+        }
       }
     }
 
@@ -990,6 +1017,10 @@
     const rect = getChartRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+    
+    // 检查鼠标是否在图表区域内
+    if (x < 0 || y < 0 || x > rect.width || y > rect.height) return;
+    
     const isOnXAxis = y > rect.height * 0.80;
     const isOnYAxis = x < rect.width * 0.18;
 
@@ -998,23 +1029,52 @@
 
     const factor = (e.deltaY < 0) ? 1.10 : 0.90;
 
+    // 优先尝试获取鼠标位置的数据值作为锚点
+    let anchorX = null;
+    let anchorY = null;
+    
+    // 尝试从 ECharts 直接获取鼠标位置的数据坐标（更可靠）
+    try {
+      const grid = getGridRectLocal();
+      if (grid) {
+        // 将鼠标坐标转换为相对于 grid 的坐标
+        const gridX = x - grid.x;
+        const gridY = y - grid.y;
+        // 确保在 grid 范围内
+        if (gridX >= 0 && gridX <= grid.width && gridY >= 0 && gridY <= grid.height) {
+          const pixel = [x, y];
+          const value = chart.convertFromPixel({ gridIndex: 0 }, pixel);
+          if (value && Array.isArray(value) && value.length >= 2) {
+            anchorX = Number(value[0]);
+            anchorY = Number(value[1]);
+          }
+        }
+      }
+    } catch (err) {
+      // 如果直接转换失败，使用备用方法
+    }
+    
+    // 如果直接转换失败，使用备用方法
+    if (!Number.isFinite(anchorX)) {
+      anchorX = getAxisValueAtPixel('x', x, y);
+    }
+    if (!Number.isFinite(anchorY)) {
+      anchorY = getAxisValueAtPixel('y', x, y);
+    }
+
     if (isOnXAxis && !isOnYAxis) {
-      const anchorX = getAxisValueAtPixel('x', x, y);
-      zoomAroundAnchorValue('x', anchorX, factor); // x：用真实时间轴值锁定缩放（以鼠标为中心）
+      // X 轴区域：只缩放 X 轴
+      zoomAroundAnchorValue('x', anchorX, factor);
       return;
     }
     if (isOnYAxis && !isOnXAxis) {
-      const anchorY = getAxisValueAtPixel('y', x, y);
-      zoomAroundAnchorValue('y', anchorY, factor); // y：用真实幅值轴值锁定缩放（以鼠标为中心）
+      // Y 轴区域：只缩放 Y 轴
+      zoomAroundAnchorValue('y', anchorY, factor);
       return;
     }
-    if (!isOnXAxis && !isOnYAxis) {
-      // 图内：同时缩放
-      const anchorX = getAxisValueAtPixel('x', x, y);
-      const anchorY = getAxisValueAtPixel('y', x, y);
-      zoomAroundAnchorValue('x', anchorX, factor);
-      zoomAroundAnchorValue('y', anchorY, factor);
-    }
+    // 图内区域：同时缩放 X 和 Y 轴（以鼠标位置为锚点）
+    zoomAroundAnchorValue('x', anchorX, factor);
+    zoomAroundAnchorValue('y', anchorY, factor);
   }
 
   function handleMouseDown(e) {
