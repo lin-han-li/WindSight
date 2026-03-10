@@ -97,14 +97,14 @@
                                 <i class="bi bi-trash3 me-1"></i>删除
                             </button>
                         </div>
-                        <div class="form-text">仅删除该节点的采集数据（NodeData），不会影响其他节点。</div>
+                        <div class="form-text">仅删除该节点在新协议表中的上报与风机明细数据，legacy NodeData 备份不会被删除。</div>
                     </div>
 
                     <div class="border rounded-3 p-3 bg-light">
                         <div class="d-flex justify-content-between align-items-center gap-3">
                             <div>
                                 <div class="fw-bold text-danger">清空所有数据（高危）</div>
-                                <div class="text-muted small">将删除所有节点的采集数据（NodeData），不可恢复。</div>
+                                <div class="text-muted small">将删除所有节点在新协议表中的数据，legacy NodeData 备份不会被删除。</div>
                             </div>
                             <button class="btn btn-outline-danger btn-sm" type="button" id="btnClearAll">
                                 <i class="bi bi-trash me-1"></i>立即清空
@@ -483,7 +483,7 @@
             return;
         }
         
-        if (!confirm(`⚠️ 确认清理操作\n\n将清理 ${retention} 天前的历史数据：\n• 采集数据（NodeData）\n\n是否继续？`)) {
+        if (!confirm(`⚠️ 确认清理操作\n\n将清理 ${retention} 天前的新协议历史数据：\n• 节点上报主记录（node_uploads）\n• 风机明细记录（turbine_measurements）\n\nlegacy NodeData 备份不会被删除。\n\n是否继续？`)) {
             return;
         }
         
@@ -502,7 +502,8 @@
             if (res.success) {
                 const details = res.details || {};
                 alert(`✅ 清理完成\n\n` +
-                      `• 采集数据: ${details.node_data_deleted || 0} 条\n\n` +
+                      `• 节点上报: ${details.node_uploads_deleted || 0} 条\n` +
+                      `• 风机明细: ${details.turbine_measurements_deleted || 0} 条\n\n` +
                       `页面将在2秒后刷新...`);
                 setTimeout(() => {
                     window.location.reload();
@@ -535,7 +536,7 @@
     
     // 清空所有数据（高危操作）
     async function clearAllData() {
-        if (!confirm('⚠️ 高危操作警告\n\n确定要清空所有采集数据吗？\n\n此操作将：\n• 删除所有 NodeData 记录\n• 此操作无法撤销！')) {
+        if (!confirm('⚠️ 高危操作警告\n\n确定要清空所有新协议数据吗？\n\n此操作将：\n• 删除所有 node_uploads 记录\n• 删除所有 turbine_measurements 记录\n• 保留 legacy NodeData 备份\n• 此操作无法撤销！')) {
             return;
         }
         
@@ -557,8 +558,9 @@
             
             if (res.success) {
                 const details = res.details || {};
-                alert(`✅ 系统已重置，所有采集数据已清除\n\n` +
-                      `• 采集数据: ${details.node_data_deleted || 0} 条\n\n` +
+                alert(`✅ 系统已重置，所有新协议数据已清除\n\n` +
+                      `• 节点上报: ${details.node_uploads_deleted || 0} 条\n` +
+                      `• 风机明细: ${details.turbine_measurements_deleted || 0} 条\n\n` +
                       `页面将在3秒后自动刷新...`);
                 setTimeout(() => {
                     window.location.reload();
@@ -600,7 +602,7 @@
         }
 
         // 二次确认：明确提示“仅删除该节点数据”
-        if (!confirm(`⚠️ 确认删除\n\n将删除节点【${nodeId}】的全部采集数据（NodeData）。\n此操作不可恢复。\n\n是否继续？`)) {
+        if (!confirm(`⚠️ 确认删除\n\n将删除节点【${nodeId}】在新协议表中的全部数据。\nlegacy NodeData 备份不会被删除。\n此操作不可恢复。\n\n是否继续？`)) {
             return;
         }
         if (!confirm('⚠️ 最后确认\n\n请再次确认：仅删除该节点数据，且无法撤销。')) {
@@ -618,7 +620,7 @@
                 return;
             }
             const details = res.details || {};
-            alert(`✅ 删除完成\n\n节点：${details.node_id || nodeId}\n删除记录：${details.node_data_deleted || 0} 条\n\n页面将在2秒后刷新...`);
+            alert(`✅ 删除完成\n\n节点：${details.node_id || nodeId}\n节点上报：${details.node_uploads_deleted || 0} 条\n风机明细：${details.turbine_measurements_deleted || 0} 条\n\n页面将在2秒后刷新...`);
             setTimeout(() => window.location.reload(), 2000);
         } catch (e) {
             console.error('[deleteNodeData] 错误:', e);

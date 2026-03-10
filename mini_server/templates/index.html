@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WindSight Mini（单节点接收）</title>
+
+    <!-- Bootstrap 5 + Icons（与原项目风格一致） -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+
+    <style>
+      :root {
+        --sidebar-dark: #1e293b;
+        --sidebar-dark-hover: #334155;
+        --primary-blue: #2563eb;
+        --bg-light: #f8fafc;
+        --success-green: #10b981;
+        --warning-orange: #f59e0b;
+        --danger-red: #ef4444;
+        --text-gray: #64748b;
+      }
+      body {
+        font-family: 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: #ffffff;
+        color: #1f2937;
+        overflow-x: hidden;
+      }
+
+      /* 左侧导航（精简版，保持原项目风格） */
+      .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 260px;
+        height: 100vh;
+        background: var(--sidebar-dark);
+        color: #fff;
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+      }
+      .sidebar-header {
+        padding: 24px 20px;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .sidebar-logo {
+        width: 40px;
+        height: 40px;
+        background: var(--primary-blue);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        font-weight: 800;
+      }
+      .sidebar-title { font-size: 18px; font-weight: 700; }
+      .sidebar-subtitle { font-size: 12px; opacity: 0.8; margin-top: 2px; }
+      .sidebar-nav { flex: 1; padding: 16px 0; }
+      .nav-item-mini {
+        padding: 12px 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: rgba(255,255,255,0.8);
+        text-decoration: none;
+        border-left: 3px solid transparent;
+      }
+      .nav-item-mini:hover {
+        background: var(--sidebar-dark-hover);
+        color: #fff;
+        border-left-color: var(--primary-blue);
+      }
+      .nav-item-mini.active {
+        background: rgba(37, 99, 235, 0.2);
+        color: #fff;
+        border-left-color: var(--primary-blue);
+      }
+      .sidebar-footer {
+        padding: 16px 20px;
+        border-top: 1px solid rgba(255,255,255,0.1);
+        font-size: 12px;
+        color: rgba(255,255,255,0.75);
+      }
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--success-green);
+        display: inline-block;
+        margin-right: 8px;
+        animation: pulse 2s infinite;
+      }
+      @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+      /* 主内容区 */
+      .main-content { margin-left: 260px; min-height: 100vh; background: transparent; }
+      .topbar {
+        background: #ffffff;
+        border-bottom: 1px solid #e5e7eb;
+        padding: 16px 32px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+      .page-title {
+        font-size: 20px;
+        font-weight: 800;
+        color: #1f2937;
+        letter-spacing: 1px;
+      }
+      .system-status-badge {
+        background: var(--success-green);
+        color: #fff;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .content-wrap { padding: 24px 32px; background: #ffffff; }
+      .ws-icon-32 { font-size: 32px; }
+
+      /* JSON 区域（深色终端风格） */
+      pre.ws-pre {
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 12px;
+        border-radius: 8px;
+        overflow-x: auto;
+        min-height: 220px;
+        margin-bottom: 0;
+      }
+    </style>
+  </head>
+
+  <body data-default-node-id="{{ default_node_id }}">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">W</div>
+        <div>
+          <div class="sidebar-title">WindSight Mini</div>
+          <div class="sidebar-subtitle">单节点接收面板</div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a class="nav-item-mini active" href="/" title="单节点接收">
+          <i class="bi bi-broadcast"></i>
+          <span>单节点接收</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="d-flex align-items-center mb-2">
+          <span class="status-dot"></span>
+          <span>服务就绪</span>
+        </div>
+        <div class="opacity-75">HTTP 上报 + Socket 推送 + 原始 JSON 显示</div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <div class="topbar">
+        <div class="d-flex align-items-center gap-3">
+          <div class="page-title">单节点接收面板</div>
+          <div class="system-status-badge">
+            <i class="bi bi-wifi"></i>
+            <span>实时连接</span>
+          </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <button class="btn btn-outline-danger btn-sm" id="btnClearView" type="button" title="清空页面显示（不影响后端/连接）">
+            <i class="bi bi-trash3 me-1"></i>清空显示
+          </button>
+          <div class="text-muted small">
+            提示：可通过 URL 参数切换节点 <code>?node_id=WIND_001</code>
+          </div>
+        </div>
+      </div>
+
+      <div class="content-wrap">
+        <div class="row g-4 mb-4">
+          <div class="col-md-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <div>
+                    <div class="text-muted small mb-1">当前节点</div>
+                    <h3 class="mb-0" id="node-id">-</h3>
+                    <div class="text-muted small mt-1">仅接收该节点的推送数据</div>
+                  </div>
+                  <div class="text-primary ws-icon-32">
+                    <i class="bi bi-diagram-3"></i>
+                  </div>
+                </div>
+                <div class="text-muted small">
+                  <i class="bi bi-link-45deg"></i> 可通过 URL 参数切换
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <div>
+                    <div class="text-muted small mb-1">连接状态</div>
+                    <div class="fs-5 fw-bold" id="status-text">未连接</div>
+                    <div class="text-muted small mt-1">Socket.IO 实时通道</div>
+                  </div>
+                  <div class="text-success ws-icon-32">
+                    <i class="bi bi-wifi"></i>
+                  </div>
+                </div>
+                <span class="badge bg-secondary" id="status-badge">disconnected</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <div>
+                    <div class="text-muted small mb-1">已接收帧数</div>
+                    <h2 class="mb-0" id="recv-count">0</h2>
+                    <div class="text-muted small mt-1">用于验证实时推送链路</div>
+                  </div>
+                  <div class="text-info ws-icon-32">
+                    <i class="bi bi-activity"></i>
+                  </div>
+                </div>
+                <div class="text-muted small">
+                  <i class="bi bi-arrow-repeat"></i> 每帧会刷新 JSON 显示
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <div>
+                    <div class="text-muted small mb-1">最近接收时间</div>
+                    <div class="fs-6 fw-bold" id="last-received">--</div>
+                    <div class="text-muted small mt-1">UTC ISO 时间戳</div>
+                  </div>
+                  <div class="text-warning ws-icon-32">
+                    <i class="bi bi-calendar2-check"></i>
+                  </div>
+                </div>
+                <div class="text-muted small">
+                  <i class="bi bi-clock-history"></i> 仅展示最后一帧
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-lg-6">
+            <div class="card h-100">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center gap-2">
+                  <i class="bi bi-card-checklist"></i>
+                  <span>解析摘要</span>
+                </div>
+                <span class="text-muted small">parsed</span>
+              </div>
+              <div class="card-body">
+                <pre class="ws-pre" id="parsed">等待数据...</pre>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="card h-100">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center gap-2">
+                  <i class="bi bi-braces"></i>
+                  <span>原始 JSON</span>
+                </div>
+                <span class="text-muted small">raw</span>
+              </div>
+              <div class="card-body">
+                <pre class="ws-pre" id="raw-json">等待数据...</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      window.MINI_DEFAULT_NODE_ID = document.body.dataset.defaultNodeId || "WIND_001";
+    </script>
+
+    <!-- Socket.IO client v4 (Engine.IO v4) -->
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
+

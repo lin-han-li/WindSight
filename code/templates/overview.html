@@ -3,78 +3,81 @@
 {% block title %}数据概览 - WindSight{% endblock %}
 {% block page_title %}数据概览{% endblock %}
 
+{% block extra_css %}
+<style>
+    .metric-card {
+        cursor: pointer;
+        border: 2px solid transparent;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .metric-card:hover {
+        transform: translateY(-2px);
+    }
+
+    .metric-card-active {
+        border-color: #2563eb !important;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+    }
+
+    .turbine-check {
+        background: #f8fafc;
+        cursor: pointer;
+    }
+
+    #mainChart {
+        width: 100%;
+        min-height: 680px;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<!-- 控制面板 -->
 <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
         <div class="d-flex align-items-center gap-2">
             <i class="bi bi-sliders"></i>
-            <span>筛选控制面板</span>
+            <span>筛选控制</span>
         </div>
-        <div class="text-muted small">
-            <span>当前端口：</span><span class="badge bg-light text-dark border" id="uiPortBadge">5000</span>
-        </div>
+        <div class="text-muted small">新协议: 节点 + 风机 + 四指标</div>
     </div>
     <div class="card-body">
         <div class="row g-3 align-items-end">
             <div class="col-lg-4">
-                <label class="form-label text-muted small fw-bold" for="nodeSelect">节点选择</label>
-                <select class="form-select" id="nodeSelect" aria-label="选择节点">
+                <label class="form-label text-muted small fw-bold" for="nodeSelect">节点</label>
+                <select class="form-select" id="nodeSelect">
                     <option value="">加载中...</option>
                 </select>
-                <div class="form-text">选择一个 Node ID 后即可回放该节点的 32 通道数据。</div>
             </div>
             <div class="col-lg-4">
-                <label class="form-label text-muted small fw-bold">通道选择</label>
-                <div class="d-flex gap-2">
-                    <button class="btn btn-outline-primary btn-sm" id="btnSelectAll" type="button">
-                        <i class="bi bi-check2-square me-1"></i>全选
-                    </button>
-                    <button class="btn btn-outline-secondary btn-sm" id="btnSelectNone" type="button">
-                        <i class="bi bi-square me-1"></i>全不选
-                    </button>
-                    <span class="ms-auto text-muted small align-self-center">
-                        已选 <span class="fw-bold" id="selectedCount">0</span> / 32
-                    </span>
-                </div>
-            </div>
-            <div class="col-lg-4">
-                <label class="form-label text-muted small fw-bold" for="historyLimit">回放点数</label>
+                <label class="form-label text-muted small fw-bold" for="historyLimit">回放帧数</label>
                 <div class="input-group">
-                    <span class="input-group-text"><i class="bi bi-clock-history"></i></span>
                     <input type="number" class="form-control" id="historyLimit" value="600" min="1" max="20000" step="1">
                     <button class="btn btn-primary" id="btnReload" type="button">
                         <i class="bi bi-arrow-clockwise me-1"></i>加载
                     </button>
                 </div>
-                <div class="form-text">
-                    每次读取 N 条记录（默认 600，最多 20000）。
-                    若设置了“开始时间”，则从开始时间起向后读取 N 条；“结束时间”仅作为上限边界（可选）。
+            </div>
+            <div class="col-lg-4">
+                <div class="d-flex justify-content-between align-items-center">
+                    <label class="form-label text-muted small fw-bold mb-0">风机选择</label>
+                    <span class="text-muted small">已选 <span id="selectedCount">0</span> 台</span>
+                </div>
+                <div class="d-flex gap-2 mt-2">
+                    <button class="btn btn-outline-primary btn-sm" id="btnSelectAll" type="button">全选</button>
+                    <button class="btn btn-outline-secondary btn-sm" id="btnSelectNone" type="button">保留一台</button>
                 </div>
             </div>
         </div>
 
         <div class="row g-3 mt-1">
-            <div class="col-lg-8">
-                <label class="form-label text-muted small fw-bold">回放时段</label>
-                <div class="row g-2">
-                    <div class="col-md-6">
-                        <label class="form-label text-muted small mb-1" for="historyStart">开始时间（可选）</label>
-                        <input type="text" class="form-control" id="historyStart"
-                               title="开始时间（可选）"
-                               placeholder="例如：2026-01-06 23:05 或 2026/01/06 23:05"
-                               inputmode="numeric">
-                        <div class="form-text">支持直接键盘输入：YYYY-MM-DD HH:MM / YYYY/MM/DD HH:MM（不填则表示不限制起点）</div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label text-muted small mb-1" for="historyEnd">结束时间（可选）</label>
-                        <input type="text" class="form-control" id="historyEnd"
-                               title="结束时间（可选）"
-                               placeholder="例如：2026-01-06 23:34 或 2026/01/06 23:34"
-                               inputmode="numeric">
-                        <div class="form-text">支持直接键盘输入：YYYY-MM-DD HH:MM / YYYY/MM/DD HH:MM（不填则表示不限制终点）</div>
-                    </div>
-                </div>
+            <div class="col-lg-4">
+                <label class="form-label text-muted small fw-bold" for="historyStart">开始时间</label>
+                <input class="form-control" id="historyStart" type="datetime-local">
+            </div>
+            <div class="col-lg-4">
+                <label class="form-label text-muted small fw-bold" for="historyEnd">结束时间</label>
+                <input class="form-control" id="historyEnd" type="datetime-local">
             </div>
             <div class="col-lg-4">
                 <label class="form-label text-muted small fw-bold">快捷时段</label>
@@ -85,124 +88,72 @@
                     <button class="btn btn-outline-secondary btn-sm" type="button" data-range-min="1440">近24小时</button>
                     <button class="btn btn-outline-danger btn-sm" type="button" id="btnClearRange">清空时段</button>
                 </div>
-                <div class="form-text">设置快捷时段后会自动触发一次“加载”。</div>
             </div>
         </div>
 
-        <hr class="my-3">
-
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <div class="text-muted small fw-bold">32 通道复选（CH1 ~ CH32）</div>
-            <div class="text-muted small">
-                最近数据：<span id="wsLastDataTimeMini" class="fw-bold">--</span>
-            </div>
-        </div>
-        <div class="border rounded-3 p-3" style="max-height: 220px; overflow: auto; background: #f8fafc;">
-            <div class="row g-2" id="channelCheckboxGrid"></div>
+        <div class="border rounded-3 p-3 mt-3" style="background:#f8fafc;">
+            <div class="row g-2" id="turbineCheckboxGrid"></div>
         </div>
     </div>
 </div>
 
-<!-- 卡片选择（电压/电流/转速） -->
 <div class="row g-3 mb-3">
-    <div class="col-md-4">
-        <div class="card h-100 shadow-sm ws-card-select ws-card-active" id="wsMetricCardVoltage"
-             style="border-top: 4px solid #0d6efd;">
-            <div class="card-body text-center p-3 d-flex flex-column justify-content-center">
-                <h6 class="text-muted small fw-bold mb-1">电压</h6>
-                <h3 class="fw-bold text-primary mb-0" id="wsCardValueVoltage">--</h3>
-                <small class="text-muted">V</small>
-                <div class="ws-select-badge text-primary mt-2">
-                    <i class="bi bi-check-circle-fill me-1"></i>已选中
-                </div>
+    <div class="col-md-3">
+        <div class="card metric-card metric-card-active" data-metric-card="voltage">
+            <div class="card-body text-center">
+                <div class="text-muted small">电压</div>
+                <h3 class="mb-1" id="cardValue-voltage">--</h3>
+                <div class="small text-muted">V</div>
+                <div class="small text-muted mt-2" id="cardHint-voltage">暂无数据</div>
             </div>
         </div>
     </div>
-
-    <div class="col-md-4">
-        <div class="card h-100 shadow-sm ws-card-select" id="wsMetricCardCurrent"
-             style="border-top: 4px solid #0dcaf0;">
-            <div class="card-body text-center p-3 d-flex flex-column justify-content-center">
-                <h6 class="text-muted small fw-bold mb-1">电流</h6>
-                <h3 class="fw-bold text-info mb-0" id="wsCardValueCurrent">--</h3>
-                <small class="text-muted">A</small>
-                <div class="ws-select-badge text-info mt-2">
-                    <i class="bi bi-check-circle-fill me-1"></i>已选中
-                </div>
+    <div class="col-md-3">
+        <div class="card metric-card" data-metric-card="current">
+            <div class="card-body text-center">
+                <div class="text-muted small">电流</div>
+                <h3 class="mb-1" id="cardValue-current">--</h3>
+                <div class="small text-muted">A</div>
+                <div class="small text-muted mt-2" id="cardHint-current">暂无数据</div>
             </div>
         </div>
     </div>
-
-    <div class="col-md-4">
-        <div class="card h-100 shadow-sm ws-card-select" id="wsMetricCardSpeed"
-             style="border-top: 4px solid #ffc107;">
-            <div class="card-body text-center p-3 d-flex flex-column justify-content-center">
-                <h6 class="text-muted small fw-bold mb-1">转速</h6>
-                <h3 class="fw-bold text-warning mb-0" id="wsCardValueSpeed">--</h3>
-                <small class="text-muted">rpm</small>
-                <div class="ws-select-badge text-warning mt-2">
-                    <i class="bi bi-check-circle-fill me-1"></i>已选中
-                </div>
+    <div class="col-md-3">
+        <div class="card metric-card" data-metric-card="speed">
+            <div class="card-body text-center">
+                <div class="text-muted small">转速</div>
+                <h3 class="mb-1" id="cardValue-speed">--</h3>
+                <div class="small text-muted">rpm</div>
+                <div class="small text-muted mt-2" id="cardHint-speed">暂无数据</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card metric-card" data-metric-card="temperature">
+            <div class="card-body text-center">
+                <div class="text-muted small">温度</div>
+                <h3 class="mb-1" id="cardValue-temperature">--</h3>
+                <div class="small text-muted">C</div>
+                <div class="small text-muted mt-2" id="cardHint-temperature">暂无数据</div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- 大曲线窗口（同监测页：轴独立缩放 + Grab 拖拽） -->
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
         <div class="d-flex align-items-center gap-2">
             <i class="bi bi-graph-up"></i>
-            <span>主曲线窗口（卡片切换：电压/电流/转速）</span>
+            <span>风机历史曲线</span>
         </div>
-        <div class="d-flex align-items-center gap-2">
-            <button class="btn btn-sm btn-outline-secondary" id="wsResetZoomMain" type="button" title="重置缩放">
-                <i class="bi bi-arrow-counterclockwise"></i> 重置缩放
-            </button>
-        </div>
+        <div class="text-muted small">最近数据: <span id="lastDataTime">--</span></div>
     </div>
     <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <small class="text-muted">
-                <i class="bi bi-info-circle"></i>
-                滚轮缩放：在X轴区域缩放时间，在Y轴区域缩放幅值；鼠标按住拖拽可平移（Grab 模式）
-            </small>
-            <small class="text-muted">
-                最近数据：<span id="wsLastDataTime" class="fw-bold">--</span>
-            </small>
-        </div>
-        <!-- 说明：高度由 dashboard.js 自动按视口撑满；这里给一个兜底最小高度 -->
-        <div id="wsMainChart" style="width: 100%; min-height: 650px;"></div>
+        <div id="mainChart"></div>
     </div>
 </div>
-{% endblock %}
-
-{% block extra_css %}
-<style>
-    /* 说明：复用监测页的“卡片选中”交互（轻量，不引入额外主题） */
-    .ws-card-select {
-        cursor: pointer;
-        border: 2px solid transparent;
-    }
-    .ws-card-active {
-        border-color: #0d6efd !important;
-        box-shadow: 0 0 16px rgba(13, 110, 253, 0.18) !important;
-    }
-    .ws-card-active .ws-select-badge {
-        opacity: 1;
-        transform: translateY(0);
-    }
-    .ws-select-badge {
-        opacity: 0;
-        transform: translateY(6px);
-        transition: all 0.2s;
-        font-size: 0.85rem;
-        font-weight: bold;
-    }
-</style>
 {% endblock %}
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 {% endblock %}
-

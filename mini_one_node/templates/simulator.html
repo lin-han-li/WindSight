@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WindSight Mini - 手动上报模拟器</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css" />
+    <style>
+      :root {
+        --sidebar-dark: #1e293b;
+        --sidebar-dark-hover: #334155;
+        --primary-blue: #2563eb;
+      }
+      body {
+        font-family: "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #fff;
+        color: #1f2937;
+        overflow-x: hidden;
+      }
+      .sidebar {
+        position: fixed;
+        inset: 0 auto 0 0;
+        width: 260px;
+        background: var(--sidebar-dark);
+        color: #fff;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+      }
+      .sidebar-header {
+        padding: 24px 20px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+      .sidebar-logo {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        background: var(--primary-blue);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .sidebar-title {
+        font-size: 18px;
+        font-weight: 700;
+      }
+      .sidebar-subtitle {
+        font-size: 12px;
+        opacity: 0.8;
+      }
+      .sidebar-nav {
+        flex: 1;
+        padding: 16px 0;
+      }
+      .nav-item-mini {
+        padding: 12px 20px;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        color: rgba(255, 255, 255, 0.8);
+        text-decoration: none;
+        border-left: 3px solid transparent;
+      }
+      .nav-item-mini.active,
+      .nav-item-mini:hover {
+        background: var(--sidebar-dark-hover);
+        color: #fff;
+        border-left-color: var(--primary-blue);
+      }
+      .sidebar-footer {
+        padding: 16px 20px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.75);
+      }
+      .main-content {
+        margin-left: 260px;
+        min-height: 100vh;
+      }
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: #fff;
+        border-bottom: 1px solid #e5e7eb;
+        padding: 16px 32px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .page-title {
+        font-size: 20px;
+        font-weight: 800;
+      }
+      .content-wrap {
+        padding: 24px 32px;
+      }
+      pre.ws-pre {
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 12px;
+        border-radius: 8px;
+        overflow-x: auto;
+        min-height: 260px;
+        margin-bottom: 0;
+        white-space: pre-wrap;
+      }
+      textarea {
+        font-family: Consolas, "Courier New", monospace;
+      }
+    </style>
+  </head>
+  <body
+    data-default-node-id="{{ default_node_id }}"
+    data-default-target-host="{{ default_target_host }}"
+    data-default-target-port="{{ default_target_port }}"
+    data-default-target-path="{{ default_target_path }}"
+  >
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">W</div>
+        <div>
+          <div class="sidebar-title">WindSight Mini</div>
+          <div class="sidebar-subtitle">手动上报模拟器</div>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <a class="nav-item-mini active" href="/">
+          <i class="bi bi-send"></i>
+          <span>手动上报</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="mb-1">示例协议</div>
+        <div>`node_id + sub + 001..NNN:[voltage,current,speed,temperature]`</div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <div class="topbar">
+        <div class="d-flex align-items-center gap-3">
+          <div class="page-title">手动上报模拟器</div>
+          <span class="badge text-bg-secondary" id="uiStatus">就绪</span>
+        </div>
+        <div class="text-muted small">本地页面：<code>http://{{ sim_ui_host }}:{{ sim_ui_port }}</code></div>
+      </div>
+
+      <div class="content-wrap">
+        <div class="row g-4">
+          <div class="col-lg-5">
+            <div class="card mb-4">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-gear me-2"></i>目标配置</span>
+                <button class="btn btn-outline-secondary btn-sm" type="button" id="btnSaveTarget">
+                  <i class="bi bi-save me-1"></i>保存到本机
+                </button>
+              </div>
+              <div class="card-body">
+                <div class="row g-2">
+                  <div class="col-4">
+                    <label class="form-label small text-muted fw-bold" for="scheme">协议</label>
+                    <select class="form-select" id="scheme">
+                      <option value="http">http</option>
+                      <option value="https">https</option>
+                    </select>
+                  </div>
+                  <div class="col-8">
+                    <label class="form-label small text-muted fw-bold" for="host">目标 IP / 域名</label>
+                    <input class="form-control" id="host" />
+                  </div>
+                  <div class="col-4">
+                    <label class="form-label small text-muted fw-bold" for="port">端口</label>
+                    <input class="form-control" id="port" type="number" min="1" max="65535" />
+                  </div>
+                  <div class="col-8">
+                    <label class="form-label small text-muted fw-bold" for="path">路径</label>
+                    <input class="form-control" id="path" />
+                  </div>
+                </div>
+                <div class="mt-3">
+                  <div class="text-muted small fw-bold mb-1">最终 URL</div>
+                  <div class="p-2 border rounded-3 bg-light"><code id="targetUrlPreview">-</code></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-braces me-2"></i>请求 JSON</span>
+                <div class="d-flex gap-2">
+                  <button class="btn btn-outline-primary btn-sm" type="button" id="btnFillNodeOnly">填充头部</button>
+                  <button class="btn btn-outline-primary btn-sm" type="button" id="btnFill32">填充示例包</button>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="row g-2">
+                  <div class="col-md-6">
+                    <label class="form-label small text-muted fw-bold" for="nodeId">node_id</label>
+                    <input class="form-control" id="nodeId" placeholder="例如 WIN_001" />
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small text-muted fw-bold" for="subCount">sub</label>
+                    <input class="form-control" id="subCount" type="number" min="1" max="64" placeholder="1..64" />
+                  </div>
+                </div>
+
+                <label class="form-label small text-muted fw-bold mt-3" for="payloadJson">JSON</label>
+                <textarea class="form-control" id="payloadJson" rows="12" spellcheck="false"></textarea>
+
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                  <div class="text-muted small">你粘贴什么就发送什么；示例按钮会按 `sub` 生成 `001..NNN`。</div>
+                  <button class="btn btn-danger" id="btnSend" type="button">
+                    <i class="bi bi-send-fill me-1"></i>发送
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-7">
+            <div class="card">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-terminal me-2"></i>发送结果</span>
+                <button class="btn btn-outline-danger btn-sm" id="btnClearLog" type="button">
+                  <i class="bi bi-trash3 me-1"></i>清空
+                </button>
+              </div>
+              <div class="card-body">
+                <pre class="ws-pre" id="resultLog">等待操作...</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script src="{{ url_for('static', filename='sim_ui.js') }}"></script>
+  </body>
+</html>

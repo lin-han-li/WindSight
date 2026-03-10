@@ -56,7 +56,7 @@ except ImportError:
 
 # ==================== 导入配置和模型 ====================
 from windsight.config import Config
-from windsight.models import db, User
+from windsight.models import NodeUpload, TurbineMeasurement, User, db
 
 # ==================== Flask应用初始化 ====================
 app = Flask(__name__)
@@ -273,32 +273,24 @@ app.logger.info("WebSocket事件处理器已初始化")
 with app.app_context():
     db.create_all()
 
-    # ==================== 数据库清理（去除旧项目残留）====================
-    # 说明：
-    # - 你反馈“数据库里还有很多原本项目的数据”，典型表现是残留旧表：
-    #   devices / datapoints / work_orders / fault_snapshots
-    # - WindSight 最终需求只需要：users / system_config / node_data
-    # - 这里做“启动期清理”，确保即使 DB 文件被旧版本污染，也会自动修正
-    # - 注意：默认只删除旧表，不会清空 node_data（避免你重启服务器时历史波形被清掉）
-    #   如需“重置数据表”，请设置环境变量：WINDSIGHT_CLEAN_DB_ON_START=1
+    # Keep legacy node_data as backup. Startup cleanup only removes unrelated tables
+    # and optionally clears the new protocol tables.
     try:
-        # 1) 删除旧表（若存在就删；不存在也不会报错）
         legacy_tables = ["devices", "datapoints", "work_orders", "fault_snapshots"]
         for t in legacy_tables:
             db.session.execute(text(f"DROP TABLE IF EXISTS {t}"))
 
-        # 2) 可选：清空数据表（保留用户表，避免把默认账号也清掉）
-        #    仅在显式开启 WINDSIGHT_CLEAN_DB_ON_START=1 时执行
         do_reset = (os.environ.get("WINDSIGHT_CLEAN_DB_ON_START", "0").strip() == "1")
         if do_reset:
-            db.session.execute(text("DELETE FROM node_data"))
+            db.session.execute(text("DELETE FROM turbine_measurements"))
+            db.session.execute(text("DELETE FROM node_uploads"))
             db.session.execute(text("DELETE FROM system_config"))
 
         db.session.commit()
         if do_reset:
-            app.logger.info("数据库清理完成：已移除旧表并清空 node_data/system_config（保留 users）")
+            app.logger.info("数据库清理完成：已移除旧表并清空 node_uploads/turbine_measurements/system_config（保留 users 和 legacy node_data）")
         else:
-            app.logger.info("数据库清理完成：已移除旧表（未清空 node_data）")
+            app.logger.info("数据库清理完成：已移除旧表（保留 legacy node_data 备份）")
     except Exception as e:
         db.session.rollback()
         app.logger.warning(f"数据库清理失败（可忽略，不影响启动）：{e}")
@@ -370,8 +362,6 @@ app.logger.info("数据库初始化完成")
 
 # ==================== 后台定时任务 ====================
 def auto_cleanup_old_data():
-    """后台定时任务：自动清理过期数据（仅清理 NodeData）"""
-    from windsight.models import NodeData
     from datetime import timedelta, datetime
     
     while True:
@@ -386,10 +376,19 @@ def auto_cleanup_old_data():
                 
                 cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
                 
-                deleted = NodeData.query.filter(NodeData.timestamp < cutoff_date).delete(synchronize_session=False)
+                measurement_deleted = TurbineMeasurement.query.filter(
+                    TurbineMeasurement.timestamp < cutoff_date
+                ).delete(synchronize_session=False)
+                upload_deleted = NodeUpload.query.filter(
+                    NodeUpload.timestamp < cutoff_date
+                ).delete(synchronize_session=False)
                 
                 db.session.commit()
-                app.logger.info(f"[AutoCleanup] 清理完成：node_data_deleted={int(deleted or 0)}")
+                app.logger.info(
+                    "[AutoCleanup] cleanup complete: node_uploads_deleted=%s turbine_measurements_deleted=%s",
+                    int(upload_deleted or 0),
+                    int(measurement_deleted or 0),
+                )
                 
         except Exception as e:
             app.logger.error(f"[AutoCleanup] 失败: {str(e)}")

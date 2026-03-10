@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WindSight Mini - 节点接收面板</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css" />
+    <style>
+      :root {
+        --sidebar-dark: #1e293b;
+        --sidebar-dark-hover: #334155;
+        --primary-blue: #2563eb;
+      }
+      body {
+        font-family: "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #fff;
+        color: #1f2937;
+        overflow-x: hidden;
+      }
+      .sidebar {
+        position: fixed;
+        inset: 0 auto 0 0;
+        width: 260px;
+        background: var(--sidebar-dark);
+        color: #fff;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+      }
+      .sidebar-header {
+        padding: 24px 20px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+      .sidebar-logo {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        background: var(--primary-blue);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .sidebar-title {
+        font-size: 18px;
+        font-weight: 700;
+      }
+      .sidebar-subtitle {
+        font-size: 12px;
+        opacity: 0.8;
+      }
+      .sidebar-nav {
+        flex: 1;
+        padding: 16px 0;
+      }
+      .nav-item-mini {
+        padding: 12px 20px;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        color: rgba(255, 255, 255, 0.8);
+        text-decoration: none;
+        border-left: 3px solid transparent;
+      }
+      .nav-item-mini.active,
+      .nav-item-mini:hover {
+        background: var(--sidebar-dark-hover);
+        color: #fff;
+        border-left-color: var(--primary-blue);
+      }
+      .sidebar-footer {
+        padding: 16px 20px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.75);
+      }
+      .main-content {
+        margin-left: 260px;
+        min-height: 100vh;
+      }
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: #fff;
+        border-bottom: 1px solid #e5e7eb;
+        padding: 16px 32px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .page-title {
+        font-size: 20px;
+        font-weight: 800;
+      }
+      .content-wrap {
+        padding: 24px 32px;
+      }
+      pre.ws-pre {
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 12px;
+        border-radius: 8px;
+        overflow-x: auto;
+        min-height: 220px;
+        margin-bottom: 0;
+        white-space: pre-wrap;
+      }
+      .mini-card-icon {
+        font-size: 32px;
+      }
+      .list-group-item.active {
+        background: #eff6ff;
+        color: #1e40af;
+        border-color: #bfdbfe;
+      }
+    </style>
+  </head>
+  <body data-default-node-id="{{ default_node_id }}">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">W</div>
+        <div>
+          <div class="sidebar-title">WindSight Mini</div>
+          <div class="sidebar-subtitle">节点接收面板</div>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <a class="nav-item-mini active" href="/">
+          <i class="bi bi-broadcast"></i>
+          <span>节点接收</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="mb-1">模式</div>
+        <div id="mode-label">全节点监测</div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <div class="topbar">
+        <div class="d-flex align-items-center gap-3">
+          <div class="page-title">节点接收面板</div>
+          <span class="badge text-bg-success">实时连接</span>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+          <div class="text-muted small">可通过 <code>?node_id=WIN_001</code> 切回单节点过滤</div>
+          <button class="btn btn-outline-danger btn-sm" id="btnClearView" type="button">
+            <i class="bi bi-trash3 me-1"></i>清空显示
+          </button>
+        </div>
+      </div>
+
+      <div class="content-wrap">
+        <div class="row g-4 mb-4">
+          <div class="col-md-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <div>
+                    <div class="text-muted small mb-1">当前查看节点</div>
+                    <h3 class="mb-0" id="node-id">ALL</h3>
+                    <div class="text-muted small mt-1">左侧节点列表可切换</div>
+                  </div>
+                  <div class="text-primary mini-card-icon"><i class="bi bi-diagram-3"></i></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <div>
+                    <div class="text-muted small mb-1">连接状态</div>
+                    <div class="fs-5 fw-bold" id="status-text">未连接</div>
+                    <div class="text-muted small mt-1">Socket.IO 实时通道</div>
+                  </div>
+                  <div class="text-success mini-card-icon"><i class="bi bi-wifi"></i></div>
+                </div>
+                <span class="badge text-bg-secondary" id="status-badge">disconnected</span>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <div>
+                    <div class="text-muted small mb-1">本页已接收帧数</div>
+                    <h2 class="mb-0" id="recv-count">0</h2>
+                    <div class="text-muted small mt-1">累计所有已收到消息</div>
+                  </div>
+                  <div class="text-info mini-card-icon"><i class="bi bi-activity"></i></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <div>
+                    <div class="text-muted small mb-1">当前节点最近时间</div>
+                    <div class="fs-5 fw-bold" id="last-received">--</div>
+                    <div class="text-muted small mt-1">显示当前选中节点</div>
+                  </div>
+                  <div class="text-warning mini-card-icon"><i class="bi bi-calendar-check"></i></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-lg-3">
+            <div class="card h-100">
+              <div class="card-header d-flex justify-content-between">
+                <span><i class="bi bi-list-ul me-2"></i>节点列表</span>
+                <span class="text-muted small">latest first</span>
+              </div>
+              <div class="card-body">
+                <div class="list-group" id="node-list">
+                  <div class="text-muted small">暂无节点数据</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-4">
+            <div class="card h-100">
+              <div class="card-header d-flex justify-content-between">
+                <span><i class="bi bi-list-check me-2"></i>解析摘要</span>
+                <span class="text-muted small">parsed</span>
+              </div>
+              <div class="card-body">
+                <pre class="ws-pre" id="parsed">等待数据...</pre>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-5">
+            <div class="card h-100">
+              <div class="card-header d-flex justify-content-between">
+                <span><i class="bi bi-braces me-2"></i>原始 JSON</span>
+                <span class="text-muted small">raw</span>
+              </div>
+              <div class="card-body">
+                <pre class="ws-pre" id="raw-json">等待数据...</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script>
+      window.MINI_DEFAULT_NODE_ID = {{ default_node_id | tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+  </body>
+</html>

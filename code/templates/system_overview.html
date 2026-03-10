@@ -4,122 +4,69 @@
 {% block page_title %}系统概览{% endblock %}
 
 {% block content %}
-<!-- 统计卡片（仿旧版布局，但不包含任何“故障/知识图谱/报告”功能） -->
 <div class="row g-4 mb-4">
     <div class="col-md-3">
         <div class="card h-100" role="button" onclick="window.location.href='/monitor'">
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <div>
-                        <div class="text-muted small mb-1">在线节点总数</div>
-                        <h2 class="mb-0" id="stat-online">0</h2>
-                        <div class="text-muted small mt-1">在线判定：最近 <span id="stat-timeout">--</span> 秒内有上报</div>
-                    </div>
-                    <div class="text-primary" style="font-size: 32px;">
-                        <i class="bi bi-server"></i>
-                    </div>
-                </div>
-                <div class="text-success small">
-                    <i class="bi bi-graph-up"></i> 点击进入实时监测
-                </div>
+                <div class="text-muted small mb-1">在线节点</div>
+                <h2 class="mb-1" id="stat-online">0</h2>
+                <div class="text-muted small">超时阈值 <span id="stat-timeout">--</span> 秒</div>
             </div>
         </div>
     </div>
-
     <div class="col-md-3">
         <div class="card h-100" role="button" onclick="window.location.href='/overview'">
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <div>
-                        <div class="text-muted small mb-1">近24小时上报帧数</div>
-                        <h2 class="mb-0" id="stat-24h">0</h2>
-                        <div class="text-muted small mt-1">用于回放曲线的数据采样点（按上报帧计）</div>
-                    </div>
-                    <div class="text-info" style="font-size: 32px;">
-                        <i class="bi bi-clock-history"></i>
-                    </div>
-                </div>
-                <div class="text-muted small">
-                    <i class="bi bi-arrow-repeat"></i> 数据概览页可筛选通道回放
-                </div>
+                <div class="text-muted small mb-1">近24小时上报帧数</div>
+                <h2 class="mb-1" id="stat-24h">0</h2>
+                <div class="text-muted small">节点主记录统计</div>
             </div>
         </div>
     </div>
-
     <div class="col-md-3">
         <div class="card h-100" role="button" onclick="window.location.href='/overview'">
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <div>
-                        <div class="text-muted small mb-1">最近一次上报时间</div>
-                        <div class="fs-6 fw-bold" id="stat-latest">--</div>
-                        <div class="text-muted small mt-1">北京时间显示（数据库内部以 UTC 存储）</div>
-                    </div>
-                    <div class="text-warning" style="font-size: 32px;">
-                        <i class="bi bi-calendar2-check"></i>
-                    </div>
-                </div>
-                <div class="text-muted small">
-                    <i class="bi bi-database"></i> 数据持久化：SQLite
-                </div>
+                <div class="text-muted small mb-1">最近一次上报</div>
+                <div class="fs-6 fw-bold" id="stat-latest">--</div>
+                <div class="text-muted small mt-1">时间统一按北京时间显示</div>
             </div>
         </div>
     </div>
-
     <div class="col-md-3">
         <div class="card h-100" role="button" onclick="window.location.href='/settings'">
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <div>
-                        <div class="text-muted small mb-1">节点总数 / 数据总量</div>
-                        <div class="d-flex align-items-baseline gap-2">
-                            <h2 class="mb-0" id="stat-total">0</h2>
-                            <span class="text-muted">节点</span>
-                        </div>
-                        <div class="text-muted small mt-1">
-                            总记录 <span class="fw-bold" id="stat-records">0</span> 条｜DB <span class="fw-bold" id="stat-db">0</span> MB
-                        </div>
-                    </div>
-                    <div class="text-primary" style="font-size: 32px;">
-                        <i class="bi bi-hdd-network"></i>
-                    </div>
+                <div class="text-muted small mb-1">节点总数 / 数据库</div>
+                <div class="d-flex align-items-baseline gap-2">
+                    <h2 class="mb-0" id="stat-total">0</h2>
+                    <span class="text-muted">节点</span>
                 </div>
-                <div class="text-muted small">
-                    <i class="bi bi-gear"></i> 点击进入节点管理/设置
-                </div>
+                <div class="text-muted small mt-1">总帧数 <span class="fw-bold" id="stat-records">0</span> | DB <span class="fw-bold" id="stat-db">0</span> MB</div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- 节点状态墙 -->
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
         <div class="d-flex align-items-center gap-2">
             <i class="bi bi-diagram-3"></i>
-            <span>节点状态概览</span>
+            <span>节点状态</span>
         </div>
         <div class="d-flex align-items-center gap-2">
             <div class="form-check form-switch mb-0">
-                <input class="form-check-input" type="checkbox" role="switch" id="onlyOnlineSwitch" checked>
+                <input class="form-check-input" type="checkbox" id="onlyOnlineSwitch" checked>
                 <label class="form-check-label small text-muted" for="onlyOnlineSwitch">仅显示在线</label>
             </div>
-            <button class="btn btn-outline-secondary btn-sm" id="btnRefreshNodes" type="button">
-                <i class="bi bi-arrow-clockwise me-1"></i>刷新
-            </button>
+            <button class="btn btn-outline-secondary btn-sm" id="btnRefreshNodes" type="button">刷新</button>
         </div>
     </div>
     <div class="card-body">
         <div id="nodeStatusEmpty" class="text-center text-muted py-5 d-none">
-            <i class="bi bi-wifi-off fs-4 d-block mb-2"></i>
-            <div>暂无在线节点</div>
-            <small class="text-muted d-block mt-2">请先启动模拟器或让终端向 /api/upload 上报数据</small>
+            <div>暂无可展示节点</div>
         </div>
         <div class="row row-cols-1 row-cols-md-2 row-cols-xl-4 g-3" id="nodeStatusGrid">
             <div class="col">
-                <div class="border rounded-3 p-4 text-center text-muted">
-                    <i class="bi bi-hourglass-split"></i> 加载中...
-                </div>
+                <div class="border rounded-3 p-4 text-center text-muted">加载中...</div>
             </div>
         </div>
     </div>
@@ -129,5 +76,3 @@
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/system_overview.js') }}"></script>
 {% endblock %}
-
-
