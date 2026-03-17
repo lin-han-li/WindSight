@@ -635,12 +635,13 @@
             animation: slideOut 0.3s ease forwards;
         }
     </style>
-    
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/cyber_shell.css') }}">
+
     {% block extra_css %}{% endblock %}
     
     {% block extra_head %}{% endblock %}
 </head>
-<body>
+<body class="windsight-shell">
     <!-- 左侧导航栏 -->
     <div class="sidebar">
         <div class="sidebar-header">

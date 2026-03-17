@@ -3,76 +3,78 @@
 {% block title %}系统概览 - WindSight{% endblock %}
 {% block page_title %}系统概览{% endblock %}
 
-{% block content %}
-<div class="row g-4 mb-4">
-    <div class="col-md-3">
-        <div class="card h-100" role="button" onclick="window.location.href='/monitor'">
-            <div class="card-body">
-                <div class="text-muted small mb-1">在线节点</div>
-                <h2 class="mb-1" id="stat-online">0</h2>
-                <div class="text-muted small">超时阈值 <span id="stat-timeout">--</span> 秒</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card h-100" role="button" onclick="window.location.href='/overview'">
-            <div class="card-body">
-                <div class="text-muted small mb-1">近24小时上报帧数</div>
-                <h2 class="mb-1" id="stat-24h">0</h2>
-                <div class="text-muted small">节点主记录统计</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card h-100" role="button" onclick="window.location.href='/overview'">
-            <div class="card-body">
-                <div class="text-muted small mb-1">最近一次上报</div>
-                <div class="fs-6 fw-bold" id="stat-latest">--</div>
-                <div class="text-muted small mt-1">时间统一按北京时间显示</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card h-100" role="button" onclick="window.location.href='/settings'">
-            <div class="card-body">
-                <div class="text-muted small mb-1">节点总数 / 数据库</div>
-                <div class="d-flex align-items-baseline gap-2">
-                    <h2 class="mb-0" id="stat-total">0</h2>
-                    <span class="text-muted">节点</span>
-                </div>
-                <div class="text-muted small mt-1">总帧数 <span class="fw-bold" id="stat-records">0</span> | DB <span class="fw-bold" id="stat-db">0</span> MB</div>
-            </div>
-        </div>
-    </div>
-</div>
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_explorer.css') }}">
+{% endblock %}
 
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <div class="d-flex align-items-center gap-2">
-            <i class="bi bi-diagram-3"></i>
-            <span>节点状态</span>
+{% block content %}
+<div class="system-overview-page">
+    <section class="system-hero glass-panel">
+        <div class="system-hero-copy">
+            <div class="panel-kicker">Industrial IoT Cockpit</div>
+            <div class="system-hero-title">WindSight 总览驾驶舱</div>
+            <div class="dashboard-subtitle">统一查看节点在线率、24 小时上报规模、最新数据时间和数据库规模，并从状态矩阵快速钻取到实时监测。</div>
         </div>
-        <div class="d-flex align-items-center gap-2">
-            <div class="form-check form-switch mb-0">
-                <input class="form-check-input" type="checkbox" id="onlyOnlineSwitch" checked>
-                <label class="form-check-label small text-muted" for="onlyOnlineSwitch">仅显示在线</label>
+        <div class="hero-pill-group">
+            <span class="hero-pill">浅色工业蓝</span>
+            <span class="hero-pill">轻量科技感</span>
+            <span class="hero-pill">实时监测联动</span>
+        </div>
+    </section>
+
+    <section class="system-stat-grid">
+        <button class="system-stat-card stat-card-online" type="button" onclick="window.location.href='/monitor'">
+            <div class="system-stat-kicker">ONLINE NODES</div>
+            <div class="system-stat-value" id="stat-online">0</div>
+            <div class="system-stat-meta">超时阈值 <span id="stat-timeout">--</span> 秒</div>
+        </button>
+        <button class="system-stat-card stat-card-uploads" type="button" onclick="window.location.href='/overview'">
+            <div class="system-stat-kicker">UPLOADS / 24H</div>
+            <div class="system-stat-value" id="stat-24h">0</div>
+            <div class="system-stat-meta">近 24 小时边缘节点上传帧数</div>
+        </button>
+        <button class="system-stat-card stat-card-latest" type="button" onclick="window.location.href='/overview'">
+            <div class="system-stat-kicker">LATEST UPLOAD</div>
+            <div class="system-stat-value system-stat-value-sm" id="stat-latest">--</div>
+            <div class="system-stat-meta">统一按北京时间显示</div>
+        </button>
+        <button class="system-stat-card stat-card-storage" type="button" onclick="window.location.href='/settings'">
+            <div class="system-stat-kicker">TOTAL NODES / DB</div>
+            <div class="system-stat-value">
+                <span id="stat-total">0</span>
+                <small>节点</small>
             </div>
-            <button class="btn btn-outline-secondary btn-sm" id="btnRefreshNodes" type="button">刷新</button>
-        </div>
-    </div>
-    <div class="card-body">
-        <div id="nodeStatusEmpty" class="text-center text-muted py-5 d-none">
-            <div>暂无可展示节点</div>
-        </div>
-        <div class="row row-cols-1 row-cols-md-2 row-cols-xl-4 g-3" id="nodeStatusGrid">
-            <div class="col">
-                <div class="border rounded-3 p-4 text-center text-muted">加载中...</div>
+            <div class="system-stat-meta">总帧数 <span id="stat-records">0</span> | DB <span id="stat-db">0</span> MB</div>
+        </button>
+    </section>
+
+    <section class="card dashboard-card system-node-wall">
+        <div class="card-header">
+            <div>
+                <div class="panel-kicker">Node Matrix</div>
+                <div class="dashboard-title">节点状态矩阵</div>
+            </div>
+            <div class="system-wall-actions">
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="onlyOnlineSwitch" checked>
+                    <label class="form-check-label small" for="onlyOnlineSwitch">仅显示在线节点</label>
+                </div>
+                <button class="btn btn-outline-secondary btn-sm" id="btnRefreshNodes" type="button">刷新</button>
             </div>
         </div>
-    </div>
+        <div class="card-body">
+            <div id="nodeStatusEmpty" class="node-wall-empty d-none">
+                暂无可展示节点
+            </div>
+            <div id="nodeStatusGrid" class="node-matrix-grid">
+                <div class="node-matrix-skeleton">加载中...</div>
+            </div>
+        </div>
+    </section>
 </div>
 {% endblock %}
 
 {% block extra_js %}
+<script src="{{ url_for('static', filename='js/node_map_config.js') }}"></script>
 <script src="{{ url_for('static', filename='js/system_overview.js') }}"></script>
 {% endblock %}

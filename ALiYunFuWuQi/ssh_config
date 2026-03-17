@@ -1,0 +1,11 @@
+Host aliyun-ubuntu
+    HostName 101.200.135.73
+    User admin
+    Port 22
+    StrictHostKeyChecking accept-new
+    PreferredAuthentications publickey,password
+    PubkeyAuthentication yes
+    IdentitiesOnly yes
+    ServerAliveInterval 30
+    ServerAliveCountMax 3
+    IdentityFile ~/.ssh/aliyun_admin_ed25519

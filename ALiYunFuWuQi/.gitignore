@@ -1,0 +1,6 @@
+*.pem
+*.key
+*.ppk
+id_*
+known_hosts*
+*.log
