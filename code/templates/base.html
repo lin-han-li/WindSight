@@ -13,6 +13,22 @@
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <!-- Socket.IO Client -->
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        (function() {
+            const THEME_STORAGE_KEY = 'windsightThemeMode';
+            let theme = 'light';
+            try {
+                const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+                if (storedTheme === 'dark' || storedTheme === 'light') {
+                    theme = storedTheme;
+                }
+            } catch (error) {
+                console.warn('[theme] failed to read local theme preference', error);
+            }
+            document.documentElement.setAttribute('data-theme', theme);
+            window.__windsightTheme = theme;
+        })();
+    </script>
     
     <style>
         :root {
@@ -641,7 +657,10 @@
     
     {% block extra_head %}{% endblock %}
 </head>
-<body class="windsight-shell">
+<body class="windsight-shell" data-theme="light">
+    <script>
+        document.body.setAttribute('data-theme', document.documentElement.getAttribute('data-theme') || window.__windsightTheme || 'light');
+    </script>
     <!-- 左侧导航栏 -->
     <div class="sidebar">
         <div class="sidebar-header">
@@ -700,6 +719,10 @@
                 </div>
             </div>
             <div class="topbar-right">
+                <button class="theme-toggle-btn" id="themeToggle" type="button" aria-pressed="false" title="切换主题">
+                    <span class="theme-toggle-icon"><i class="bi bi-moon-stars"></i></span>
+                    <span class="theme-toggle-label">暗色模式</span>
+                </button>
                 <!-- 消息中心（通知铃铛） -->
                 <div class="nav-message-center" id="messageBell">
                     <i class="bi bi-bell"></i>
@@ -749,6 +772,81 @@
     
     <!-- 基础JavaScript -->
     <script>
+        const THEME_STORAGE_KEY = 'windsightThemeMode';
+
+        function getThemeMode() {
+            return document.body?.dataset.theme || document.documentElement.dataset.theme || window.__windsightTheme || 'light';
+        }
+
+        function themeToggleMeta(theme) {
+            if (theme === 'dark') {
+                return {
+                    label: '浅色模式',
+                    icon: 'bi bi-sun',
+                    title: '切换到浅色模式',
+                };
+            }
+            return {
+                label: '暗色模式',
+                icon: 'bi bi-moon-stars',
+                title: '切换到暗色模式',
+            };
+        }
+
+        function updateThemeToggleButton(theme) {
+            const button = document.getElementById('themeToggle');
+            if (!button) return;
+            const meta = themeToggleMeta(theme);
+            const icon = button.querySelector('.theme-toggle-icon i');
+            const label = button.querySelector('.theme-toggle-label');
+            if (icon) {
+                icon.className = meta.icon;
+            }
+            if (label) {
+                label.textContent = meta.label;
+            }
+            button.title = meta.title;
+            button.setAttribute('aria-pressed', String(theme === 'dark'));
+            button.dataset.theme = theme;
+        }
+
+        function applyTheme(theme, options = {}) {
+            const nextTheme = theme === 'dark' ? 'dark' : 'light';
+            const persist = options.persist !== false;
+            const emit = options.emit !== false;
+
+            document.documentElement.setAttribute('data-theme', nextTheme);
+            if (document.body) {
+                document.body.setAttribute('data-theme', nextTheme);
+            }
+            window.__windsightTheme = nextTheme;
+            updateThemeToggleButton(nextTheme);
+
+            if (persist) {
+                try {
+                    localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+                } catch (error) {
+                    console.warn('[theme] failed to persist theme', error);
+                }
+            }
+
+            if (emit) {
+                window.dispatchEvent(new CustomEvent('windsight:themechange', {
+                    detail: { theme: nextTheme }
+                }));
+            }
+        }
+
+        function initThemeToggle() {
+            const button = document.getElementById('themeToggle');
+            applyTheme(window.__windsightTheme || getThemeMode(), { persist: false, emit: false });
+            if (!button) return;
+            button.addEventListener('click', function() {
+                const nextTheme = getThemeMode() === 'dark' ? 'light' : 'dark';
+                applyTheme(nextTheme);
+            });
+        }
+
         // 更新侧边栏节点状态
         async function updateSidebarStatus() {
             try {
@@ -1387,6 +1485,8 @@
             if (e.key === MESSAGE_STORAGE_KEY) {
                 // 消息历史在其他标签页更新，刷新UI
                 updateMessageUI();
+            } else if (e.key === THEME_STORAGE_KEY && (e.newValue === 'light' || e.newValue === 'dark')) {
+                applyTheme(e.newValue, { persist: false, emit: true });
             }
         });
         
@@ -1394,6 +1494,7 @@
         
         // 初始化
         document.addEventListener('DOMContentLoaded', function() {
+            initThemeToggle();
             setActiveNav();
             updateSidebarStatus();
             initGlobalSearch(); // 初始化全局搜索

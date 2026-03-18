@@ -3,92 +3,188 @@
 {% block title %}节点管理/设置 - WindSight{% endblock %}
 {% block page_title %}系统设置{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settings_console.css') }}">
+{% endblock %}
+
 {% block content %}
-<div class="container-fluid py-4">
-    <div class="row g-4">
-        <!-- 监测参数（真实生效） -->
-        <div class="col-lg-6">
-            <div class="card h-100">
-                <div class="card-header d-flex align-items-center justify-content-between">
-                    <div class="d-flex align-items-center gap-2">
-                        <i class="bi bi-satellite"></i>
-                        <span>监测参数</span>
+<div class="settings-console">
+    <section class="card settings-hero-panel">
+        <div class="settings-hero-copy">
+            <div class="settings-kicker">Settings Console</div>
+            <h2 class="settings-hero-title">节点管理与系统设置控制台</h2>
+            <p class="settings-hero-text">统一管理轮询、显示、数据留存与节点级清理策略。系统摘要和危险操作分区呈现，不再是旧式白卡堆叠页面。</p>
+        </div>
+        <div class="settings-hero-pills">
+            <span class="settings-pill settings-pill-blue">实时生效</span>
+            <span class="settings-pill settings-pill-teal">配置同步</span>
+            <span class="settings-pill settings-pill-orange">谨慎操作</span>
+        </div>
+    </section>
+
+    <div class="settings-shell">
+        <aside class="settings-sidebar">
+            <section class="card settings-panel settings-summary-panel">
+                <div class="card-header settings-card-header">
+                    <div class="settings-card-title-wrap">
+                        <span class="settings-card-icon settings-icon-blue"><i class="bi bi-cpu"></i></span>
+                        <div>
+                            <div class="settings-card-kicker">System Snapshot</div>
+                            <div class="settings-card-title">系统摘要</div>
+                        </div>
                     </div>
-                    <span class="badge bg-light text-dark border">生效</span>
                 </div>
                 <div class="card-body">
-                    <label class="form-label text-muted small fw-bold" for="pollInterval">数据轮询间隔（ms）</label>
-                    <div class="d-flex align-items-center gap-3 mb-2">
+                    <div class="settings-stat-grid">
+                        <div class="settings-stat-tile settings-stat-blue">
+                            <span class="settings-stat-label">当前版本</span>
+                            <strong class="settings-stat-value" id="systemVersion">--</strong>
+                        </div>
+                        <div class="settings-stat-tile settings-stat-teal">
+                            <span class="settings-stat-label">数据库大小</span>
+                            <strong class="settings-stat-value settings-stat-value-sm" id="dbSize">--</strong>
+                        </div>
+                        <div class="settings-stat-tile settings-stat-orange">
+                            <span class="settings-stat-label">服务器状态</span>
+                            <strong class="settings-stat-value" id="serverStatus">--</strong>
+                        </div>
+                        <div class="settings-stat-tile settings-stat-green">
+                            <span class="settings-stat-label">活跃节点</span>
+                            <strong class="settings-stat-value" id="activeNodes">--</strong>
+                        </div>
+                        <div class="settings-stat-tile settings-stat-slate">
+                            <span class="settings-stat-label">采集记录</span>
+                            <strong class="settings-stat-value" id="totalFaults">--</strong>
+                        </div>
+                        <div class="settings-stat-tile settings-stat-blue">
+                            <span class="settings-stat-label">实时通信</span>
+                            <span class="settings-badge-chip" id="asyncMode">--</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card settings-panel settings-save-panel">
+                <div class="card-header settings-card-header">
+                    <div class="settings-card-title-wrap">
+                        <span class="settings-card-icon settings-icon-teal"><i class="bi bi-save"></i></span>
+                        <div>
+                            <div class="settings-card-kicker">Apply Changes</div>
+                            <div class="settings-card-title">保存与发布</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p class="settings-panel-text">本页修改会优先写入服务器配置，同时在浏览器保留一份本地兜底缓存。建议统一确认后再执行保存。</p>
+                    <button class="btn btn-primary settings-save-button" type="button" id="btnSaveSettings">
+                        <i class="bi bi-save me-2"></i>保存设置
+                    </button>
+                </div>
+            </section>
+        </aside>
+
+        <div class="settings-main">
+            <section class="card settings-section-card settings-section-blue">
+                <div class="card-header settings-card-header">
+                    <div class="settings-card-title-wrap">
+                        <span class="settings-card-icon settings-icon-blue"><i class="bi bi-satellite"></i></span>
+                        <div>
+                            <div class="settings-card-kicker">Realtime Polling</div>
+                            <div class="settings-card-title">监测参数</div>
+                        </div>
+                    </div>
+                    <span class="settings-badge-chip settings-badge-blue">生效中</span>
+                </div>
+                <div class="card-body">
+                    <label class="form-label settings-label" for="pollInterval">数据轮询间隔（ms）</label>
+                    <div class="settings-range-row">
                         <input type="range" class="form-range flex-grow-1" min="100" max="5000" step="100"
                                id="pollInterval" value="1000" aria-label="数据轮询间隔（毫秒）">
-                        <span class="badge bg-light text-dark border p-2 text-center ws-minw-90" id="pollVal">1000ms</span>
+                        <span class="settings-inline-value ws-minw-90" id="pollVal">1000ms</span>
                     </div>
-                    <div class="form-text">
-                        当 WebSocket 不可用时，前端会按该间隔使用 HTTP 拉取数据。较低间隔更实时，但会增加服务器负载。
+                    <div class="form-text settings-help-text">
+                        当 WebSocket 不可用时，前端会按该间隔使用 HTTP 拉取数据。间隔越低越实时，但服务端负载也越高。
                     </div>
                 </div>
-            </div>
-        </div>
+            </section>
 
-        <!-- 显示与调试（真实生效） -->
-        <div class="col-lg-6">
-            <div class="card h-100">
-                <div class="card-header d-flex align-items-center gap-2">
-                    <i class="bi bi-display"></i>
-                    <span>显示与调试</span>
+            <section class="card settings-section-card settings-section-teal">
+                <div class="card-header settings-card-header">
+                    <div class="settings-card-title-wrap">
+                        <span class="settings-card-icon settings-icon-teal"><i class="bi bi-display"></i></span>
+                        <div>
+                            <div class="settings-card-kicker">Display And Debug</div>
+                            <div class="settings-card-title">显示与调试</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body settings-switch-stack">
+                    <div class="settings-switch-row">
+                        <div>
+                            <label class="form-check-label settings-switch-label" for="autoRefresh">自动刷新</label>
+                            <div class="form-text settings-help-text">开启后，页面会自动拉取并刷新最新数据。</div>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="autoRefresh">
+                        </div>
+                    </div>
+
+                    <div class="settings-switch-row">
+                        <div>
+                            <label class="form-check-label settings-switch-label" for="showDebugLog">显示调试日志</label>
+                            <div class="form-text settings-help-text">开启后在浏览器控制台输出更详细的调试信息。</div>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="showDebugLog">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card settings-section-card settings-section-orange settings-span-2">
+                <div class="card-header settings-card-header">
+                    <div class="settings-card-title-wrap">
+                        <span class="settings-card-icon settings-icon-orange"><i class="bi bi-database"></i></span>
+                        <div>
+                            <div class="settings-card-kicker">Data Lifecycle</div>
+                            <div class="settings-card-title">数据管理</div>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body">
-                    <div class="form-check form-switch mb-3">
-                        <input class="form-check-input" type="checkbox" id="autoRefresh">
-                        <label class="form-check-label" for="autoRefresh"><strong>自动刷新</strong></label>
-                        <div class="form-text">开启后，页面会自动拉取并刷新最新数据。</div>
-                    </div>
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="showDebugLog">
-                        <label class="form-check-label" for="showDebugLog"><strong>显示调试日志</strong></label>
-                        <div class="form-text">开启后在浏览器控制台输出更详细的调试信息。</div>
-                    </div>
-                </div>
-            </div>
-        </div>
+                    <div class="settings-form-grid">
+                        <div class="settings-subpanel">
+                            <label class="form-label settings-label" for="logRetention">历史数据保留时长</label>
+                            <select class="form-select" id="logRetention" aria-label="历史数据保留时长">
+                                <option value="7">保留最近 7 天</option>
+                                <option value="30">保留最近 30 天</option>
+                                <option value="90">保留最近 90 天</option>
+                                <option value="180">保留最近 180 天</option>
+                                <option value="365">保留最近 1 年</option>
+                                <option value="-1">永久保存</option>
+                            </select>
+                            <div class="form-text settings-help-text">超过保留时长的数据可通过“清理过期数据”删除。</div>
+                        </div>
 
-        <!-- 数据管理（真实生效） -->
-        <div class="col-lg-6">
-            <div class="card h-100">
-                <div class="card-header d-flex align-items-center gap-2">
-                    <i class="bi bi-database"></i>
-                    <span>数据管理</span>
-                </div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        <label class="form-label text-muted small fw-bold" for="logRetention">历史数据保留时长</label>
-                        <select class="form-select" id="logRetention" aria-label="历史数据保留时长">
-                            <option value="7">保留最近 7 天</option>
-                            <option value="30">保留最近 30 天</option>
-                            <option value="90">保留最近 90 天</option>
-                            <option value="180">保留最近 180 天</option>
-                            <option value="365">保留最近 1 年</option>
-                            <option value="-1">永久保存</option>
-                        </select>
-                        <div class="form-text">超过保留时长的数据可通过“清理过期数据”删除。</div>
+                        <div class="settings-subpanel">
+                            <div class="settings-action-grid">
+                                <button class="btn btn-outline-primary" type="button" id="btnCleanupOld">
+                                    <i class="bi bi-clock-history me-1"></i>清理过期数据
+                                </button>
+                                <button class="btn btn-outline-secondary" type="button" id="btnVacuumDb">
+                                    <i class="bi bi-arrows-collapse me-1"></i>压缩数据库
+                                </button>
+                            </div>
+                            <div class="form-text settings-help-text">
+                                删除或清理数据后，SQLite 通常不会自动缩小数据库文件；如需减少磁盘占用，请执行压缩数据库。
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="d-grid gap-2 mb-3">
-                        <button class="btn btn-outline-primary" type="button" id="btnCleanupOld">
-                            <i class="bi bi-clock-history me-1"></i>清理过期数据
-                        </button>
-                        <button class="btn btn-outline-secondary" type="button" id="btnVacuumDb">
-                            <i class="bi bi-arrows-collapse me-1"></i>压缩数据库（释放磁盘空间）
-                        </button>
-                    </div>
-                    <div class="form-text mb-3">
-                        说明：删除/清理数据后，SQLite 通常不会自动缩小数据库文件；如需减少磁盘占用，请点击“压缩数据库（VACUUM）”。
-                    </div>
+                    <div class="settings-divider"></div>
 
-                    <hr>
-
-                    <div class="mb-3">
-                        <label class="form-label text-muted small fw-bold" for="deleteNodeSelect">按节点删除数据（谨慎操作）</label>
+                    <div class="settings-subpanel">
+                        <label class="form-label settings-label" for="deleteNodeSelect">按节点删除数据</label>
                         <div class="input-group">
                             <select class="form-select" id="deleteNodeSelect" aria-label="选择要删除数据的节点">
                                 <option value="">加载中...</option>
@@ -97,159 +193,71 @@
                                 <i class="bi bi-trash3 me-1"></i>删除
                             </button>
                         </div>
-                        <div class="form-text">仅删除该节点在新协议表中的上报与风机明细数据，legacy NodeData 备份不会被删除。</div>
+                        <div class="form-text settings-help-text">仅删除该节点在新协议表中的上报与风机明细数据，legacy NodeData 备份不会被删除。</div>
                     </div>
+                </div>
+            </section>
 
-                    <div class="border rounded-3 p-3 bg-light">
-                        <div class="d-flex justify-content-between align-items-center gap-3">
-                            <div>
-                                <div class="fw-bold text-danger">清空所有数据（高危）</div>
-                                <div class="text-muted small">将删除所有节点在新协议表中的数据，legacy NodeData 备份不会被删除。</div>
-                            </div>
-                            <button class="btn btn-outline-danger btn-sm" type="button" id="btnClearAll">
-                                <i class="bi bi-trash me-1"></i>立即清空
-                            </button>
+            <section class="card settings-section-card settings-section-danger settings-span-2">
+                <div class="card-header settings-card-header">
+                    <div class="settings-card-title-wrap">
+                        <span class="settings-card-icon settings-icon-danger"><i class="bi bi-shield-exclamation"></i></span>
+                        <div>
+                            <div class="settings-card-kicker">Danger Zone</div>
+                            <div class="settings-card-title">高危操作</div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- 系统信息（参考旧版效果：底部全宽大渐变卡片） -->
-        <div class="col-12">
-            <div class="card border-0 shadow-sm rounded-4 text-white system-info-card">
-                <div class="card-body p-5 d-flex flex-column justify-content-between">
-                    <div>
-                        <h5 class="fw-bold mb-2"><i class="bi bi-info-circle me-2"></i>系统信息</h5>
-                        <p class="opacity-75 mb-1">WindSight 智风监测系统</p>
-                        <p class="opacity-50 small mb-0">HTTP 上报 + SQLite 存储 + Web 可视化回放</p>
-                    </div>
-
-                    <div class="row text-center mt-4 g-2">
-                        <div class="col-4">
-                            <h4 class="fw-bold mb-0" id="systemVersion">--</h4>
-                            <small class="opacity-75">当前版本</small>
+                <div class="card-body">
+                    <div class="settings-danger-box">
+                        <div class="settings-danger-copy">
+                            <div class="settings-danger-title">清空所有数据</div>
+                            <div class="settings-danger-text">将删除所有节点在新协议表中的数据，legacy NodeData 备份不会被删除。此操作不可撤销。</div>
                         </div>
-                        <div class="col-4 border-start border-end border-white border-opacity-25">
-                            <h4 class="fw-bold mb-0" id="dbSize">--</h4>
-                            <small class="opacity-75">数据库大小</small>
-                        </div>
-                        <div class="col-4">
-                            <h4 class="fw-bold mb-0" id="serverStatus">--</h4>
-                            <small class="opacity-75">服务器状态</small>
-                        </div>
-                    </div>
-
-                    <div class="mt-3 pt-3 border-top border-white border-opacity-25">
-                        <div class="row text-center g-2">
-                            <div class="col-6">
-                                <h5 class="fw-bold mb-0" id="activeNodes">--</h5>
-                                <small class="opacity-75">活跃节点</small>
-                            </div>
-                            <div class="col-6">
-                                <h5 class="fw-bold mb-0" id="totalFaults">--</h5>
-                                <small class="opacity-75">采集记录</small>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="mt-3 pt-3 border-top border-white border-opacity-25">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <small class="opacity-75">实时通信</small>
-                            <span class="badge bg-success bg-opacity-75" id="asyncMode">--</span>
-                        </div>
-                    </div>
-
-                    <div class="mt-4 d-flex justify-content-end">
-                        <button class="btn btn-light text-primary" type="button" id="btnSaveSettings">
-                            <i class="bi bi-save me-2"></i>保存设置
+                        <button class="btn btn-outline-danger settings-danger-button" type="button" id="btnClearAll">
+                            <i class="bi bi-trash me-1"></i>立即清空
                         </button>
                     </div>
                 </div>
-            </div>
+            </section>
         </div>
     </div>
 </div>
 {% endblock %}
 
-{% block extra_css %}
-<style>
-    /* 说明：设置页尽量使用 Bootstrap 5，避免“旧项目残留样式” */
-    .ws-minw-90 { min-width: 90px; }
-
-    /* 旋转动画（保存按钮加载态） */
-    @keyframes wsSpin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-    }
-    .spin {
-        animation: wsSpin 1s linear infinite;
-        display: inline-block;
-    }
-
-    /* 系统信息大卡片：参考旧版蓝紫渐变效果 */
-    .system-info-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        /*
-         * 高度策略：
-         * - 小屏：至少 360px，避免内容拥挤
-         * - 大屏：尽量吃满可视高度，减少底部空白
-         * - 上限：避免过高导致滚动体验变差
-         */
-        min-height: clamp(360px, calc(100vh - 420px), 760px);
-    }
-
-    @media (min-width: 992px) {
-        .system-info-card {
-            min-height: clamp(420px, calc(100vh - 420px), 820px);
-        }
-    }
-</style>
-{% endblock %}
-
 {% block extra_js %}
 <script>
-    // 统一的 JSON 请求封装：避免“接口返回HTML(登录过期/302)却被当成网络失败”
     async function fetchJsonStrict(url, options = {}) {
-        const resp = await fetch(url, options);
-        const ct = (resp.headers.get('content-type') || '').toLowerCase();
+        const response = await fetch(url, options);
+        const contentType = (response.headers.get('content-type') || '').toLowerCase();
+        const finalUrl = String(response.url || '');
+        const redirectedToLogin = finalUrl.includes('/login') || response.status === 401 || response.status === 302;
 
-        // fetch 会自动跟随 302，最终 resp.url 可能变成 /login
-        const finalUrl = String(resp.url || '');
-        const isLoginRedirect = finalUrl.includes('/login') || resp.status === 401 || resp.status === 302;
-
-        if (!ct.includes('application/json')) {
-            // 只有当确实跳到登录页时，才按“会话失效”处理；否则视为“服务器返回了非JSON内容”
-            if (isLoginRedirect) {
+        if (!contentType.includes('application/json')) {
+            if (redirectedToLogin) {
                 throw new Error('LOGIN_REQUIRED');
             }
-            throw new Error(`NOT_JSON_RESPONSE_HTTP_${resp.status || 0}`);
+            throw new Error(`NOT_JSON_RESPONSE_HTTP_${response.status || 0}`);
         }
 
-        const data = await resp.json();
-        if (!resp.ok) {
-            // 兼容：部分接口错误时仍返回 JSON，但 http status 非 200
-            const msg = (data && (data.error || data.message)) ? (data.error || data.message) : `HTTP ${resp.status}`;
-            throw new Error(msg);
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.error || result.message || `HTTP ${response.status}`);
         }
-        return data;
+        return result;
     }
 
-    // ========== DOM ==========
     const elPollInterval = document.getElementById('pollInterval');
     const elPollVal = document.getElementById('pollVal');
     const elAutoRefresh = document.getElementById('autoRefresh');
     const elShowDebugLog = document.getElementById('showDebugLog');
     const elLogRetention = document.getElementById('logRetention');
-
     const elDeleteNodeSelect = document.getElementById('deleteNodeSelect');
     const elBtnCleanupOld = document.getElementById('btnCleanupOld');
     const elBtnVacuumDb = document.getElementById('btnVacuumDb');
     const elBtnDeleteNode = document.getElementById('btnDeleteNode');
     const elBtnClearAll = document.getElementById('btnClearAll');
     const elBtnSave = document.getElementById('btnSaveSettings');
-
-    // 系统信息
     const elSystemVersion = document.getElementById('systemVersion');
     const elDbSize = document.getElementById('dbSize');
     const elServerStatus = document.getElementById('serverStatus');
@@ -257,43 +265,67 @@
     const elTotalRecords = document.getElementById('totalFaults');
     const elAsyncMode = document.getElementById('asyncMode');
 
-    function setText(el, v, fallback='--') {
-        if (!el) return;
-        el.textContent = (v === undefined || v === null || v === '') ? fallback : String(v);
+    function setText(element, value, fallback = '--') {
+        if (!element) return;
+        element.textContent = value === undefined || value === null || value === '' ? fallback : String(value);
     }
-    
-    // 更新范围滑块显示值
-    function updateRangeVal(val) {
-        if (!elPollVal) return;
-        elPollVal.innerText = String(val) + 'ms';
+
+    function updateRangeVal(value) {
+        if (elPollVal) {
+            elPollVal.textContent = `${value}ms`;
+        }
     }
-    
-    // 加载保存的设置（只读取后端真实支持字段）
+
+    function setButtonBusy(button, busyHtml) {
+        if (!button) return () => {};
+        const original = button.innerHTML;
+        button.innerHTML = busyHtml;
+        button.disabled = true;
+        return (nextHtml) => {
+            button.innerHTML = nextHtml || original;
+            button.disabled = false;
+        };
+    }
+
+    function handleRequestError(error, fallbackMessage = '请求失败，请检查服务状态。') {
+        const message = String(error && error.message ? error.message : '');
+        if (message === 'LOGIN_REQUIRED') {
+            alert('当前会话已失效，请重新登录后再操作。');
+            window.location.href = '/login';
+            return true;
+        }
+        if (message.startsWith('NOT_JSON_RESPONSE_HTTP_')) {
+            alert(`请求失败：服务返回了非 JSON 响应。(${message.replace('NOT_JSON_RESPONSE_HTTP_', 'HTTP ')})`);
+            return true;
+        }
+        alert(message || fallbackMessage);
+        return false;
+    }
+
     async function loadSettings() {
         try {
             const result = await fetchJsonStrict('/api/admin/config', { method: 'GET' });
-            if (result && result.success && result.data) {
-                const config = result.data || {};
-                if (elPollInterval && config.poll_interval !== undefined) {
-                    elPollInterval.value = String(config.poll_interval);
-                    updateRangeVal(config.poll_interval);
-                }
-                if (elAutoRefresh && config.auto_refresh !== undefined) {
-                    elAutoRefresh.checked = !!config.auto_refresh;
-                }
-                if (elShowDebugLog && config.show_debug_log !== undefined) {
-                    elShowDebugLog.checked = !!config.show_debug_log;
-                }
-                if (elLogRetention && config.log_retention !== undefined) {
-                    elLogRetention.value = String(config.log_retention);
-                }
-                return;
+            const config = (result && result.success && result.data) ? result.data : {};
+            if (elPollInterval && config.poll_interval !== undefined) {
+                elPollInterval.value = String(config.poll_interval);
+                updateRangeVal(config.poll_interval);
+            } else if (elPollInterval) {
+                updateRangeVal(elPollInterval.value || '1000');
             }
-        } catch (e) {
-            console.warn('[Settings] 从服务器加载配置失败，使用本地配置:', e);
+            if (elAutoRefresh && config.auto_refresh !== undefined) {
+                elAutoRefresh.checked = !!config.auto_refresh;
+            }
+            if (elShowDebugLog && config.show_debug_log !== undefined) {
+                elShowDebugLog.checked = !!config.show_debug_log;
+            }
+            if (elLogRetention && config.log_retention !== undefined) {
+                elLogRetention.value = String(config.log_retention);
+            }
+            return;
+        } catch (error) {
+            console.warn('[settings] loadSettings fallback to localStorage', error);
         }
-        
-        // fallback：本地缓存（仅用于 UI 兜底）
+
         try {
             const pollTime = localStorage.getItem('pollInterval') || '1000';
             if (elPollInterval) {
@@ -301,372 +333,238 @@
                 updateRangeVal(pollTime);
             }
             const autoRefresh = localStorage.getItem('autoRefresh');
-            if (elAutoRefresh && autoRefresh !== null) elAutoRefresh.checked = (autoRefresh === 'true');
+            if (elAutoRefresh && autoRefresh !== null) {
+                elAutoRefresh.checked = autoRefresh === 'true';
+            }
             const showDebugLog = localStorage.getItem('showDebugLog');
-            if (elShowDebugLog && showDebugLog !== null) elShowDebugLog.checked = (showDebugLog === 'true');
+            if (elShowDebugLog && showDebugLog !== null) {
+                elShowDebugLog.checked = showDebugLog === 'true';
+            }
             const logRetention = localStorage.getItem('logRetention');
-            if (elLogRetention && logRetention !== null) elLogRetention.value = String(logRetention);
-        } catch (e2) {}
-    }
-    
-    // 保存所有设置
-    async function saveSettings() {
-        const originalText = elBtnSave ? elBtnSave.innerHTML : '';
-        if (elBtnSave) {
-            elBtnSave.innerHTML = '<i class="bi bi-arrow-repeat me-2 spin"></i>保存中...';
-            elBtnSave.disabled = true;
+            if (elLogRetention && logRetention !== null) {
+                elLogRetention.value = String(logRetention);
+            }
+        } catch (error) {
+            console.warn('[settings] localStorage fallback failed', error);
         }
+    }
+
+    async function saveSettings(button = elBtnSave) {
+        const restore = setButtonBusy(button, '<i class="bi bi-arrow-repeat me-2 spin"></i>保存中...');
 
         const pollInterval = parseInt(String(elPollInterval ? elPollInterval.value : '1000'), 10) || 1000;
         const autoRefresh = !!(elAutoRefresh && elAutoRefresh.checked);
         const showDebugLog = !!(elShowDebugLog && elShowDebugLog.checked);
         const logRetention = parseInt(String(elLogRetention ? elLogRetention.value : '30'), 10) || 30;
 
-        const configData = {
-            poll_interval: pollInterval,
-            auto_refresh: autoRefresh,
-            show_debug_log: showDebugLog,
-            log_retention: logRetention
-        };
-
         try {
-            const result = await fetchJsonStrict('/api/admin/config', {
+            await fetchJsonStrict('/api/admin/config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(configData)
+                body: JSON.stringify({
+                    poll_interval: pollInterval,
+                    auto_refresh: autoRefresh,
+                    show_debug_log: showDebugLog,
+                    log_retention: logRetention,
+                }),
             });
-        } catch (e) {
-            console.warn('[Settings] 保存到服务器失败:', e);
-            alert('❌ 保存失败：' + (e && e.message ? e.message : '请检查服务器状态/登录状态'));
-        }
-        
-        // 本地缓存（用于 UI 兜底）
-        try {
-            localStorage.setItem('pollInterval', String(pollInterval));
-            localStorage.setItem('autoRefresh', autoRefresh.toString());
-            localStorage.setItem('showDebugLog', showDebugLog.toString());
-            localStorage.setItem('logRetention', String(logRetention));
-        } catch (e2) {}
 
-        if (elBtnSave) {
-            elBtnSave.innerHTML = '<i class="bi bi-check-circle me-2"></i>已保存';
-            elBtnSave.disabled = false;
-            setTimeout(() => {
-                elBtnSave.innerHTML = originalText || '<i class="bi bi-save me-2"></i>保存设置';
+            localStorage.setItem('pollInterval', String(pollInterval));
+            localStorage.setItem('autoRefresh', String(autoRefresh));
+            localStorage.setItem('showDebugLog', String(showDebugLog));
+            localStorage.setItem('logRetention', String(logRetention));
+
+            restore('<i class="bi bi-check-circle me-2"></i>已保存');
+            window.setTimeout(() => {
+                if (button) {
+                    button.innerHTML = '<i class="bi bi-save me-2"></i>保存设置';
+                }
             }, 1200);
+        } catch (error) {
+            restore();
+            handleRequestError(error, '保存失败，请稍后重试。');
         }
     }
-    
-    // 加载系统统计信息
+
     async function loadSystemInfo() {
         try {
             const result = await fetchJsonStrict('/api/admin/system_info', { method: 'GET' });
-            if (result && result.success && result.data) {
-                const data = result.data;
-                setText(elSystemVersion, data.version);
-                // 数据库大小说明：
-                // - database_size_mb：主库 .db
-                // - database_wal_mb：WAL 文件（启用 WAL 时可能存在）
-                // - database_shm_mb：共享内存文件（可能存在）
-                const dbMb = (typeof data.database_size_mb === 'number') ? data.database_size_mb : null;
-                const walMb = (typeof data.database_wal_mb === 'number') ? data.database_wal_mb : null;
-                const shmMb = (typeof data.database_shm_mb === 'number') ? data.database_shm_mb : null;
-                if (dbMb !== null && walMb !== null && shmMb !== null) {
-                    const total = (Number(dbMb) + Number(walMb) + Number(shmMb)).toFixed(2);
-                    setText(elDbSize, `${dbMb}MB（WAL:${walMb}MB｜SHM:${shmMb}MB｜合计:${total}MB）`);
-                } else {
-                    setText(elDbSize, (dbMb !== null) ? `${dbMb}MB` : (data.database_size_mb || '--'));
-                }
-                setText(elActiveNodes, data.active_nodes);
-                setText(elTotalRecords, data.total_records);
-                setText(elAsyncMode, data.async_mode);
-                setText(elServerStatus, '在线');
+            const data = (result && result.success && result.data) ? result.data : {};
+            setText(elSystemVersion, data.version);
+
+            const dbMb = typeof data.database_size_mb === 'number' ? data.database_size_mb : null;
+            const walMb = typeof data.database_wal_mb === 'number' ? data.database_wal_mb : null;
+            const shmMb = typeof data.database_shm_mb === 'number' ? data.database_shm_mb : null;
+            if (dbMb !== null && walMb !== null && shmMb !== null) {
+                const total = (Number(dbMb) + Number(walMb) + Number(shmMb)).toFixed(2);
+                setText(elDbSize, `${dbMb}MB / WAL ${walMb}MB / SHM ${shmMb}MB / 合计 ${total}MB`);
+            } else {
+                setText(elDbSize, dbMb !== null ? `${dbMb}MB` : '--');
             }
-        } catch (e) {
-            console.error('[loadSystemInfo] 加载系统信息失败:', e);
+
+            setText(elServerStatus, '在线');
+            setText(elActiveNodes, data.active_nodes);
+            setText(elTotalRecords, data.total_records);
+            setText(elAsyncMode, data.async_mode);
+        } catch (error) {
+            console.error('[settings] loadSystemInfo failed', error);
             setText(elServerStatus, '离线');
         }
     }
 
-    // 压缩数据库（VACUUM）
-    async function vacuumDatabase() {
-        if (!confirm('⚠️ 确认压缩数据库（VACUUM）？\n\n说明：\n• 该操作会重建 SQLite 数据库文件以释放磁盘空间\n• 数据越多，耗时越久（期间可能短暂卡顿）\n\n是否继续？')) {
-            return;
-        }
-        try {
-            const btn = event.currentTarget;
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<i class="bi bi-arrow-repeat me-1 spin"></i>压缩中...';
-            btn.disabled = true;
-
-            const res = await fetchJsonStrict('/api/admin/vacuum', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({})
-            });
-
-            if (res && res.success) {
-                const before = (res.details && res.details.before) ? res.details.before : {};
-                const after = (res.details && res.details.after) ? res.details.after : {};
-                alert(
-                    '✅ 压缩完成（VACUUM）\n\n' +
-                    `压缩前：DB ${before.db_mb || 0}MB｜WAL ${before.wal_mb || 0}MB｜SHM ${before.shm_mb || 0}MB\n` +
-                    `压缩后：DB ${after.db_mb || 0}MB｜WAL ${after.wal_mb || 0}MB｜SHM ${after.shm_mb || 0}MB\n\n` +
-                    '页面将在2秒后刷新以更新“数据库大小”...'
-                );
-                setTimeout(() => window.location.reload(), 2000);
-                return;
-            }
-
-            alert('❌ 压缩失败：' + (res && res.error ? res.error : '未知错误'));
-            btn.innerHTML = originalText;
-            btn.disabled = false;
-        } catch (e) {
-            console.error('[vacuumDatabase] 错误:', e);
-            if (String(e && e.message) === 'LOGIN_REQUIRED') {
-                alert('⚠️ 当前会话已失效或未登录，请重新登录后再操作。');
-                window.location.href = '/login';
-                return;
-            }
-            const msg = String(e && e.message ? e.message : '');
-            if (msg.includes('NOT_JSON_RESPONSE_HTTP_404')) {
-                alert('❌ 请求失败：接口不存在（404）。\n\n可能原因：服务器未重启/后端未更新到最新代码。\n请重启后端服务后再试。');
-                return;
-            }
-            alert('❌ 请求失败：' + (msg || '请检查服务器状态'));
-            const btn = event.currentTarget;
-            if (btn) {
-                btn.innerHTML = '<i class="bi bi-arrows-collapse me-1"></i>压缩数据库（释放磁盘空间）';
-                btn.disabled = false;
-            }
-        }
-    }
-
-    // 加载节点列表（用于按节点删除数据）
     async function loadNodeOptionsForDelete() {
-        const sel = elDeleteNodeSelect;
-        if (!sel) return;
+        if (!elDeleteNodeSelect) return;
         try {
-            const resp = await fetch('/api/nodes', { method: 'GET' });
-            const ct = (resp.headers.get('content-type') || '').toLowerCase();
-            if (!ct.includes('application/json')) {
-                sel.innerHTML = '<option value="">加载失败（请确认已登录）</option>';
+            const result = await fetchJsonStrict('/api/nodes', { method: 'GET' });
+            const nodes = (result && result.success && Array.isArray(result.nodes)) ? result.nodes : [];
+            if (!nodes.length) {
+                elDeleteNodeSelect.innerHTML = '<option value="">暂无节点</option>';
                 return;
             }
-            const res = await resp.json();
-            const nodes = (res && res.success && Array.isArray(res.nodes)) ? res.nodes : [];
-            if (nodes.length === 0) {
-                sel.innerHTML = '<option value="">暂无节点</option>';
-                return;
-            }
-            const opts = ['<option value="">请选择节点...</option>'];
-            nodes.forEach(n => {
-                const id = n.node_id;
-                if (!id) return;
-                const online = n.online ? '在线' : '离线';
-                const last = n.last_upload ? `｜${n.last_upload}` : '';
-                opts.push(`<option value="${id}">${id}（${online}${last}）</option>`);
+            const options = ['<option value="">请选择节点...</option>'];
+            nodes.forEach((node) => {
+                const nodeId = node.node_id;
+                if (!nodeId) return;
+                const onlineText = node.online ? '在线' : '离线';
+                const lastText = node.last_upload ? ` / ${node.last_upload}` : '';
+                options.push(`<option value="${nodeId}">${nodeId} / ${onlineText}${lastText}</option>`);
             });
-            sel.innerHTML = opts.join('');
-        } catch (e) {
-            console.error('[Settings] 节点列表加载失败:', e);
-            sel.innerHTML = '<option value="">加载失败</option>';
+            elDeleteNodeSelect.innerHTML = options.join('');
+        } catch (error) {
+            console.error('[settings] loadNodeOptionsForDelete failed', error);
+            elDeleteNodeSelect.innerHTML = '<option value="">加载失败</option>';
         }
     }
-    
-    // 清理过期数据
-    async function cleanupOldData() {
-        const retention = parseInt(String(elLogRetention ? elLogRetention.value : '30'), 10);
-        
-        if (retention === -1) {
-            alert('ℹ️ 当前设置为"永久保存"，无需清理数据。');
-            return;
-        }
-        
-        if (!confirm(`⚠️ 确认清理操作\n\n将清理 ${retention} 天前的新协议历史数据：\n• 节点上报主记录（node_uploads）\n• 风机明细记录（turbine_measurements）\n\nlegacy NodeData 备份不会被删除。\n\n是否继续？`)) {
-            return;
-        }
-        
-        try {
-            const btn = event.currentTarget;
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<i class="bi bi-arrow-repeat me-1 spin"></i>清理中...';
-            btn.disabled = true;
 
-            const res = await fetchJsonStrict('/api/admin/cleanup_old_data', {
+    async function vacuumDatabase(button) {
+        if (!window.confirm('确认压缩数据库（VACUUM）？\n\n该操作会重建 SQLite 文件并释放磁盘空间，数据量大时会持续更久。')) {
+            return;
+        }
+        const restore = setButtonBusy(button, '<i class="bi bi-arrow-repeat me-1 spin"></i>压缩中...');
+        try {
+            const result = await fetchJsonStrict('/api/admin/vacuum', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ retention_days: retention })
+                body: JSON.stringify({}),
             });
-            
-            if (res.success) {
-                const details = res.details || {};
-                alert(`✅ 清理完成\n\n` +
-                      `• 节点上报: ${details.node_uploads_deleted || 0} 条\n` +
-                      `• 风机明细: ${details.turbine_measurements_deleted || 0} 条\n\n` +
-                      `页面将在2秒后刷新...`);
-                setTimeout(() => {
-                    window.location.reload();
-                }, 2000);
-            } else {
-                alert('❌ 清理失败: ' + (res.error || '未知错误'));
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-            }
-        } catch (e) {
-            console.error('[cleanupOldData] 错误:', e);
-            if (String(e && e.message) === 'LOGIN_REQUIRED') {
-                alert('⚠️ 当前会话已失效或未登录，请重新登录后再操作。');
-                window.location.href = '/login';
-                return;
-            }
-            const msg = String(e && e.message ? e.message : '');
-            if (msg.includes('NOT_JSON_RESPONSE_HTTP_404')) {
-                alert('❌ 请求失败：接口不存在（404）。\n\n可能原因：服务器未重启/后端未更新到最新代码。\n请重启后端服务后再试。');
-                return;
-            }
-            alert('❌ 请求失败：' + (msg || '请检查服务器状态'));
-            const btn = event.currentTarget;
-            if (btn) {
-                btn.innerHTML = '<i class="bi bi-clock-history me-1"></i>清理过期数据';
-                btn.disabled = false;
-            }
+            const before = result.details?.before || {};
+            const after = result.details?.after || {};
+            alert(
+                `压缩完成。\n\n压缩前：DB ${before.db_mb || 0}MB / WAL ${before.wal_mb || 0}MB / SHM ${before.shm_mb || 0}MB\n` +
+                `压缩后：DB ${after.db_mb || 0}MB / WAL ${after.wal_mb || 0}MB / SHM ${after.shm_mb || 0}MB`
+            );
+            restore('<i class="bi bi-check-circle me-1"></i>已完成');
+            window.setTimeout(() => window.location.reload(), 1200);
+        } catch (error) {
+            restore('<i class="bi bi-arrows-collapse me-1"></i>压缩数据库');
+            handleRequestError(error, '压缩数据库失败。');
         }
     }
-    
-    // 清空所有数据（高危操作）
-    async function clearAllData() {
-        if (!confirm('⚠️ 高危操作警告\n\n确定要清空所有新协议数据吗？\n\n此操作将：\n• 删除所有 node_uploads 记录\n• 删除所有 turbine_measurements 记录\n• 保留 legacy NodeData 备份\n• 此操作无法撤销！')) {
+
+    async function cleanupOldData(button) {
+        const retention = parseInt(String(elLogRetention ? elLogRetention.value : '30'), 10);
+        if (retention === -1) {
+            alert('当前设置为永久保存，无需清理。');
             return;
         }
-        
-        // 二次确认
-        if (!confirm('⚠️ 最后确认\n\n您真的要清空所有数据吗？\n\n请再次确认此操作！')) {
+        if (!window.confirm(`确认清理 ${retention} 天前的历史数据？\n\n将删除 node_uploads 与 turbine_measurements 中超过保留时长的记录。`)) {
             return;
         }
-        
+        const restore = setButtonBusy(button, '<i class="bi bi-arrow-repeat me-1 spin"></i>清理中...');
         try {
-            const btn = event.currentTarget;
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<i class="bi bi-arrow-repeat me-1 spin"></i>清空中...';
-            btn.disabled = true;
-
-            const res = await fetchJsonStrict('/api/admin/reset_data', {
+            const result = await fetchJsonStrict('/api/admin/cleanup_old_data', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ retention_days: retention }),
             });
-            
-            if (res.success) {
-                const details = res.details || {};
-                alert(`✅ 系统已重置，所有新协议数据已清除\n\n` +
-                      `• 节点上报: ${details.node_uploads_deleted || 0} 条\n` +
-                      `• 风机明细: ${details.turbine_measurements_deleted || 0} 条\n\n` +
-                      `页面将在3秒后自动刷新...`);
-                setTimeout(() => {
-                    window.location.reload();
-                }, 3000);
-            } else {
-                alert('❌ 清除失败: ' + (res.error || '未知错误'));
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-            }
-        } catch (e) {
-            console.error('[clearAllData] 错误:', e);
-            if (String(e && e.message) === 'LOGIN_REQUIRED') {
-                alert('⚠️ 当前会话已失效或未登录，请重新登录后再操作。');
-                window.location.href = '/login';
-                return;
-            }
-            const msg = String(e && e.message ? e.message : '');
-            if (msg.includes('NOT_JSON_RESPONSE_HTTP_404')) {
-                alert('❌ 请求失败：接口不存在（404）。\n\n可能原因：服务器未重启/后端未更新到最新代码。\n请重启后端服务后再试。');
-                return;
-            }
-            alert('❌ 请求失败：' + (msg || '请检查服务器状态'));
-            const btn = event.currentTarget;
-            if (btn) {
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-            }
+            const details = result.details || {};
+            alert(
+                `清理完成。\n\n节点上报：${details.node_uploads_deleted || 0} 条\n风机明细：${details.turbine_measurements_deleted || 0} 条`
+            );
+            restore('<i class="bi bi-check-circle me-1"></i>已完成');
+            window.setTimeout(() => window.location.reload(), 1200);
+        } catch (error) {
+            restore('<i class="bi bi-clock-history me-1"></i>清理过期数据');
+            handleRequestError(error, '清理过期数据失败。');
         }
     }
 
-    // 按节点删除数据（高危但比“清空所有”更可控）
-    async function deleteNodeData() {
-        const sel = elDeleteNodeSelect;
-        if (!sel) return;
-        const nodeId = (sel.value || '').trim();
+    async function deleteNodeData(button) {
+        const nodeId = String(elDeleteNodeSelect ? elDeleteNodeSelect.value : '').trim();
         if (!nodeId) {
             alert('请先选择要删除数据的节点。');
             return;
         }
-
-        // 二次确认：明确提示“仅删除该节点数据”
-        if (!confirm(`⚠️ 确认删除\n\n将删除节点【${nodeId}】在新协议表中的全部数据。\nlegacy NodeData 备份不会被删除。\n此操作不可恢复。\n\n是否继续？`)) {
+        if (!window.confirm(`确认删除节点 ${nodeId} 的全部新协议数据？\n\n此操作不可撤销。`)) {
             return;
         }
-        if (!confirm('⚠️ 最后确认\n\n请再次确认：仅删除该节点数据，且无法撤销。')) {
-            return;
-        }
-
+        const restore = setButtonBusy(button, '<i class="bi bi-arrow-repeat me-1 spin"></i>删除中...');
         try {
-            const res = await fetchJsonStrict('/api/admin/delete_node_data', {
+            const result = await fetchJsonStrict('/api/admin/delete_node_data', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ node_id: nodeId })
+                body: JSON.stringify({ node_id: nodeId }),
             });
-            if (!res.success) {
-                alert('❌ 删除失败：' + (res.error || '未知错误'));
-                return;
-            }
-            const details = res.details || {};
-            alert(`✅ 删除完成\n\n节点：${details.node_id || nodeId}\n节点上报：${details.node_uploads_deleted || 0} 条\n风机明细：${details.turbine_measurements_deleted || 0} 条\n\n页面将在2秒后刷新...`);
-            setTimeout(() => window.location.reload(), 2000);
-        } catch (e) {
-            console.error('[deleteNodeData] 错误:', e);
-            if (String(e && e.message) === 'LOGIN_REQUIRED') {
-                alert('⚠️ 当前会话已失效或未登录，请重新登录后再操作。');
-                window.location.href = '/login';
-                return;
-            }
-            const msg = String(e && e.message ? e.message : '');
-            if (msg.includes('NOT_JSON_RESPONSE_HTTP_404')) {
-                alert('❌ 删除失败：接口不存在（404）。\n\n你已经更新了前端页面，但后端还没加载新接口。\n请重启后端服务后再试。');
-                return;
-            }
-            alert('❌ 请求失败：' + (msg || '请检查服务器状态'));
+            const details = result.details || {};
+            alert(
+                `删除完成。\n\n节点：${details.node_id || nodeId}\n节点上报：${details.node_uploads_deleted || 0} 条\n风机明细：${details.turbine_measurements_deleted || 0} 条`
+            );
+            restore('<i class="bi bi-check-circle me-1"></i>已删除');
+            window.setTimeout(() => window.location.reload(), 1200);
+        } catch (error) {
+            restore('<i class="bi bi-trash3 me-1"></i>删除');
+            handleRequestError(error, '按节点删除数据失败。');
         }
     }
 
-    // 初始化
-    document.addEventListener('DOMContentLoaded', function() {
+    async function clearAllData(button) {
+        if (!window.confirm('确认清空所有新协议数据？\n\n将删除 node_uploads 与 turbine_measurements 中的所有记录。')) {
+            return;
+        }
+        if (!window.confirm('这是高危操作，确认继续？')) {
+            return;
+        }
+        const restore = setButtonBusy(button, '<i class="bi bi-arrow-repeat me-1 spin"></i>清空中...');
+        try {
+            const result = await fetchJsonStrict('/api/admin/reset_data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+            });
+            const details = result.details || {};
+            alert(
+                `系统已重置。\n\n节点上报：${details.node_uploads_deleted || 0} 条\n风机明细：${details.turbine_measurements_deleted || 0} 条`
+            );
+            restore('<i class="bi bi-check-circle me-1"></i>已完成');
+            window.setTimeout(() => window.location.reload(), 1500);
+        } catch (error) {
+            restore('<i class="bi bi-trash me-1"></i>立即清空');
+            handleRequestError(error, '清空所有数据失败。');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
         loadSettings();
         loadSystemInfo();
         loadNodeOptionsForDelete();
 
         if (elPollInterval) {
             updateRangeVal(elPollInterval.value || '1000');
-            elPollInterval.addEventListener('input', function() {
-                updateRangeVal(this.value);
-            });
+            elPollInterval.addEventListener('input', () => updateRangeVal(elPollInterval.value));
         }
 
-        // 交互优化：用户常以为“下拉选择=已保存”，因此这里做自动保存
-        // 说明：仍保留“保存设置”按钮，方便一次性保存多个选项
         if (elLogRetention) {
-            elLogRetention.addEventListener('change', function() {
+            elLogRetention.addEventListener('change', () => {
                 saveSettings();
             });
         }
 
-        if (elBtnCleanupOld) elBtnCleanupOld.addEventListener('click', cleanupOldData);
-        if (elBtnVacuumDb) elBtnVacuumDb.addEventListener('click', vacuumDatabase);
-        if (elBtnDeleteNode) elBtnDeleteNode.addEventListener('click', deleteNodeData);
-        if (elBtnClearAll) elBtnClearAll.addEventListener('click', clearAllData);
-        if (elBtnSave) elBtnSave.addEventListener('click', saveSettings);
+        elBtnSave?.addEventListener('click', () => saveSettings(elBtnSave));
+        elBtnCleanupOld?.addEventListener('click', () => cleanupOldData(elBtnCleanupOld));
+        elBtnVacuumDb?.addEventListener('click', () => vacuumDatabase(elBtnVacuumDb));
+        elBtnDeleteNode?.addEventListener('click', () => deleteNodeData(elBtnDeleteNode));
+        elBtnClearAll?.addEventListener('click', () => clearAllData(elBtnClearAll));
 
-        // 定时刷新系统信息（30秒）
-        setInterval(loadSystemInfo, 30000);
+        window.setInterval(loadSystemInfo, 30000);
     });
 </script>
 {% endblock %}

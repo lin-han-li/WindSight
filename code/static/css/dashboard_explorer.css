@@ -658,11 +658,107 @@
   box-shadow: inset 0 0 0 1px rgba(47, 111, 237, 0.12);
 }
 
-.tree-turbine-list {
+.tree-group-list {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   padding: 1rem 1.1rem 1.1rem;
+}
+
+.tree-group-shell {
+  border-radius: 18px;
+  border: 1px solid rgba(146, 168, 198, 0.14);
+  background: rgba(255, 255, 255, 0.72);
+  overflow: hidden;
+}
+
+.tree-group-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
+  padding: 0.9rem 1rem;
+  border: 0;
+  background: rgba(241, 247, 255, 0.92);
+  color: var(--dash-text);
+  transition: background-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.tree-group-toggle:hover {
+  background: rgba(226, 237, 251, 0.96);
+}
+
+.tree-group-shell.is-expanded .tree-group-toggle {
+  background: rgba(220, 232, 250, 0.98);
+  box-shadow: inset 0 -1px 0 rgba(146, 168, 198, 0.14);
+}
+
+.tree-group-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.tree-group-caret {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(47, 111, 237, 0.12);
+  color: var(--dash-accent);
+  transition: transform 0.18s ease;
+}
+
+.tree-group-shell.is-expanded .tree-group-caret {
+  transform: rotate(90deg);
+}
+
+.tree-group-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.tree-group-title {
+  font-weight: 700;
+}
+
+.tree-group-meta {
+  margin-top: 0.18rem;
+  font-size: 0.77rem;
+  color: var(--dash-muted);
+}
+
+.tree-group-count {
+  min-width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(47, 111, 237, 0.12);
+  color: var(--dash-accent);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.tree-group-children {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  padding: 0 0.85rem;
+  transition: max-height 0.22s ease, opacity 0.18s ease, padding 0.18s ease;
+}
+
+.tree-group-children.is-expanded {
+  max-height: 760px;
+  opacity: 1;
+  padding: 0.75rem 0.85rem 0.85rem 1.55rem;
 }
 
 .tree-turbine {
@@ -676,6 +772,24 @@
   background: linear-gradient(180deg, rgba(250, 252, 255, 0.98), rgba(246, 250, 254, 0.98));
   color: var(--dash-text);
   transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.tree-turbine-leaf + .tree-turbine-leaf {
+  margin-top: 0.6rem;
+}
+
+.tree-turbine-leaf {
+  position: relative;
+}
+
+.tree-turbine-leaf::before {
+  content: "";
+  position: absolute;
+  left: -0.95rem;
+  top: 50%;
+  width: 0.7rem;
+  height: 1px;
+  background: rgba(146, 168, 198, 0.46);
 }
 
 .tree-turbine:hover {
@@ -1429,4 +1543,554 @@
   .fallback-node {
     min-width: 100%;
   }
+}
+
+html[data-theme="dark"] body.windsight-shell .dashboard-page,
+html[data-theme="dark"] body.windsight-shell .system-overview-page,
+body.windsight-shell[data-theme="dark"] .dashboard-page,
+body.windsight-shell[data-theme="dark"] .system-overview-page {
+  --dash-text: #e6eef8;
+  --dash-muted: #98abc0;
+  --dash-border: rgba(100, 126, 157, 0.24);
+  --dash-border-strong: rgba(79, 141, 255, 0.26);
+  --dash-shadow: 0 18px 34px rgba(0, 0, 0, 0.28);
+}
+
+html[data-theme="dark"] body.windsight-shell .dashboard-card,
+html[data-theme="dark"] body.windsight-shell .glass-panel,
+html[data-theme="dark"] body.windsight-shell .light-panel,
+html[data-theme="dark"] body.windsight-shell .monitor-topbar,
+html[data-theme="dark"] body.windsight-shell .page-hero,
+html[data-theme="dark"] body.windsight-shell .system-hero,
+body.windsight-shell[data-theme="dark"] .dashboard-card,
+body.windsight-shell[data-theme="dark"] .glass-panel,
+body.windsight-shell[data-theme="dark"] .light-panel,
+body.windsight-shell[data-theme="dark"] .monitor-topbar,
+body.windsight-shell[data-theme="dark"] .page-hero,
+body.windsight-shell[data-theme="dark"] .system-hero {
+  background: #162234 !important;
+  border-color: rgba(100, 126, 157, 0.24) !important;
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.28) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .dashboard-card .card-header,
+html[data-theme="dark"] body.windsight-shell .monitor-map-card .card-header,
+html[data-theme="dark"] body.windsight-shell .history-filter-panel .card-header,
+body.windsight-shell[data-theme="dark"] .dashboard-card .card-header,
+body.windsight-shell[data-theme="dark"] .monitor-map-card .card-header,
+body.windsight-shell[data-theme="dark"] .history-filter-panel .card-header {
+  background: #1c2a40 !important;
+  border-bottom-color: rgba(100, 126, 157, 0.16) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .panel-kicker,
+html[data-theme="dark"] body.windsight-shell .dashboard-subtitle,
+html[data-theme="dark"] body.windsight-shell .tree-node-subtitle,
+html[data-theme="dark"] body.windsight-shell .tree-group-meta,
+html[data-theme="dark"] body.windsight-shell .tree-turbine-meta,
+html[data-theme="dark"] body.windsight-shell .detail-placeholder-text,
+body.windsight-shell[data-theme="dark"] .panel-kicker,
+body.windsight-shell[data-theme="dark"] .dashboard-subtitle,
+body.windsight-shell[data-theme="dark"] .tree-node-subtitle,
+body.windsight-shell[data-theme="dark"] .tree-group-meta,
+body.windsight-shell[data-theme="dark"] .tree-turbine-meta,
+body.windsight-shell[data-theme="dark"] .detail-placeholder-text {
+  color: #98abc0 !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .dashboard-title,
+html[data-theme="dark"] body.windsight-shell .monitor-topbar-title,
+html[data-theme="dark"] body.windsight-shell .page-hero-title,
+html[data-theme="dark"] body.windsight-shell .system-hero-title,
+html[data-theme="dark"] body.windsight-shell .tree-node-title,
+html[data-theme="dark"] body.windsight-shell .tree-group-title,
+html[data-theme="dark"] body.windsight-shell .tree-turbine-name,
+html[data-theme="dark"] body.windsight-shell .detail-placeholder-title,
+body.windsight-shell[data-theme="dark"] .dashboard-title,
+body.windsight-shell[data-theme="dark"] .monitor-topbar-title,
+body.windsight-shell[data-theme="dark"] .page-hero-title,
+body.windsight-shell[data-theme="dark"] .system-hero-title,
+body.windsight-shell[data-theme="dark"] .tree-node-title,
+body.windsight-shell[data-theme="dark"] .tree-group-title,
+body.windsight-shell[data-theme="dark"] .tree-turbine-name,
+body.windsight-shell[data-theme="dark"] .detail-placeholder-title {
+  color: #e6eef8 !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .topbar-chip,
+html[data-theme="dark"] body.windsight-shell .hero-pill,
+html[data-theme="dark"] body.windsight-shell .map-summary-chip,
+body.windsight-shell[data-theme="dark"] .topbar-chip,
+body.windsight-shell[data-theme="dark"] .hero-pill,
+body.windsight-shell[data-theme="dark"] .map-summary-chip {
+  background: #1b2a40 !important;
+  border-color: rgba(100, 126, 157, 0.24) !important;
+  color: #dbe6f3 !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .monitor-back-button,
+body.windsight-shell[data-theme="dark"] .monitor-back-button {
+  background: #223553 !important;
+  border-color: rgba(79, 141, 255, 0.28) !important;
+  color: #e6eef8 !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .iot-map-frame,
+body.windsight-shell[data-theme="dark"] .iot-map-frame {
+  background: #0f1b2b !important;
+  border-color: rgba(79, 141, 255, 0.22) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .detail-sidebar,
+body.windsight-shell[data-theme="dark"] .detail-sidebar {
+  background: #162234 !important;
+  border-color: rgba(100, 126, 157, 0.24) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .selection-kv:nth-child(1),
+html[data-theme="dark"] body.windsight-shell .selection-kv:nth-child(4),
+body.windsight-shell[data-theme="dark"] .selection-kv:nth-child(1),
+body.windsight-shell[data-theme="dark"] .selection-kv:nth-child(4) {
+  background: rgba(47, 111, 237, 0.2) !important;
+  border-color: rgba(79, 141, 255, 0.28) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .selection-kv:nth-child(2),
+html[data-theme="dark"] body.windsight-shell .selection-kv:nth-child(5),
+body.windsight-shell[data-theme="dark"] .selection-kv:nth-child(2),
+body.windsight-shell[data-theme="dark"] .selection-kv:nth-child(5) {
+  background: rgba(25, 184, 214, 0.18) !important;
+  border-color: rgba(25, 184, 214, 0.24) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .selection-kv:nth-child(3),
+html[data-theme="dark"] body.windsight-shell .selection-kv:nth-child(6),
+body.windsight-shell[data-theme="dark"] .selection-kv:nth-child(3),
+body.windsight-shell[data-theme="dark"] .selection-kv:nth-child(6) {
+  background: rgba(245, 158, 11, 0.18) !important;
+  border-color: rgba(245, 158, 11, 0.24) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .selection-key,
+html[data-theme="dark"] body.windsight-shell .selection-value,
+body.windsight-shell[data-theme="dark"] .selection-key,
+body.windsight-shell[data-theme="dark"] .selection-value {
+  color: #e6eef8 !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .control-group,
+body.windsight-shell[data-theme="dark"] .control-group {
+  background: #1b2a40 !important;
+  border-color: rgba(79, 141, 255, 0.22) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .tree-group-toggle,
+body.windsight-shell[data-theme="dark"] .tree-group-toggle {
+  background: #1c2a40 !important;
+  border-color: rgba(100, 126, 157, 0.22) !important;
+  color: #e6eef8 !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .tree-group-shell.is-expanded .tree-group-toggle,
+body.windsight-shell[data-theme="dark"] .tree-group-shell.is-expanded .tree-group-toggle {
+  background: #223553 !important;
+  border-color: rgba(79, 141, 255, 0.26) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .tree-turbine,
+body.windsight-shell[data-theme="dark"] .tree-turbine {
+  background: #162234 !important;
+  border-color: rgba(100, 126, 157, 0.18) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .tree-turbine.is-selected,
+body.windsight-shell[data-theme="dark"] .tree-turbine.is-selected {
+  background: rgba(47, 111, 237, 0.2) !important;
+  border-color: rgba(79, 141, 255, 0.28) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .tree-turbine-status,
+html[data-theme="dark"] body.windsight-shell .tree-node-count,
+html[data-theme="dark"] body.windsight-shell .tree-group-count,
+body.windsight-shell[data-theme="dark"] .tree-turbine-status,
+body.windsight-shell[data-theme="dark"] .tree-node-count,
+body.windsight-shell[data-theme="dark"] .tree-group-count {
+  color: #c8d6e7 !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .detail-placeholder,
+body.windsight-shell[data-theme="dark"] .detail-placeholder {
+  background: #132033 !important;
+  border-color: rgba(79, 141, 255, 0.24) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .detail-chart-card,
+body.windsight-shell[data-theme="dark"] .detail-chart-card {
+  background: #162234 !important;
+  border-color: rgba(100, 126, 157, 0.22) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .metric-card-voltage,
+body.windsight-shell[data-theme="dark"] .metric-card-voltage {
+  background: rgba(47, 111, 237, 0.18) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .metric-card-current,
+body.windsight-shell[data-theme="dark"] .metric-card-current {
+  background: rgba(25, 184, 214, 0.18) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .metric-card-speed,
+body.windsight-shell[data-theme="dark"] .metric-card-speed {
+  background: rgba(245, 158, 11, 0.18) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .metric-card-temperature,
+body.windsight-shell[data-theme="dark"] .metric-card-temperature {
+  background: rgba(239, 91, 87, 0.18) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .system-stat-card,
+html[data-theme="dark"] body.windsight-shell .node-matrix-card,
+body.windsight-shell[data-theme="dark"] .system-stat-card,
+body.windsight-shell[data-theme="dark"] .node-matrix-card {
+  background: #162234 !important;
+  border-color: rgba(100, 126, 157, 0.22) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .stat-card-online,
+body.windsight-shell[data-theme="dark"] .stat-card-online {
+  background: rgba(47, 111, 237, 0.18) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .stat-card-uploads,
+body.windsight-shell[data-theme="dark"] .stat-card-uploads {
+  background: rgba(25, 184, 214, 0.18) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .stat-card-latest,
+body.windsight-shell[data-theme="dark"] .stat-card-latest {
+  background: rgba(245, 158, 11, 0.18) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .stat-card-storage,
+body.windsight-shell[data-theme="dark"] .stat-card-storage {
+  background: rgba(18, 184, 134, 0.18) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .node-matrix-card.status-online,
+body.windsight-shell[data-theme="dark"] .node-matrix-card.status-online {
+  background: rgba(25, 184, 214, 0.16) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .node-matrix-card.status-offline,
+body.windsight-shell[data-theme="dark"] .node-matrix-card.status-offline {
+  background: rgba(148, 163, 184, 0.14) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .node-matrix-card.status-fault,
+body.windsight-shell[data-theme="dark"] .node-matrix-card.status-fault {
+  background: rgba(239, 91, 87, 0.16) !important;
+}
+
+/* Final flat-color sync for monitor / overview / system overview. */
+.monitor-topbar,
+.page-hero,
+.system-hero {
+  background: #d8e6f6 !important;
+  border-color: rgba(47, 111, 237, 0.2) !important;
+}
+
+.monitor-map-card,
+.history-filter-panel,
+.system-hero,
+.system-stat-card,
+.node-matrix-card,
+.detail-chart-card {
+  background: #edf4fb !important;
+}
+
+.map-summary-chip {
+  border-color: rgba(88, 119, 156, 0.16) !important;
+  color: #31506f !important;
+}
+
+.monitor-map-card .card-header,
+.history-filter-panel .card-header,
+.system-overview-main .card-header {
+  background: #d8e6f5 !important;
+}
+
+.iot-map-frame {
+  background: #d7e6f8;
+  border-color: rgba(47, 111, 237, 0.2);
+}
+
+.detail-sidebar {
+  background: #e5eff9;
+}
+
+.selection-kv:nth-child(1),
+.selection-kv:nth-child(4) {
+  background: #dbe8fb;
+}
+
+.selection-kv:nth-child(2),
+.selection-kv:nth-child(5) {
+  background: #d8f0f7;
+}
+
+.selection-kv:nth-child(3),
+.selection-kv:nth-child(6) {
+  background: #faedd5;
+}
+
+.control-group {
+  background: #dfe9f8;
+}
+
+.metric-card-voltage {
+  background: #dce8fb !important;
+}
+
+.metric-card-current {
+  background: #d8f0f7 !important;
+}
+
+.metric-card-speed {
+  background: #faedd5 !important;
+}
+
+.metric-card-temperature {
+  background: #f8e0df !important;
+}
+
+.tree-group-header {
+  background: #d8e6f6;
+  border-color: rgba(47, 111, 237, 0.16);
+}
+
+.tree-group.is-open .tree-group-header {
+  background: #d3e2f5;
+  border-color: rgba(47, 111, 237, 0.24);
+}
+
+.tree-turbine {
+  background: #f3f7fc;
+  border-color: rgba(102, 129, 160, 0.12);
+}
+
+.tree-turbine.is-selected {
+  background: #dbe8fb;
+  border-color: rgba(47, 111, 237, 0.24);
+}
+
+.detail-placeholder {
+  background: #e4eef9;
+  color: #5d7591;
+}
+
+.detail-placeholder strong {
+  color: #2b3d55;
+}
+
+.stat-card-online {
+  background: #dbe8fb;
+}
+
+.stat-card-uploads {
+  background: #d9f0f6;
+}
+
+.stat-card-latest {
+  background: #faedd7;
+}
+
+.stat-card-storage {
+  background: #dbf1e6;
+}
+
+.node-matrix-card.status-online {
+  background: #ddf0f5;
+}
+
+.node-matrix-card.status-offline {
+  background: #e5ecf4;
+}
+
+.node-matrix-card.status-fault {
+  background: #f8e2e2;
+}
+
+/* Final dark-theme override after legacy light sync block. */
+html[data-theme="dark"] body.windsight-shell .monitor-topbar,
+html[data-theme="dark"] body.windsight-shell .page-hero,
+html[data-theme="dark"] body.windsight-shell .system-hero,
+body.windsight-shell[data-theme="dark"] .monitor-topbar,
+body.windsight-shell[data-theme="dark"] .page-hero,
+body.windsight-shell[data-theme="dark"] .system-hero {
+  background: #162234 !important;
+  border-color: rgba(79, 141, 255, 0.24) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .monitor-map-card,
+html[data-theme="dark"] body.windsight-shell .history-filter-panel,
+html[data-theme="dark"] body.windsight-shell .system-stat-card,
+html[data-theme="dark"] body.windsight-shell .node-matrix-card,
+html[data-theme="dark"] body.windsight-shell .detail-chart-card,
+body.windsight-shell[data-theme="dark"] .monitor-map-card,
+body.windsight-shell[data-theme="dark"] .history-filter-panel,
+body.windsight-shell[data-theme="dark"] .system-stat-card,
+body.windsight-shell[data-theme="dark"] .node-matrix-card,
+body.windsight-shell[data-theme="dark"] .detail-chart-card {
+  background: #162234 !important;
+  border-color: rgba(100, 126, 157, 0.22) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .map-summary-chip,
+body.windsight-shell[data-theme="dark"] .map-summary-chip {
+  color: #dbe6f3 !important;
+  border-color: rgba(100, 126, 157, 0.24) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .monitor-map-card .card-header,
+html[data-theme="dark"] body.windsight-shell .history-filter-panel .card-header,
+html[data-theme="dark"] body.windsight-shell .system-overview-main .card-header,
+body.windsight-shell[data-theme="dark"] .monitor-map-card .card-header,
+body.windsight-shell[data-theme="dark"] .history-filter-panel .card-header,
+body.windsight-shell[data-theme="dark"] .system-overview-main .card-header {
+  background: #1b2a40 !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .iot-map-frame,
+body.windsight-shell[data-theme="dark"] .iot-map-frame {
+  background: #0f1b2b !important;
+  border-color: rgba(79, 141, 255, 0.22) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .detail-sidebar,
+body.windsight-shell[data-theme="dark"] .detail-sidebar {
+  background: #162234 !important;
+  border-color: rgba(100, 126, 157, 0.24) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .selection-kv:nth-child(1),
+html[data-theme="dark"] body.windsight-shell .selection-kv:nth-child(4),
+body.windsight-shell[data-theme="dark"] .selection-kv:nth-child(1),
+body.windsight-shell[data-theme="dark"] .selection-kv:nth-child(4) {
+  background: rgba(47, 111, 237, 0.2) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .selection-kv:nth-child(2),
+html[data-theme="dark"] body.windsight-shell .selection-kv:nth-child(5),
+body.windsight-shell[data-theme="dark"] .selection-kv:nth-child(2),
+body.windsight-shell[data-theme="dark"] .selection-kv:nth-child(5) {
+  background: rgba(25, 184, 214, 0.18) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .selection-kv:nth-child(3),
+html[data-theme="dark"] body.windsight-shell .selection-kv:nth-child(6),
+body.windsight-shell[data-theme="dark"] .selection-kv:nth-child(3),
+body.windsight-shell[data-theme="dark"] .selection-kv:nth-child(6) {
+  background: rgba(245, 158, 11, 0.18) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .control-group,
+body.windsight-shell[data-theme="dark"] .control-group {
+  background: #1b2a40 !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .metric-card-voltage,
+body.windsight-shell[data-theme="dark"] .metric-card-voltage {
+  background: rgba(47, 111, 237, 0.18) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .metric-card-current,
+body.windsight-shell[data-theme="dark"] .metric-card-current {
+  background: rgba(25, 184, 214, 0.18) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .metric-card-speed,
+body.windsight-shell[data-theme="dark"] .metric-card-speed {
+  background: rgba(245, 158, 11, 0.18) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .metric-card-temperature,
+body.windsight-shell[data-theme="dark"] .metric-card-temperature {
+  background: rgba(239, 91, 87, 0.18) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .tree-group-header,
+html[data-theme="dark"] body.windsight-shell .tree-group-toggle,
+body.windsight-shell[data-theme="dark"] .tree-group-header,
+body.windsight-shell[data-theme="dark"] .tree-group-toggle {
+  background: #1c2a40 !important;
+  border-color: rgba(100, 126, 157, 0.22) !important;
+  color: #e6eef8 !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .tree-group.is-open .tree-group-header,
+html[data-theme="dark"] body.windsight-shell .tree-group-shell.is-expanded .tree-group-toggle,
+body.windsight-shell[data-theme="dark"] .tree-group.is-open .tree-group-header,
+body.windsight-shell[data-theme="dark"] .tree-group-shell.is-expanded .tree-group-toggle {
+  background: #223553 !important;
+  border-color: rgba(79, 141, 255, 0.26) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .tree-turbine,
+body.windsight-shell[data-theme="dark"] .tree-turbine {
+  background: #162234 !important;
+  border-color: rgba(100, 126, 157, 0.18) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .tree-turbine.is-selected,
+body.windsight-shell[data-theme="dark"] .tree-turbine.is-selected {
+  background: rgba(47, 111, 237, 0.2) !important;
+  border-color: rgba(79, 141, 255, 0.28) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .detail-placeholder,
+body.windsight-shell[data-theme="dark"] .detail-placeholder {
+  background: #132033 !important;
+  color: #98abc0 !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .detail-placeholder strong,
+body.windsight-shell[data-theme="dark"] .detail-placeholder strong {
+  color: #e6eef8 !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .stat-card-online,
+body.windsight-shell[data-theme="dark"] .stat-card-online {
+  background: rgba(47, 111, 237, 0.18) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .stat-card-uploads,
+body.windsight-shell[data-theme="dark"] .stat-card-uploads {
+  background: rgba(25, 184, 214, 0.18) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .stat-card-latest,
+body.windsight-shell[data-theme="dark"] .stat-card-latest {
+  background: rgba(245, 158, 11, 0.18) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .stat-card-storage,
+body.windsight-shell[data-theme="dark"] .stat-card-storage {
+  background: rgba(18, 184, 134, 0.18) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .node-matrix-card.status-online,
+body.windsight-shell[data-theme="dark"] .node-matrix-card.status-online {
+  background: rgba(25, 184, 214, 0.16) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .node-matrix-card.status-offline,
+body.windsight-shell[data-theme="dark"] .node-matrix-card.status-offline {
+  background: rgba(148, 163, 184, 0.14) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .node-matrix-card.status-fault,
+body.windsight-shell[data-theme="dark"] .node-matrix-card.status-fault {
+  background: rgba(239, 91, 87, 0.16) !important;
 }

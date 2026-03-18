@@ -29,6 +29,7 @@
     nodeMap: new Map(),
     selectedNodeId: "",
     selectedTurbineCode: window.localStorage.getItem(storageTurbineKey) || "",
+    expandedTurbineGroups: new Map(),
     uploads: [],
     uploadIds: new Set(),
     pollTimer: null,
@@ -64,6 +65,66 @@
     return document.getElementById(id);
   }
 
+  function getThemeMode() {
+    return document.body?.dataset.theme || document.documentElement.dataset.theme || "light";
+  }
+
+  function getThemePalette() {
+    if (getThemeMode() === "dark") {
+      return {
+        tooltipBg: "rgba(18, 26, 40, 0.98)",
+        tooltipBorder: "rgba(94, 131, 181, 0.32)",
+        tooltipText: "#e7eef8",
+        axisText: "#9eb1c8",
+        axisLine: "rgba(120, 140, 168, 0.34)",
+        splitLine: "rgba(120, 140, 168, 0.18)",
+        zoomBorder: "rgba(120, 140, 168, 0.22)",
+        zoomFill: "rgba(47, 111, 237, 0.24)",
+        zoomBg: "rgba(25, 35, 52, 0.92)",
+        emptyText: "#90a4bb",
+        labelText: "#e7eef8",
+        online: "#4f8dff",
+        offline: "#6f8298",
+        fault: "#ef5b57",
+      };
+    }
+    return {
+      tooltipBg: "rgba(255, 255, 255, 0.98)",
+      tooltipBorder: "rgba(47, 111, 237, 0.14)",
+      tooltipText: "#24364f",
+      axisText: "#6f8198",
+      axisLine: "rgba(142, 165, 190, 0.34)",
+      splitLine: "rgba(142, 165, 190, 0.18)",
+      zoomBorder: "rgba(142, 165, 190, 0.18)",
+      zoomFill: "rgba(47, 111, 237, 0.12)",
+      zoomBg: "rgba(233, 239, 246, 0.78)",
+      emptyText: "#71849b",
+      labelText: "#1f3552",
+      online: "#2f6fed",
+      offline: "#94a3b8",
+      fault: "#ef4444",
+    };
+  }
+
+  function withAlpha(color, alpha) {
+    const value = String(color || "").trim();
+    if (!value.startsWith("#")) {
+      return value;
+    }
+    const normalized = value.length === 4
+      ? `#${value[1]}${value[1]}${value[2]}${value[2]}${value[3]}${value[3]}`
+      : value;
+    const matched = /^#([0-9a-f]{6})$/i.exec(normalized);
+    if (!matched) {
+      return value;
+    }
+    const hex = matched[1];
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
   function setText(id, value, fallback = "--") {
     const element = typeof id === "string" ? byId(id) : id;
     if (!element) {
@@ -89,10 +150,21 @@
     return [...nodes].sort((a, b) => String(a.node_id || "").localeCompare(String(b.node_id || ""), "zh-Hans-CN"));
   }
 
+  function compareTurbineCodes(left, right) {
+    const a = String(left || "").trim();
+    const b = String(right || "").trim();
+    const aNum = Number(a);
+    const bNum = Number(b);
+    const aIsNum = a !== "" && Number.isFinite(aNum);
+    const bIsNum = b !== "" && Number.isFinite(bNum);
+    if (aIsNum && bIsNum && aNum !== bNum) {
+      return aNum - bNum;
+    }
+    return a.localeCompare(b, "zh-Hans-CN", { numeric: true, sensitivity: "base" });
+  }
+
   function normalizeTurbines(turbines) {
-    return Array.from(new Set((turbines || []).map((item) => String(item).trim()).filter(Boolean))).sort((a, b) =>
-      a.localeCompare(b)
-    );
+    return Array.from(new Set((turbines || []).map((item) => String(item).trim()).filter(Boolean))).sort(compareTurbineCodes);
   }
 
   function safeNumber(value) {
@@ -125,19 +197,21 @@
   }
 
   function getStatusColor(status) {
-    if (status === "fault") return "#ef4444";
-    if (status === "online") return "#2f6fed";
-    return "#6b7280";
+    const palette = getThemePalette();
+    if (status === "fault") return palette.fault;
+    if (status === "online") return palette.online;
+    return palette.offline;
   }
 
   function getNodeVisualColor(node) {
+    const palette = getThemePalette();
     if (node.status === "fault") {
-      return "#ef4444";
+      return palette.fault;
     }
     if (node.status === "online") {
-      return node.accentColor || "#2f6fed";
+      return node.accentColor || palette.online;
     }
-    return "#94a3b8";
+    return palette.offline;
   }
 
   function getStatusLabel(status) {
@@ -203,16 +277,25 @@
     state.nodes = sortNodes(state.nodes);
   }
 
-  function updateNodeFromRow(row) {
+  function updateNodeFromRow(row, options = {}) {
     if (!row || !row.node_id) {
       return;
     }
-    upsertNode({
+    const markOnline = !!options.markOnline;
+    const updateLastUpload = !!options.updateLastUpload;
+    const patch = {
       node_id: row.node_id,
-      online: true,
-      last_upload: row.timestamp || "",
       turbines: Object.keys(row.turbines || {}),
       turbine_count: Object.keys(row.turbines || {}).length,
+    };
+    if (markOnline) {
+      patch.online = true;
+    }
+    if (updateLastUpload) {
+      patch.last_upload = row.timestamp || "";
+    }
+    upsertNode({
+      ...patch,
     });
   }
 
@@ -228,6 +311,74 @@
       }
     }
     return [];
+  }
+
+  function buildTurbineGroups(turbineCodes, groupSize = 8) {
+    const normalized = normalizeTurbines(turbineCodes);
+    const groups = [];
+    for (let index = 0; index < normalized.length; index += groupSize) {
+      const items = normalized.slice(index, index + groupSize);
+      if (!items.length) {
+        continue;
+      }
+      groups.push({
+        groupId: `${items[0]}-${items[items.length - 1]}`,
+        label: `${items[0]}-${items[items.length - 1]}`,
+        items,
+      });
+    }
+    return groups;
+  }
+
+  function getExpandedGroupSet(nodeId = state.selectedNodeId) {
+    if (!nodeId) {
+      return new Set();
+    }
+    const expanded = state.expandedTurbineGroups.get(nodeId);
+    return expanded ? new Set(expanded) : new Set();
+  }
+
+  function setExpandedGroupSet(nodeId, groupSet) {
+    if (!nodeId) {
+      return;
+    }
+    state.expandedTurbineGroups.set(nodeId, new Set(groupSet || []));
+  }
+
+  function resetExpandedGroups(nodeId) {
+    if (!nodeId) {
+      return;
+    }
+    state.expandedTurbineGroups.set(nodeId, new Set());
+  }
+
+  function ensureExpandedGroupForTurbine(turbineCode, nodeId = state.selectedNodeId) {
+    if (!nodeId || !turbineCode) {
+      return;
+    }
+    const targetCode = String(turbineCode).trim();
+    const groups = buildTurbineGroups(availableTurbines(nodeId));
+    const matchedGroup = groups.find((group) => group.items.includes(targetCode));
+    if (!matchedGroup) {
+      return;
+    }
+    const expanded = getExpandedGroupSet(nodeId);
+    expanded.add(matchedGroup.groupId);
+    setExpandedGroupSet(nodeId, expanded);
+  }
+
+  function toggleTurbineGroup(groupId) {
+    if (!state.selectedNodeId || !groupId) {
+      return;
+    }
+    const expanded = getExpandedGroupSet(state.selectedNodeId);
+    if (expanded.has(groupId)) {
+      expanded.delete(groupId);
+    } else {
+      expanded.add(groupId);
+    }
+    setExpandedGroupSet(state.selectedNodeId, expanded);
+    renderTurbineTree();
   }
 
   function latestSnapshotForCode(turbineCode = state.selectedTurbineCode) {
@@ -304,6 +455,7 @@
     if (!chartStore.map) {
       return;
     }
+    const palette = getThemePalette();
 
     const configuredNodes = [];
     const fallbackNodes = [];
@@ -324,17 +476,20 @@
         animationDuration: 400,
         tooltip: {
           trigger: "item",
-          backgroundColor: "rgba(255, 255, 255, 0.98)",
-          borderColor: "rgba(47, 111, 237, 0.14)",
+          backgroundColor: palette.tooltipBg,
+          borderColor: palette.tooltipBorder,
           borderWidth: 1,
           textStyle: {
-            color: "#24364f",
+            color: palette.tooltipText,
           },
-          extraCssText: "box-shadow: 0 16px 28px rgba(116, 142, 172, 0.18); border-radius: 14px;",
+          extraCssText:
+            getThemeMode() === "dark"
+              ? "box-shadow: 0 18px 34px rgba(0, 0, 0, 0.34); border-radius: 14px;"
+              : "box-shadow: 0 16px 28px rgba(116, 142, 172, 0.18); border-radius: 14px;",
           formatter(params) {
             const data = params.data || {};
             return `
-              <div style="min-width:180px;color:#24364f;">
+              <div style="min-width:180px;color:${palette.tooltipText};">
                 <div style="font-weight:700;margin-bottom:6px;">${data.displayName || data.nodeId}</div>
                 <div>节点编号：${data.nodeId || "--"}</div>
                 <div>区域：${data.zoneLabel || "--"}</div>
@@ -372,7 +527,7 @@
                 top: "middle",
                 style: {
                   text: "暂无节点",
-                  fill: "#71849b",
+                  fill: palette.emptyText,
                   fontSize: 18,
                 },
               },
@@ -392,7 +547,7 @@
               show: true,
               position: "right",
               distance: 14,
-              color: "#1f3552",
+              color: palette.labelText,
               fontWeight: 700,
               formatter(params) {
                 return params.data?.displayName || params.data?.nodeId || "";
@@ -400,7 +555,7 @@
             },
             itemStyle: {
               shadowBlur: 14,
-              shadowColor: "rgba(47, 111, 237, 0.16)",
+              shadowColor: withAlpha(palette.online, getThemeMode() === "dark" ? 0.28 : 0.16),
             },
             data: configuredNodes.map((node) => ({
               color: getNodeVisualColor(node),
@@ -412,7 +567,7 @@
               statusLabel: getStatusLabel(node.status),
               itemStyle: {
                 color: getNodeVisualColor(node),
-                shadowColor: `${getNodeVisualColor(node)}55`,
+                shadowColor: withAlpha(getNodeVisualColor(node), getThemeMode() === "dark" ? 0.42 : 0.33),
               },
             })),
           },
@@ -468,6 +623,9 @@
       return;
     }
 
+    renderGroupedTurbineTree(node, turbineCodes);
+    return;
+
     dom.turbineTree.innerHTML = `
       <div class="tree-node-shell">
         <div class="tree-node-head">
@@ -504,6 +662,88 @@
         </div>
       </div>
     `;
+
+    dom.turbineTree.querySelectorAll("[data-turbine-code]").forEach((button) => {
+      button.addEventListener("click", () => {
+        selectTurbine(button.dataset.turbineCode || "").catch((error) =>
+          console.error("[dashboard] select turbine failed", error)
+        );
+      });
+    });
+  }
+
+  function renderGroupedTurbineTree(node, turbineCodes) {
+    if (state.selectedTurbineCode) {
+      ensureExpandedGroupForTurbine(state.selectedTurbineCode);
+    }
+
+    const turbineGroups = buildTurbineGroups(turbineCodes);
+    const expandedGroups = getExpandedGroupSet(state.selectedNodeId);
+
+    dom.turbineTree.innerHTML = `
+      <div class="tree-node-shell">
+        <div class="tree-node-head">
+          <div>
+            <div class="tree-node-title">${node.displayName}</div>
+            <div class="tree-node-subtitle">${node.zoneLabel} 路 ${node.nodeId}</div>
+          </div>
+          <div class="tree-node-count">${turbineCodes.length}</div>
+        </div>
+        <div class="tree-group-list">
+          ${turbineGroups
+            .map((group) => {
+              const expanded = expandedGroups.has(group.groupId);
+              const expandedClass = expanded ? "is-expanded" : "";
+              return `
+                <div class="tree-group-shell ${expandedClass}">
+                  <button class="tree-group-toggle" type="button" data-group-id="${group.groupId}" aria-expanded="${expanded}">
+                    <span class="tree-group-main">
+                      <span class="tree-group-caret"><i class="bi bi-chevron-right"></i></span>
+                      <span class="tree-group-copy">
+                        <span class="tree-group-title">发电机组 ${group.label}</span>
+                        <span class="tree-group-meta">点击展开本组风机</span>
+                      </span>
+                    </span>
+                    <span class="tree-group-count">${group.items.length}</span>
+                  </button>
+                  <div class="tree-group-children ${expandedClass}">
+                    ${group.items
+                      .map((code) => {
+                        const snapshot = latestSnapshotForCode(code);
+                        const selectedClass = code === state.selectedTurbineCode ? "is-selected" : "";
+                        const statusClass = snapshot ? "is-online" : node.online ? "is-warning" : "";
+                        const statusText = snapshot ? "有数据" : node.online ? "待数据" : "离线";
+                        return `
+                          <button class="tree-turbine tree-turbine-leaf ${selectedClass}" type="button" data-turbine-code="${code}">
+                            <div class="tree-turbine-title">
+                              <span class="tree-turbine-icon"><i class="bi bi-fan"></i></span>
+                              <span class="tree-turbine-copy">
+                                <span class="tree-turbine-name">发电机 ${code}</span>
+                                <span class="tree-turbine-meta">点击进入该发电机四图详情</span>
+                              </span>
+                            </div>
+                            <span class="tree-turbine-status">
+                              <span class="state-dot ${statusClass}"></span>
+                              ${statusText}
+                            </span>
+                          </button>
+                        `;
+                      })
+                      .join("")}
+                  </div>
+                </div>
+              `;
+            })
+            .join("")}
+        </div>
+      </div>
+    `;
+
+    dom.turbineTree.querySelectorAll("[data-group-id]").forEach((button) => {
+      button.addEventListener("click", () => {
+        toggleTurbineGroup(button.dataset.groupId || "");
+      });
+    });
 
     dom.turbineTree.querySelectorAll("[data-turbine-code]").forEach((button) => {
       button.addEventListener("click", () => {
@@ -582,7 +822,8 @@
   }
 
   function buildMetricOption(metric, index) {
-    const axisColor = "#6f8198";
+    const palette = getThemePalette();
+    const axisColor = palette.axisText;
     const times = state.uploads.map((row) => row.timestamp || "");
     const seriesData = state.uploads.map((row) => {
       const turbine = row?.turbines?.[state.selectedTurbineCode];
@@ -595,13 +836,16 @@
       backgroundColor: "transparent",
       tooltip: {
         trigger: "axis",
-        backgroundColor: "rgba(255, 255, 255, 0.98)",
-        borderColor: "rgba(47, 111, 237, 0.12)",
+        backgroundColor: palette.tooltipBg,
+        borderColor: palette.tooltipBorder,
         borderWidth: 1,
         textStyle: {
-          color: "#24364f",
+          color: palette.tooltipText,
         },
-        extraCssText: "box-shadow: 0 14px 24px rgba(116, 142, 172, 0.16); border-radius: 12px;",
+        extraCssText:
+          getThemeMode() === "dark"
+            ? "box-shadow: 0 16px 28px rgba(0, 0, 0, 0.32); border-radius: 12px;"
+            : "box-shadow: 0 14px 24px rgba(116, 142, 172, 0.16); border-radius: 12px;",
       },
       grid: {
         left: 48,
@@ -614,7 +858,7 @@
         boundaryGap: false,
         data: times,
         axisLine: {
-          lineStyle: { color: "rgba(142, 165, 190, 0.34)" },
+          lineStyle: { color: palette.axisLine },
         },
         axisLabel: {
           color: axisColor,
@@ -632,7 +876,7 @@
           color: axisColor,
         },
         splitLine: {
-          lineStyle: { color: "rgba(142, 165, 190, 0.18)" },
+          lineStyle: { color: palette.splitLine },
         },
       },
       dataZoom: [
@@ -647,9 +891,9 @@
                 height: 16,
                 bottom: 10,
                 filterMode: "none",
-                borderColor: "rgba(142, 165, 190, 0.18)",
-                fillerColor: "rgba(47, 111, 237, 0.12)",
-                backgroundColor: "rgba(233, 239, 246, 0.78)",
+                borderColor: palette.zoomBorder,
+                fillerColor: palette.zoomFill,
+                backgroundColor: palette.zoomBg,
               },
             ]
           : []),
@@ -670,8 +914,8 @@
           },
           areaStyle: {
             color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: `${metric.color}55` },
-              { offset: 1, color: `${metric.color}05` },
+              { offset: 0, color: withAlpha(metric.color, getThemeMode() === "dark" ? 0.34 : 0.22) },
+              { offset: 1, color: withAlpha(metric.color, getThemeMode() === "dark" ? 0.05 : 0.02) },
             ]),
           },
           data: seriesData,
@@ -832,6 +1076,7 @@
       }
       state.selectedNodeId = "";
       state.selectedTurbineCode = "";
+      state.expandedTurbineGroups.clear();
       clearUploads();
       persistSelection();
       stopPolling();
@@ -846,11 +1091,18 @@
       unsubscribeFromNode(state.selectedNodeId);
     }
 
+    const sameNode = state.selectedNodeId === nextId;
     state.selectedNodeId = nextId;
     if (clearTurbine) {
       state.selectedTurbineCode = "";
+      resetExpandedGroups(nextId);
+    } else if (!sameNode) {
+      resetExpandedGroups(nextId);
     }
     clearUploads();
+    if (state.selectedTurbineCode) {
+      ensureExpandedGroupForTurbine(state.selectedTurbineCode, nextId);
+    }
     persistSelection();
     renderAll();
 
@@ -864,7 +1116,9 @@
   }
 
   async function jumpToDetail(nodeId) {
-    await selectNode(nodeId, { clearTurbine: true, loadAfterSelect: isMonitorPage });
+    const nextId = String(nodeId || "").trim();
+    const preserveSelection = nextId && nextId === state.selectedNodeId && !!state.selectedTurbineCode;
+    await selectNode(nextId, { clearTurbine: !preserveSelection, loadAfterSelect: isMonitorPage });
     setView("detail");
   }
 
@@ -875,6 +1129,7 @@
 
   async function selectTurbine(turbineCode) {
     state.selectedTurbineCode = String(turbineCode || "").trim();
+    ensureExpandedGroupForTurbine(state.selectedTurbineCode);
     persistSelection();
     renderAll();
     if (!state.selectedNodeId) {
@@ -893,7 +1148,7 @@
     if (state.uploadIds.has(rowKey)) {
       return;
     }
-    updateNodeFromRow(row);
+    updateNodeFromRow(row, { markOnline: true, updateLastUpload: true });
     state.uploads.push(row);
     state.uploadIds.add(rowKey);
     const limit = currentLimit();
@@ -970,6 +1225,10 @@
 
     dom.btnBackToMap?.addEventListener("click", jumpToMap);
     window.addEventListener("resize", resizeCharts);
+    window.addEventListener("windsight:themechange", () => {
+      renderAll();
+      requestAnimationFrame(resizeCharts);
+    });
   }
 
   async function loadNodes() {
@@ -992,7 +1251,7 @@
 
     if (restoredNode && state.nodeMap.has(restoredNode)) {
       state.selectedNodeId = restoredNode;
-      if (isMonitorPage && availableTurbines(restoredNode).includes(restoredTurbine)) {
+      if (availableTurbines(restoredNode).includes(restoredTurbine)) {
         state.selectedTurbineCode = restoredTurbine;
       } else {
         state.selectedTurbineCode = "";
@@ -1003,6 +1262,9 @@
     }
 
     persistSelection();
+    if (state.selectedNodeId && state.selectedTurbineCode) {
+      ensureExpandedGroupForTurbine(state.selectedTurbineCode, state.selectedNodeId);
+    }
     renderAll();
 
     if (usesDrilldownView) {
