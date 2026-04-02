@@ -35,7 +35,7 @@ def _get_env_server_url() -> str:
         value = os.environ.get(key)
         if isinstance(value, str) and value.strip():
             return value.strip().rstrip("/")
-    return "http://127.0.0.1:5000"
+    return "http://127.0.0.1:8080"
 
 
 def _clamp_turbine_count(value: int) -> int:
@@ -307,7 +307,7 @@ def _build_initial_ids(node_count: int, node_id: str) -> list[str]:
 
 def main():
     parser = argparse.ArgumentParser(description="WindSight simulator for the turbine payload protocol")
-    parser.add_argument("--server", type=str, default=None, help="target server, e.g. http://127.0.0.1:5000")
+    parser.add_argument("--server", type=str, default=None, help="target server, e.g. http://127.0.0.1:8080")
     parser.add_argument("--node-id", type=str, default="WIN_001", help="initial node id when --nodes=1")
     parser.add_argument("--nodes", type=int, default=0, help="number of nodes to start immediately")
     parser.add_argument("--sub", type=int, default=DEFAULT_TURBINE_COUNT, help="turbine count per upload frame")

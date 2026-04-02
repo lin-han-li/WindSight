@@ -11,7 +11,7 @@
         zoneLabel: "北侧风廊",
         mapX: 16,
         mapY: 24,
-        accentColor: "#2f6fed",
+        accentColor: "#00f3ff", // Cyan
         description: "北线入口采集节点，负责上游阵列状态回传。",
       },
       WIN_002: {
@@ -19,7 +19,7 @@
         zoneLabel: "北侧风廊",
         mapX: 34,
         mapY: 16,
-        accentColor: "#19b8d6",
+        accentColor: "#b042ff", // Purple
         description: "北线中段节点，承担主风廊补盲监测。",
       },
       WIN_003: {
@@ -27,7 +27,7 @@
         zoneLabel: "东部高地",
         mapX: 58,
         mapY: 28,
-        accentColor: "#5a7ff0",
+        accentColor: "#ffe600", // Yellow
         description: "东线主阵列节点，覆盖高地风机群。",
       },
       WIN_004: {
@@ -35,7 +35,7 @@
         zoneLabel: "东部高地",
         mapX: 79,
         mapY: 22,
-        accentColor: "#12b886",
+        accentColor: "#00ff9d", // Green
         description: "东线前沿采集节点，适合观察突发波动。",
       },
       WIN_005: {
@@ -43,7 +43,7 @@
         zoneLabel: "南侧缓坡",
         mapX: 27,
         mapY: 73,
-        accentColor: "#35a0e0",
+        accentColor: "#ff5100", // Orange
         description: "南线回风区节点，重点关注温升和转速抖动。",
       },
       WIN_006: {
@@ -51,7 +51,7 @@
         zoneLabel: "南侧缓坡",
         mapX: 63,
         mapY: 77,
-        accentColor: "#1ea97c",
+        accentColor: "#ff2a6d", // Pink
         description: "南线末端节点，承担下游阵列状态补采。",
       },
     },

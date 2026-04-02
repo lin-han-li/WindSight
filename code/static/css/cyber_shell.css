@@ -481,27 +481,27 @@ body.windsight-shell[data-theme="light"] {
 
 html[data-theme="dark"] body.windsight-shell,
 body.windsight-shell[data-theme="dark"] {
-  --theme-shell-bg: #0f1724;
-  --theme-text: #e6eef8;
-  --theme-text-soft: #97a9bf;
-  --theme-sidebar-bg: #131f31;
-  --theme-sidebar-header: rgba(19, 31, 49, 0.92);
-  --theme-sidebar-footer: #122032;
-  --theme-sidebar-accent: rgba(79, 141, 255, 0.34);
-  --theme-nav-bg: #1a2940;
-  --theme-nav-border: rgba(79, 141, 255, 0.28);
-  --theme-topbar-bg: rgba(17, 26, 40, 0.96);
-  --theme-surface: #162234;
-  --theme-surface-strong: #1b2a40;
-  --theme-surface-soft: rgba(19, 31, 49, 0.98);
-  --theme-border: rgba(100, 126, 157, 0.24);
-  --theme-border-strong: rgba(79, 141, 255, 0.3);
-  --theme-accent: #4f8dff;
-  --theme-accent-soft: rgba(79, 141, 255, 0.16);
-  --theme-success: #26c281;
-  --theme-warning: #f3aa31;
-  --theme-danger: #ef5b57;
-  --theme-shadow: 0 18px 34px rgba(0, 0, 0, 0.34);
+  --theme-shell-bg: #070d19;
+  --theme-text: #e2f1ff;
+  --theme-text-soft: #8ba2b8;
+  --theme-sidebar-bg: #0a1122;
+  --theme-sidebar-header: rgba(10, 17, 34, 0.95);
+  --theme-sidebar-footer: #080f1d;
+  --theme-sidebar-accent: rgba(0, 243, 255, 0.15);
+  --theme-nav-bg: #0e172a;
+  --theme-nav-border: rgba(0, 243, 255, 0.2);
+  --theme-topbar-bg: rgba(10, 17, 34, 0.92);
+  --theme-surface: #0f172a;
+  --theme-surface-strong: #1e293b;
+  --theme-surface-soft: rgba(15, 23, 42, 0.96);
+  --theme-border: rgba(0, 243, 255, 0.15);
+  --theme-border-strong: rgba(0, 243, 255, 0.35);
+  --theme-accent: #00f3ff;
+  --theme-accent-soft: rgba(0, 243, 255, 0.12);
+  --theme-success: #00ff9d;
+  --theme-warning: #ffb000;
+  --theme-danger: #ff3366;
+  --theme-shadow: 0 16px 36px rgba(0, 0, 0, 0.6), 0 0 12px rgba(0, 243, 255, 0.05);
 }
 
 body.windsight-shell {
@@ -726,180 +726,367 @@ body.windsight-shell[data-theme="dark"] .topbar {
   }
 }
 
-/* Final flat-color sync: deepen whole-site shell without gradients. */
+/* Theme System v2 - authoritative shell layer. */
+html[data-theme="light"] body.windsight-shell,
+body.windsight-shell[data-theme="light"] {
+  --shell-body-bg: radial-gradient(circle at 10% 10%, #e2e8f0 0%, transparent 40%), radial-gradient(circle at 90% 90%, #e2e8f0 0%, transparent 40%), linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  --shell-content-bg: transparent;
+  --shell-sidebar-bg: rgba(255, 255, 255, 0.85);
+  --shell-sidebar-header-bg: rgba(255, 255, 255, 0.6);
+  --shell-sidebar-footer-bg: rgba(248, 250, 252, 0.65);
+  --shell-sidebar-border: rgba(255, 255, 255, 0.5);
+  --shell-topbar-bg: rgba(255, 255, 255, 0.8);
+  --shell-topbar-border: rgba(255, 255, 255, 0.6);
+  --shell-surface: #ffffff;
+  --shell-surface-strong: #f1f5f9;
+  --shell-surface-soft: rgba(255, 255, 255, 0.5);
+  --shell-control-bg: rgba(255, 255, 255, 0.8);
+  --shell-control-border: rgba(203, 213, 225, 0.6);
+  --shell-text: #0f172a;
+  --shell-muted: #64748b;
+  --shell-nav-text: #334155;
+  --shell-nav-hover-bg: rgba(14, 165, 233, 0.08);
+  --shell-nav-active-bg: rgba(14, 165, 233, 0.12);
+  --shell-nav-active-border: rgba(14, 165, 233, 0.6);
+  --shell-accent: #0ea5e9;
+  --shell-success: #10b981;
+  --shell-warning: #f59e0b;
+  --shell-danger: #ef4444;
+  --shell-shadow: 0 12px 36px rgba(15, 23, 42, 0.06), 0 4px 12px rgba(15, 23, 42, 0.03);
+}
+
+html[data-theme="dark"] body.windsight-shell,
+body.windsight-shell[data-theme="dark"] {
+  --shell-body-bg: #050a14;
+  --shell-content-bg: #080e1a;
+  --shell-sidebar-bg: rgba(10, 17, 34, 0.65); /* Frosted Glass Base */
+  --shell-sidebar-header-bg: rgba(12, 21, 41, 0.85);
+  --shell-sidebar-footer-bg: rgba(8, 14, 27, 0.85);
+  --shell-sidebar-border: rgba(0, 243, 255, 0.2);
+  --shell-topbar-bg: rgba(12, 21, 41, 0.85);
+  --shell-topbar-border: rgba(0, 243, 255, 0.18);
+  --shell-surface: #101828;
+  --shell-surface-strong: #1a263c;
+  --shell-surface-soft: #0b111e;
+  --shell-control-bg: #0b1220;
+  --shell-control-border: rgba(0, 243, 255, 0.2);
+  --shell-text: #eaffff;
+  --shell-muted: #82a0bc;
+  --shell-nav-text: #b6d8ff;
+  --shell-nav-hover-bg: rgba(0, 243, 255, 0.08); /* Neon hover */
+  --shell-nav-active-bg: rgba(0, 243, 255, 0.15);
+  --shell-nav-active-border: rgba(0, 243, 255, 0.6);
+  --shell-accent: #00f3ff;
+  --shell-success: #00ff9d;
+  --shell-warning: #ffb000;
+  --shell-danger: #ff3366;
+  --shell-shadow: 0 16px 36px rgba(0, 0, 0, 0.6), 0 0 15px rgba(0, 243, 255, 0.08);
+}
+
+/* Universal Glassmorphism overrides */
+body.windsight-shell .sidebar {
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-right: 1px solid var(--shell-sidebar-border) !important;
+}
+
+body.windsight-shell .topbar {
+  backdrop-filter: blur(15px) !important;
+  -webkit-backdrop-filter: blur(15px) !important;
+}
+
+body.windsight-shell .nav-item {
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+  margin: 8px 14px !important;
+  border-radius: 8px !important;
+  padding: 12px 18px !important;
+}
+
+body.windsight-shell .nav-item:hover,
+body.windsight-shell .nav-item.active {
+  transform: translateX(6px) !important;
+  box-shadow: inset 4px 0 0 var(--shell-accent) !important;
+  background: var(--shell-nav-active-bg) !important;
+}
+html[data-theme="dark"] body.windsight-shell .nav-item:hover,
+html[data-theme="dark"] body.windsight-shell .nav-item.active {
+  box-shadow: inset 4px 0 0 var(--shell-accent), 0 0 15px rgba(0, 243, 255, 0.15) !important;
+}
+
 body.windsight-shell {
-  background: #dfeaf6;
+  background: var(--shell-body-bg) !important;
+  color: var(--shell-text) !important;
+}
+
+body.windsight-shell::before,
+body.windsight-shell::after {
+  background: none !important;
+  background-image: none !important;
+  mask-image: none !important;
+}
+
+.main-content {
+  background: var(--shell-content-bg) !important;
 }
 
 .sidebar {
-  background: #bcd1e8 !important;
-  border-right-color: rgba(47, 111, 237, 0.24) !important;
+  background: var(--shell-sidebar-bg) !important;
+  border-right: 1px solid var(--shell-sidebar-border) !important;
+  box-shadow: 16px 0 30px rgba(0, 0, 0, 0.08) !important;
+  backdrop-filter: none !important;
+}
+
+.sidebar::after {
+  background: var(--shell-sidebar-border) !important;
 }
 
 .sidebar-header {
-  background: rgba(232, 241, 252, 0.72) !important;
+  background: var(--shell-sidebar-header-bg) !important;
+  border-bottom: 1px solid var(--shell-sidebar-border) !important;
 }
 
-.sidebar-brand-title {
-  color: #24364c !important;
+.sidebar-logo,
+.user-avatar {
+  background: var(--shell-accent) !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
 }
 
-.sidebar-brand-subtitle,
-.sidebar-footer-note,
-.sidebar-footer-hint,
-.sidebar-footer-status {
-  color: #667d98 !important;
+.sidebar-title,
+.page-title,
+.user-name,
+.search-item-name,
+.msg-item-text,
+.dropdown-item,
+.dropdown-header,
+.custom-toast-title,
+.custom-toast-message {
+  color: var(--shell-text) !important;
+}
+
+.sidebar-subtitle,
+.project-info,
+.status-indicator span,
+.user-role,
+.search-item-category,
+.search-section-header,
+.msg-time,
+.notification-icon,
+.nav-message-center,
+.search-box i,
+.custom-toast-close,
+.text-muted,
+.small {
+  color: var(--shell-muted) !important;
 }
 
 .nav-item {
-  color: #2f4561 !important;
+  margin: 4px 14px;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-left: none !important;
+  border-radius: 16px;
+  color: var(--shell-nav-text) !important;
+  transform: none !important;
+  box-shadow: none !important;
 }
 
-.nav-item:hover,
+.nav-item:hover {
+  background: var(--shell-nav-hover-bg) !important;
+  border-color: var(--shell-sidebar-border) !important;
+  color: var(--shell-text) !important;
+}
+
 .nav-item.active {
-  background: #eef4fb !important;
-  border-color: rgba(47, 111, 237, 0.26) !important;
-  box-shadow: inset 4px 0 0 #2f6fed;
+  background: var(--shell-nav-active-bg) !important;
+  border-color: var(--shell-nav-active-border) !important;
+  color: var(--shell-text) !important;
+  box-shadow: inset 4px 0 0 var(--shell-accent) !important;
+}
+
+.nav-item.active::before {
+  background: var(--shell-accent) !important;
 }
 
 .sidebar-footer {
-  background: #d4e2f1 !important;
-  border-top-color: rgba(47, 111, 237, 0.16) !important;
+  background: var(--shell-sidebar-footer-bg) !important;
+  border-top: 1px solid var(--shell-sidebar-border) !important;
+}
+
+.status-dot {
+  background: var(--shell-success) !important;
+  box-shadow: none !important;
 }
 
 .topbar {
-  background: rgba(223, 234, 248, 0.96) !important;
-  border-color: rgba(47, 111, 237, 0.24) !important;
-  box-shadow: 0 16px 30px rgba(116, 140, 173, 0.12) !important;
+  background: var(--shell-topbar-bg) !important;
+  border: 1px solid var(--shell-topbar-border) !important;
+  box-shadow: var(--shell-shadow) !important;
+  backdrop-filter: none !important;
 }
 
-.search-box,
-.search-results-dropdown,
-.msg-dropdown,
-.dropdown-menu {
-  background: rgba(244, 248, 252, 0.98) !important;
-  border-color: rgba(95, 125, 161, 0.16) !important;
-}
-
-.search-box .form-control,
-.search-box .input-group-text {
-  background: rgba(248, 251, 255, 0.92) !important;
+.topbar-right {
+  gap: 14px;
 }
 
 .system-status-badge {
-  background: #d7e4f7 !important;
-  color: #365173 !important;
-  border-color: rgba(47, 111, 237, 0.2) !important;
+  background: var(--shell-surface-strong) !important;
+  color: var(--shell-text) !important;
+  border: 1px solid var(--shell-topbar-border) !important;
+  box-shadow: none !important;
+}
+
+.theme-toggle-btn {
+  background: var(--shell-control-bg) !important;
+  border-color: var(--shell-topbar-border) !important;
+  color: var(--shell-text) !important;
+  box-shadow: none !important;
+}
+
+.theme-toggle-btn:hover {
+  background: var(--shell-nav-hover-bg) !important;
+  box-shadow: none !important;
+}
+
+.theme-toggle-btn .theme-toggle-icon {
+  background: var(--shell-nav-hover-bg) !important;
+  color: var(--shell-accent) !important;
+}
+
+.search-box input,
+.form-control,
+.form-select,
+.input-group-text {
+  background: var(--shell-control-bg) !important;
+  border-color: var(--shell-control-border) !important;
+  color: var(--shell-text) !important;
+}
+
+.search-box input::placeholder,
+.form-control::placeholder {
+  color: var(--shell-muted) !important;
+}
+
+.search-box input:focus,
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--shell-nav-active-border) !important;
+  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.08) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .search-box input:focus,
+body.windsight-shell[data-theme="dark"] .search-box input:focus,
+html[data-theme="dark"] body.windsight-shell .form-control:focus,
+body.windsight-shell[data-theme="dark"] .form-control:focus,
+html[data-theme="dark"] body.windsight-shell .form-select:focus,
+body.windsight-shell[data-theme="dark"] .form-select:focus {
+  box-shadow: 0 0 0 3px rgba(103, 162, 255, 0.14) !important;
+}
+
+.search-dropdown,
+.msg-dropdown,
+.dropdown-menu,
+.custom-toast {
+  background: var(--shell-surface) !important;
+  border: 1px solid var(--shell-topbar-border) !important;
+  box-shadow: var(--shell-shadow) !important;
+  backdrop-filter: none !important;
+}
+
+.search-section-header,
+.msg-dropdown > .p-2.border-bottom {
+  background: var(--shell-surface-strong) !important;
+  border-bottom-color: var(--shell-topbar-border) !important;
+}
+
+.search-item,
+.msg-item {
+  border-bottom-color: rgba(110, 131, 155, 0.12) !important;
+}
+
+.search-item:hover,
+.search-item.highlighted,
+.msg-item:hover,
+.dropdown-item:hover,
+.dropdown-item:focus {
+  background: var(--shell-nav-hover-bg) !important;
+}
+
+.msg-badge,
+.notification-badge {
+  box-shadow: 0 0 0 2px var(--shell-topbar-bg) !important;
 }
 
 .card {
-  background: #edf4fb !important;
-  border-color: rgba(72, 110, 164, 0.18) !important;
-  box-shadow: 0 16px 32px rgba(116, 141, 175, 0.12) !important;
+  background: var(--shell-surface) !important;
+  border: 1px solid var(--shell-topbar-border) !important;
+  box-shadow: var(--shell-shadow) !important;
 }
 
 .card-header {
-  background: #d8e6f5 !important;
-  border-bottom-color: rgba(95, 125, 161, 0.14) !important;
+  background: var(--shell-surface-strong) !important;
+  border-bottom: 1px solid var(--shell-topbar-border) !important;
 }
 
 .btn-primary {
-  background: #2f6fed !important;
-  box-shadow: 0 10px 18px rgba(47, 111, 237, 0.16) !important;
+  background: var(--shell-accent) !important;
+  border-color: var(--shell-accent) !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
 }
 
 .btn-outline-primary,
 .btn-outline-secondary,
 .btn-outline-danger {
-  background: rgba(246, 250, 255, 0.92) !important;
+  background: var(--shell-control-bg) !important;
+  border-color: var(--shell-control-border) !important;
+  color: var(--shell-text) !important;
 }
 
-/* Final dark-theme override after legacy light sync block. */
-html[data-theme="dark"] body.windsight-shell,
-body.windsight-shell[data-theme="dark"] {
-  background: #0f1724 !important;
+.btn-outline-primary:hover,
+.btn-outline-secondary:hover,
+.btn-outline-danger:hover {
+  background: var(--shell-nav-hover-bg) !important;
+  border-color: var(--shell-nav-active-border) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .sidebar,
-body.windsight-shell[data-theme="dark"] .sidebar {
-  background: #131f31 !important;
-  border-right-color: rgba(79, 141, 255, 0.3) !important;
-}
-
-html[data-theme="dark"] body.windsight-shell .sidebar::after,
-body.windsight-shell[data-theme="dark"] .sidebar::after {
-  background: rgba(79, 141, 255, 0.34) !important;
-}
-
-html[data-theme="dark"] body.windsight-shell .sidebar-header,
-body.windsight-shell[data-theme="dark"] .sidebar-header {
-  background: rgba(19, 31, 49, 0.92) !important;
-}
-
-html[data-theme="dark"] body.windsight-shell .sidebar-footer,
-body.windsight-shell[data-theme="dark"] .sidebar-footer {
-  background: #122032 !important;
-  border-top-color: rgba(100, 126, 157, 0.2) !important;
-}
-
-html[data-theme="dark"] body.windsight-shell .topbar,
-body.windsight-shell[data-theme="dark"] .topbar {
-  background: rgba(17, 26, 40, 0.96) !important;
-  border-color: rgba(79, 141, 255, 0.28) !important;
-  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.34) !important;
-}
-
-html[data-theme="dark"] body.windsight-shell .search-box,
-html[data-theme="dark"] body.windsight-shell .search-results-dropdown,
-html[data-theme="dark"] body.windsight-shell .msg-dropdown,
-html[data-theme="dark"] body.windsight-shell .dropdown-menu,
-body.windsight-shell[data-theme="dark"] .search-box,
-body.windsight-shell[data-theme="dark"] .search-results-dropdown,
-body.windsight-shell[data-theme="dark"] .msg-dropdown,
-body.windsight-shell[data-theme="dark"] .dropdown-menu {
-  background: rgba(19, 31, 49, 0.98) !important;
-  border-color: rgba(100, 126, 157, 0.22) !important;
-}
-
-html[data-theme="dark"] body.windsight-shell .search-box .form-control,
-html[data-theme="dark"] body.windsight-shell .search-box .input-group-text,
-body.windsight-shell[data-theme="dark"] .search-box .form-control,
-body.windsight-shell[data-theme="dark"] .search-box .input-group-text {
-  background: rgba(18, 26, 40, 0.96) !important;
-}
-
-html[data-theme="dark"] body.windsight-shell .system-status-badge,
-body.windsight-shell[data-theme="dark"] .system-status-badge {
-  background: #1b2a40 !important;
-  color: #e6eef8 !important;
-  border-color: rgba(79, 141, 255, 0.26) !important;
-}
-
-html[data-theme="dark"] body.windsight-shell .card,
-body.windsight-shell[data-theme="dark"] .card {
-  background: #162234 !important;
-  border-color: rgba(100, 126, 157, 0.24) !important;
-  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.28) !important;
-}
-
-html[data-theme="dark"] body.windsight-shell .card-header,
-body.windsight-shell[data-theme="dark"] .card-header {
-  background: #1b2a40 !important;
-  border-bottom-color: rgba(100, 126, 157, 0.16) !important;
-}
-
-html[data-theme="dark"] body.windsight-shell .btn-primary,
-body.windsight-shell[data-theme="dark"] .btn-primary {
-  background: #4f8dff !important;
-  border-color: #4f8dff !important;
-  box-shadow: 0 10px 18px rgba(79, 141, 255, 0.2) !important;
-}
-
-html[data-theme="dark"] body.windsight-shell .btn-outline-primary,
-html[data-theme="dark"] body.windsight-shell .btn-outline-secondary,
 html[data-theme="dark"] body.windsight-shell .btn-outline-danger,
-body.windsight-shell[data-theme="dark"] .btn-outline-primary,
-body.windsight-shell[data-theme="dark"] .btn-outline-secondary,
 body.windsight-shell[data-theme="dark"] .btn-outline-danger {
-  background: rgba(19, 31, 49, 0.96) !important;
+  color: #f7c4c1 !important;
+  border-color: rgba(240, 107, 101, 0.34) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .btn-outline-danger:hover,
+body.windsight-shell[data-theme="dark"] .btn-outline-danger:hover {
+  background: rgba(240, 107, 101, 0.12) !important;
+}
+
+.custom-toast.success {
+  border-left-color: var(--shell-success) !important;
+}
+
+.custom-toast.warning {
+  border-left-color: var(--shell-warning) !important;
+}
+
+.custom-toast.error {
+  border-left-color: var(--shell-danger) !important;
+}
+
+@media (max-width: 991.98px) {
+  .theme-toggle-btn {
+    min-height: 38px;
+    padding: 0.55rem 0.8rem;
+  }
+
+  .theme-toggle-label {
+    font-size: 0.84rem;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .theme-toggle-btn {
+    width: 100%;
+    justify-content: center;
+  }
 }

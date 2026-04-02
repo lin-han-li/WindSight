@@ -4,7 +4,7 @@
 {% block page_title %}系统概览{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_explorer.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_explorer.css') }}?v=3">
 {% endblock %}
 
 {% block content %}
@@ -75,6 +75,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/node_map_config.js') }}"></script>
+<script src="{{ url_for('static', filename='js/node_map_config.js') }}?v=4"></script>
 <script src="{{ url_for('static', filename='js/system_overview.js') }}"></script>
 {% endblock %}

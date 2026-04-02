@@ -141,7 +141,7 @@ function Get-SimCommandLine([int]$ProcessId) {
 function Pick-ServerTarget {
   <#
     交互选择 sim.py 的目标服务器地址：
-    - 自动（不传参）：由 sim.py 使用默认 http://127.0.0.1:5000
+    - 自动（不传参）：由 sim.py 使用默认 http://127.0.0.1:8080
     - 指定：--server
 
     非交互模式（带 action 参数）下：
@@ -154,15 +154,15 @@ function Pick-ServerTarget {
       $u = ($envServer.Trim().TrimEnd('/'))
       return @{ args=@('--server',"$u"); display="$u" }
     }
-    return @{ args=@(); display='自动(默认 http://127.0.0.1:5000 )' }
+    return @{ args=@(); display='自动(默认 http://127.0.0.1:8080 )' }
   }
 
   Write-Host ""
   Write-Host "  请选择目标服务器：" -ForegroundColor White
-  Write-Host "   [1] 自动（推荐）：sim.py 默认连接 http://127.0.0.1:5000" -ForegroundColor Green
-  Write-Host "   [2] 指定本机端口：127.0.0.1:5000 或 5002" -ForegroundColor Cyan
+  Write-Host "   [1] 自动（推荐）：sim.py 默认连接 http://127.0.0.1:8080" -ForegroundColor Green
+  Write-Host "   [2] 指定本机端口：127.0.0.1:8080 或 8081" -ForegroundColor Cyan
   Write-Host "   [3] 指定局域网服务器：输入 IP 与端口" -ForegroundColor Cyan
-  Write-Host "   [4] 自定义完整 URL：例如 http://192.168.1.10:5002" -ForegroundColor Cyan
+  Write-Host "   [4] 自定义完整 URL：例如 http://192.168.1.10:8080" -ForegroundColor Cyan
 
   $lanIps = Get-LanIPv4List
   if ($lanIps.Count -gt 0) {
@@ -175,26 +175,26 @@ function Pick-ServerTarget {
   if (-not $sel) { $sel = '1' }
 
   switch ($sel) {
-    '1' { return @{ args=@(); display='自动(默认 http://127.0.0.1:5000 )' } }
+    '1' { return @{ args=@(); display='自动(默认 http://127.0.0.1:8080 )' } }
     '2' {
-      $port = Read-Host "  请输入端口(5000/5002，默认5000)"
-      if (-not $port) { $port = '5000' }
+      $port = Read-Host "  请输入端口(8080/8081，默认8080)"
+      if (-not $port) { $port = '8080' }
       $u = ("http://{0}:{1}" -f '127.0.0.1', $port)
       return @{ args=@('--server',"$u"); display="$u" }
     }
     '3' {
       $serverHost = Read-Host "  请输入服务器IP(例如 192.168.1.10)"
-      $port = Read-Host "  请输入端口(默认5000)"
-      if (-not $port) { $port = '5000' }
+      $port = Read-Host "  请输入端口(默认8080)"
+      if (-not $port) { $port = '8080' }
       $u = ("http://{0}:{1}" -f $serverHost, $port)
       return @{ args=@('--server',"$u"); display="$u" }
     }
     '4' {
-      $url = Read-Host "  请输入完整URL(例如 http://192.168.1.10:5002)"
+      $url = Read-Host "  请输入完整URL(例如 http://192.168.1.10:8080)"
       $url = ($url.Trim().TrimEnd('/'))
       return @{ args=@('--server',"$url"); display="$url" }
     }
-    default { return @{ args=@(); display='自动(默认 http://127.0.0.1:5000 )' } }
+    default { return @{ args=@(); display='自动(默认 http://127.0.0.1:8080 )' } }
   }
 }
 
@@ -354,7 +354,7 @@ function Show-Status {
         if ($cmd -match '--server\s+([^\s"]+|"[^"]+")') {
           $server = $Matches[1].Trim('"')
         } else {
-          $server = '自动(默认 http://127.0.0.1:5000 )'
+          $server = '自动(默认 http://127.0.0.1:8080 )'
         }
         Write-Host "    目标服务器: $server" -ForegroundColor Cyan
       }
@@ -444,5 +444,4 @@ switch ($Action) {
   'toggle'  { Toggle-Sim }
   default   { Menu }
 }
-
 

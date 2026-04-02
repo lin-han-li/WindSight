@@ -5,7 +5,7 @@ WindSight 服务器控制台（改进版 - 彩色交互界面）
 - 彩色菜单与实时状态显示
 - 快捷键支持（S/X/R/T/I/Q）
 - 自动检测 venv311（项目自带优先）
-- 端口智能选择（5000 优先，占用则用 5002）
+- 端口智能选择（8080 优先，占用则用 8081）
 - 后台启动，关闭终端不影响服务
 
 用法：
@@ -106,7 +106,7 @@ function Stop-WindSight {
   Write-Host "═══════════════════════════════════" -ForegroundColor DarkRed
   Write-Host ""
 
-  foreach ($p in @(5000, 5002)) {
+  foreach ($p in @(8080, 8081)) {
     foreach ($procId in (Get-ListeningPids $p)) {
       if ($procId -eq 4) {
         Write-Host ("  [!] 端口 {0} 被 System(PID 4) 占用，无法结束" -f $p) -ForegroundColor Yellow
@@ -168,11 +168,11 @@ function Ensure-Venv311 {
 }
 
 function Pick-Port {
-  # 5000 空闲优先，否则用 5002
-  if ((Get-ListeningPids 5000).Count -eq 0) { return 5000 }
-  if ((Get-ListeningPids 5002).Count -eq 0) { return 5002 }
-  Write-Host "  [!] 5000 和 5002 端口均被占用" -ForegroundColor Yellow
-  return 5002  # 仍返回 5002，让启动时报错更明确
+  # 8080 空闲优先，否则用 8081
+  if ((Get-ListeningPids 8080).Count -eq 0) { return 8080 }
+  if ((Get-ListeningPids 8081).Count -eq 0) { return 8081 }
+  Write-Host "  [!] 8080 和 8081 端口均被占用" -ForegroundColor Yellow
+  return 8081  # 仍返回 8081，让启动时报错更明确
 }
 
 function Start-WindSight {
@@ -266,7 +266,7 @@ function Show-Status {
   $lanIps = Get-LanIPv4List
   $hasListener = $false
 
-  foreach ($p in @(5000, 5002)) {
+  foreach ($p in @(8080, 8081)) {
     $pids = Get-ListeningPids $p
     if ($pids.Count -eq 0) {
       Write-Host ("  端口 {0} : " -f $p) -NoNewline -ForegroundColor White
@@ -318,12 +318,12 @@ function Show-Status {
 }
 
 function Is-Running {
-  return ((Get-ListeningPids 5000).Count -gt 0) -or ((Get-ListeningPids 5002).Count -gt 0)
+  return ((Get-ListeningPids 8080).Count -gt 0) -or ((Get-ListeningPids 8081).Count -gt 0)
 }
 
 function Get-RunningPorts {
   $ports = @()
-  foreach ($p in @(5000, 5002)) {
+  foreach ($p in @(8080, 8081)) {
     if ((Get-ListeningPids $p).Count -gt 0) { $ports += $p }
   }
   return ($ports | Sort-Object -Unique)
@@ -388,7 +388,7 @@ function Menu {
     Write-Host "─────────────────────────────────────" -ForegroundColor DarkGray
     Write-Host ""
     Write-Host "  [S] 启动服务 (Python 3.11 + eventlet)" -ForegroundColor Green
-    Write-Host "  [X] 停止服务 (5000/5002)" -ForegroundColor Red
+    Write-Host "  [X] 停止服务 (8080/8081)" -ForegroundColor Red
     Write-Host "  [R] 重启服务" -ForegroundColor Yellow
     Write-Host "  [T] 一键切换 (运行→停止 / 停止→启动)" -ForegroundColor Cyan
     Write-Host "  [I] 查看状态" -ForegroundColor Blue
@@ -436,5 +436,4 @@ switch ($Action) {
   'toggle'  { Toggle-WindSight }
   default   { Menu }
 }
-
 

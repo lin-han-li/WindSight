@@ -402,7 +402,7 @@ app.logger.info("后台定时清理任务已启动")
 # ==================== 应用启动 ====================
 if __name__ == '__main__':
     # 尝试多个端口
-    PORT = int(os.environ.get('PORT', 5000))  # 默认改回5000（与模拟器默认一致）
+    PORT = int(os.environ.get('PORT', 8080))  # 默认启动端口改为8080
     
     print("=" * 60)
     print("WindSight 智风监测系统启动")
@@ -429,7 +429,7 @@ if __name__ == '__main__':
             print(f"\n错误: 端口 {PORT} 被占用（WinError 10048）！")
             print("解决方法:")
             print("1. 关闭/结束占用端口的程序（Windows 上 PID=4 的 System 通常无法结束）")
-            print("2. 或改用备用端口，例如: set PORT=5002")
+            print("2. 或改用备用端口，例如: set PORT=8081")
             app.logger.error(f"端口 {PORT} 被占用: {e}")
         else:
             raise

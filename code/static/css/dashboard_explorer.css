@@ -297,11 +297,10 @@
   content: "";
   position: absolute;
   inset: 0;
-  background-image:
-    linear-gradient(rgba(122, 147, 178, 0.1) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(122, 147, 178, 0.1) 1px, transparent 1px);
-  background-size: 64px 64px;
-  opacity: 0.62;
+  background-image: radial-gradient(rgba(148, 163, 184, 0.35) 1.5px, transparent 1.5px);
+  background-position: 12px 12px;
+  background-size: 24px 24px;
+  opacity: 0.75;
 }
 
 .iot-map-frame::after {
@@ -1793,304 +1792,672 @@ body.windsight-shell[data-theme="dark"] .node-matrix-card.status-fault {
   background: rgba(239, 91, 87, 0.16) !important;
 }
 
-/* Final flat-color sync for monitor / overview / system overview. */
+/* Theme System v2 - authoritative business surfaces. */
+html[data-theme="light"] body.windsight-shell .dashboard-page,
+html[data-theme="light"] body.windsight-shell .system-overview-page,
+body.windsight-shell[data-theme="light"] .dashboard-page,
+body.windsight-shell[data-theme="light"] .system-overview-page {
+  --biz-surface: #eef3f8;
+  --biz-surface-strong: #dde6f0;
+  --biz-surface-soft: #f5f8fb;
+  --biz-map: #d7e0eb;
+  --biz-border: rgba(94, 121, 156, 0.18);
+  --biz-border-strong: rgba(47, 111, 237, 0.24);
+  --biz-text: #22384d;
+  --biz-muted: #6f839d;
+  --biz-shadow: 0 14px 28px rgba(108, 127, 153, 0.12);
+  --biz-grid: rgba(104, 125, 151, 0.1);
+  --biz-inset: rgba(255, 255, 255, 0.18);
+  --biz-selected: #dbe7fb;
+  --biz-blue-card: #dbe7fb;
+  --biz-teal-card: #d8edf4;
+  --biz-orange-card: #faebd5;
+  --biz-red-card: #f5e0df;
+  --biz-green-card: #dcefe5;
+  --biz-slate-card: #e3eaf2;
+  --biz-blue-fg: #2b63d6;
+  --biz-teal-fg: #198ca4;
+  --biz-orange-fg: #b97705;
+  --biz-red-fg: #c44744;
+}
+
+html[data-theme="dark"] body.windsight-shell .dashboard-page,
+html[data-theme="dark"] body.windsight-shell .system-overview-page,
+body.windsight-shell[data-theme="dark"] .dashboard-page,
+body.windsight-shell[data-theme="dark"] .system-overview-page {
+  --biz-surface: #182537;
+  --biz-surface-strong: #223147;
+  --biz-surface-soft: #132032;
+  --biz-map: #101a2a;
+  --biz-border: rgba(103, 126, 154, 0.22);
+  --biz-border-strong: rgba(103, 162, 255, 0.28);
+  --biz-text: #e4edf7;
+  --biz-muted: #9aacbf;
+  --biz-shadow: 0 18px 34px rgba(0, 0, 0, 0.26);
+  --biz-grid: rgba(103, 126, 154, 0.12);
+  --biz-inset: rgba(255, 255, 255, 0.03);
+  --biz-selected: #243754;
+  --biz-blue-card: #22385a;
+  --biz-teal-card: #1d3743;
+  --biz-orange-card: #3a3123;
+  --biz-red-card: #382629;
+  --biz-green-card: #20342d;
+  --biz-slate-card: #243242;
+  --biz-blue-fg: #8db7ff;
+  --biz-teal-fg: #78ddeb;
+  --biz-orange-fg: #f1c068;
+  --biz-red-fg: #ff9a94;
+}
+
+.dashboard-page,
+.system-overview-page {
+  color: var(--biz-text);
+}
+
+.dashboard-page .dashboard-card,
+.system-overview-page .dashboard-card,
+.glass-panel,
+.light-panel,
 .monitor-topbar,
 .page-hero,
-.system-hero {
-  background: #d8e6f6 !important;
-  border-color: rgba(47, 111, 237, 0.2) !important;
-}
-
-.monitor-map-card,
-.history-filter-panel,
 .system-hero,
+.detail-sidebar,
+.tree-node-shell,
+.detail-placeholder,
+.detail-chart-card,
+.history-filter-panel,
+.overview-history-panel,
 .system-stat-card,
-.node-matrix-card,
-.detail-chart-card {
-  background: #edf4fb !important;
+.node-matrix-card {
+  background: var(--biz-surface) !important;
+  border: 1px solid var(--biz-border) !important;
+  box-shadow: var(--biz-shadow) !important;
 }
 
-.map-summary-chip {
-  border-color: rgba(88, 119, 156, 0.16) !important;
-  color: #31506f !important;
-}
-
+.dashboard-page .dashboard-card .card-header,
+.system-overview-page .dashboard-card .card-header,
 .monitor-map-card .card-header,
 .history-filter-panel .card-header,
-.system-overview-main .card-header {
-  background: #d8e6f5 !important;
+.system-overview-main .card-header,
+.tree-node-head {
+  background: var(--biz-surface-strong) !important;
+  border-bottom: 1px solid var(--biz-border) !important;
+}
+
+.panel-kicker,
+.dashboard-subtitle,
+.selection-label,
+.metric-hint,
+.metric-meta,
+.tree-node-subtitle,
+.tree-group-meta,
+.tree-turbine-meta,
+.tree-turbine-status,
+.node-matrix-zone,
+.node-metric-label,
+.detail-placeholder-text {
+  color: var(--biz-muted) !important;
+}
+
+.dashboard-title,
+.monitor-topbar-title,
+.page-hero-title,
+.system-hero-title,
+.selection-value,
+.tree-node-title,
+.tree-group-title,
+.tree-turbine-name,
+.detail-placeholder-title,
+.metric-value,
+.node-metric-value,
+.node-matrix-title {
+  color: var(--biz-text) !important;
+}
+
+.topbar-chip,
+.hero-pill,
+.map-summary-chip {
+  background: var(--biz-surface-strong) !important;
+  border: 1px solid var(--biz-border) !important;
+  color: var(--biz-text) !important;
+  box-shadow: none !important;
+}
+
+.topbar-chip strong,
+.hero-pill strong,
+.map-summary-chip strong {
+  color: var(--biz-text) !important;
+}
+
+.topbar-chip:nth-child(1),
+.hero-pill:nth-child(1),
+.map-summary-chip:nth-child(1) {
+  background: var(--biz-blue-card) !important;
+}
+
+.topbar-chip:nth-child(2),
+.hero-pill:nth-child(2),
+.map-summary-chip:nth-child(2) {
+  background: var(--biz-teal-card) !important;
+}
+
+.topbar-chip:nth-child(3),
+.hero-pill:nth-child(3),
+.map-summary-chip:nth-child(3) {
+  background: var(--biz-orange-card) !important;
+}
+
+.map-summary-chip:nth-child(4) {
+  background: var(--biz-slate-card) !important;
+}
+
+.monitor-back-button {
+  background: var(--biz-surface-strong) !important;
+  border: 1px solid var(--biz-border-strong) !important;
+  color: var(--biz-text) !important;
+  box-shadow: none !important;
+}
+
+.monitor-back-button:hover {
+  background: var(--biz-surface-soft) !important;
+  box-shadow: none !important;
 }
 
 .iot-map-frame {
-  background: #d7e6f8;
-  border-color: rgba(47, 111, 237, 0.2);
+  background: var(--biz-map) !important;
+  border: 1px solid var(--biz-border) !important;
 }
 
-.detail-sidebar {
-  background: #e5eff9;
+.iot-map-frame::before {
+  background-image:
+    linear-gradient(var(--biz-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--biz-grid) 1px, transparent 1px) !important;
+  background-size: 64px 64px !important;
+  opacity: 1 !important;
+}
+
+.iot-map-frame::after {
+  background: none !important;
+  border: 1px dashed var(--biz-border) !important;
+  box-shadow: inset 0 0 0 999px var(--biz-inset) !important;
+}
+
+.fallback-node {
+  background: var(--biz-surface-soft) !important;
+  border: 1px solid var(--biz-border) !important;
+  color: var(--biz-text) !important;
+  box-shadow: none !important;
+}
+
+.fallback-node:hover,
+.fallback-node.is-selected {
+  background: var(--biz-selected) !important;
+  border-color: var(--biz-border-strong) !important;
+  box-shadow: none !important;
 }
 
 .selection-kv:nth-child(1),
 .selection-kv:nth-child(4) {
-  background: #dbe8fb;
+  background: var(--biz-blue-card) !important;
+  border-color: rgba(47, 111, 237, 0.22) !important;
 }
 
 .selection-kv:nth-child(2),
 .selection-kv:nth-child(5) {
-  background: #d8f0f7;
+  background: var(--biz-teal-card) !important;
+  border-color: rgba(25, 184, 214, 0.22) !important;
 }
 
 .selection-kv:nth-child(3),
 .selection-kv:nth-child(6) {
-  background: #faedd5;
+  background: var(--biz-orange-card) !important;
+  border-color: rgba(245, 158, 11, 0.22) !important;
 }
 
 .control-group {
-  background: #dfe9f8;
+  background: var(--biz-surface-strong) !important;
+  border: 1px solid var(--biz-border) !important;
 }
 
-.metric-card-voltage {
-  background: #dce8fb !important;
+.tree-group-header,
+.tree-group-toggle {
+  background: var(--biz-surface-strong) !important;
+  border: 1px solid var(--biz-border) !important;
+  color: var(--biz-text) !important;
 }
 
-.metric-card-current {
-  background: #d8f0f7 !important;
-}
-
-.metric-card-speed {
-  background: #faedd5 !important;
-}
-
-.metric-card-temperature {
-  background: #f8e0df !important;
-}
-
-.tree-group-header {
-  background: #d8e6f6;
-  border-color: rgba(47, 111, 237, 0.16);
-}
-
-.tree-group.is-open .tree-group-header {
-  background: #d3e2f5;
-  border-color: rgba(47, 111, 237, 0.24);
+.tree-group.is-open .tree-group-header,
+.tree-group-shell.is-expanded .tree-group-toggle {
+  background: var(--biz-surface-soft) !important;
+  border-color: var(--biz-border-strong) !important;
 }
 
 .tree-turbine {
-  background: #f3f7fc;
-  border-color: rgba(102, 129, 160, 0.12);
+  background: var(--biz-surface-soft) !important;
+  border: 1px solid var(--biz-border) !important;
+  color: var(--biz-text) !important;
 }
 
 .tree-turbine.is-selected {
-  background: #dbe8fb;
-  border-color: rgba(47, 111, 237, 0.24);
+  background: var(--biz-selected) !important;
+  border-color: var(--biz-border-strong) !important;
+  box-shadow: inset 0 0 0 1px var(--biz-border-strong) !important;
 }
 
 .detail-placeholder {
-  background: #e4eef9;
-  color: #5d7591;
+  background: var(--biz-surface-soft) !important;
+  color: var(--biz-muted) !important;
 }
 
-.detail-placeholder strong {
-  color: #2b3d55;
+.metric-card-voltage {
+  background: var(--biz-blue-card) !important;
+  border-color: rgba(47, 111, 237, 0.24) !important;
+}
+
+.metric-card-current {
+  background: var(--biz-teal-card) !important;
+  border-color: rgba(25, 184, 214, 0.24) !important;
+}
+
+.metric-card-speed {
+  background: var(--biz-orange-card) !important;
+  border-color: rgba(245, 158, 11, 0.24) !important;
+}
+
+.metric-card-temperature {
+  background: var(--biz-red-card) !important;
+  border-color: rgba(239, 91, 87, 0.24) !important;
+}
+
+.metric-card-voltage::before,
+.detail-chart-voltage::before {
+  background: #2f6fed !important;
+}
+
+.metric-card-current::before,
+.detail-chart-current::before {
+  background: #19b8d6 !important;
+}
+
+.metric-card-speed::before,
+.detail-chart-speed::before {
+  background: #f59e0b !important;
+}
+
+.metric-card-temperature::before,
+.detail-chart-temperature::before {
+  background: #ef5b57 !important;
+}
+
+.metric-card-voltage .metric-value,
+.detail-chart-voltage .chart-card-head {
+  color: var(--biz-blue-fg) !important;
+}
+
+.metric-card-current .metric-value,
+.detail-chart-current .chart-card-head {
+  color: var(--biz-teal-fg) !important;
+}
+
+.metric-card-speed .metric-value,
+.detail-chart-speed .chart-card-head {
+  color: var(--biz-orange-fg) !important;
+}
+
+.metric-card-temperature .metric-value,
+.detail-chart-temperature .chart-card-head {
+  color: var(--biz-red-fg) !important;
+}
+
+.chart-card-head {
+  color: var(--biz-text) !important;
+}
+
+.system-stat-card {
+  background: var(--biz-surface) !important;
 }
 
 .stat-card-online {
-  background: #dbe8fb;
+  background: var(--biz-blue-card) !important;
 }
 
 .stat-card-uploads {
-  background: #d9f0f6;
+  background: var(--biz-teal-card) !important;
 }
 
 .stat-card-latest {
-  background: #faedd7;
+  background: var(--biz-orange-card) !important;
 }
 
 .stat-card-storage {
-  background: #dbf1e6;
+  background: var(--biz-green-card) !important;
+}
+
+.node-matrix-card {
+  background: var(--biz-surface) !important;
+}
+
+.node-matrix-card::before {
+  background: var(--biz-border-strong) !important;
 }
 
 .node-matrix-card.status-online {
-  background: #ddf0f5;
+  background: var(--biz-teal-card) !important;
 }
 
 .node-matrix-card.status-offline {
-  background: #e5ecf4;
+  background: var(--biz-slate-card) !important;
 }
 
 .node-matrix-card.status-fault {
-  background: #f8e2e2;
+  background: var(--biz-red-card) !important;
 }
 
-/* Final dark-theme override after legacy light sync block. */
+.node-matrix-card.status-online::before {
+  background: #19b8d6 !important;
+}
+
+.node-matrix-card.status-offline::before {
+  background: #94a3b8 !important;
+}
+
+.node-matrix-card.status-fault::before {
+  background: #ef5b57 !important;
+}
+
+/* ========================================================
+   Industrial Dark Mode Overrides (SCADA Neon Style)
+   ======================================================== */
+html[data-theme="dark"] body.windsight-shell .dashboard-card,
+html[data-theme="dark"] body.windsight-shell .system-overview-page .dashboard-card {
+  background: var(--shell-surface) !important;
+  border-color: rgba(0, 243, 255, 0.2) !important;
+  box-shadow: 0 0 15px rgba(0, 243, 255, 0.05), inset 0 0 20px rgba(0, 243, 255, 0.02) !important;
+}
+html[data-theme="dark"] body.windsight-shell .glass-panel,
+html[data-theme="dark"] body.windsight-shell .light-panel {
+  background: rgba(10, 17, 34, 0.85) !important;
+  border-color: rgba(0, 243, 255, 0.25) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(0, 243, 255, 0.05) !important;
+}
 html[data-theme="dark"] body.windsight-shell .monitor-topbar,
 html[data-theme="dark"] body.windsight-shell .page-hero,
-html[data-theme="dark"] body.windsight-shell .system-hero,
-body.windsight-shell[data-theme="dark"] .monitor-topbar,
-body.windsight-shell[data-theme="dark"] .page-hero,
-body.windsight-shell[data-theme="dark"] .system-hero {
-  background: #162234 !important;
-  border-color: rgba(79, 141, 255, 0.24) !important;
+html[data-theme="dark"] body.windsight-shell .system-hero {
+  background: linear-gradient(135deg, rgba(10, 17, 34, 0.95), rgba(8, 14, 27, 0.98)) !important;
+  border-color: rgba(0, 243, 255, 0.2) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
 }
-
-html[data-theme="dark"] body.windsight-shell .monitor-map-card,
-html[data-theme="dark"] body.windsight-shell .history-filter-panel,
-html[data-theme="dark"] body.windsight-shell .system-stat-card,
-html[data-theme="dark"] body.windsight-shell .node-matrix-card,
-html[data-theme="dark"] body.windsight-shell .detail-chart-card,
-body.windsight-shell[data-theme="dark"] .monitor-map-card,
-body.windsight-shell[data-theme="dark"] .history-filter-panel,
-body.windsight-shell[data-theme="dark"] .system-stat-card,
-body.windsight-shell[data-theme="dark"] .node-matrix-card,
-body.windsight-shell[data-theme="dark"] .detail-chart-card {
-  background: #162234 !important;
-  border-color: rgba(100, 126, 157, 0.22) !important;
+html[data-theme="dark"] body.windsight-shell .topbar-chip,
+html[data-theme="dark"] body.windsight-shell .hero-pill {
+  background: rgba(0, 243, 255, 0.05) !important;
+  border-color: rgba(0, 243, 255, 0.2) !important;
+  color: #eaffff !important;
 }
-
-html[data-theme="dark"] body.windsight-shell .map-summary-chip,
-body.windsight-shell[data-theme="dark"] .map-summary-chip {
-  color: #dbe6f3 !important;
-  border-color: rgba(100, 126, 157, 0.24) !important;
+html[data-theme="dark"] body.windsight-shell .topbar-chip strong {
+  color: #00f3ff !important;
 }
-
-html[data-theme="dark"] body.windsight-shell .monitor-map-card .card-header,
-html[data-theme="dark"] body.windsight-shell .history-filter-panel .card-header,
-html[data-theme="dark"] body.windsight-shell .system-overview-main .card-header,
-body.windsight-shell[data-theme="dark"] .monitor-map-card .card-header,
-body.windsight-shell[data-theme="dark"] .history-filter-panel .card-header,
-body.windsight-shell[data-theme="dark"] .system-overview-main .card-header {
-  background: #1b2a40 !important;
+html[data-theme="dark"] body.windsight-shell .metric-value {
+  font-family: 'Roboto Mono', 'Consolas', monospace !important;
+  text-shadow: 0 0 12px currentColor;
 }
-
-html[data-theme="dark"] body.windsight-shell .iot-map-frame,
-body.windsight-shell[data-theme="dark"] .iot-map-frame {
-  background: #0f1b2b !important;
-  border-color: rgba(79, 141, 255, 0.22) !important;
+html[data-theme="dark"] body.windsight-shell .tree-node-count,
+html[data-theme="dark"] body.windsight-shell .tree-group-count {
+  font-family: 'Roboto Mono', 'Consolas', monospace !important;
+  text-shadow: 0 0 8px currentColor;
 }
-
-html[data-theme="dark"] body.windsight-shell .detail-sidebar,
-body.windsight-shell[data-theme="dark"] .detail-sidebar {
-  background: #162234 !important;
-  border-color: rgba(100, 126, 157, 0.24) !important;
+html[data-theme="dark"] body.windsight-shell .metric-card-voltage {
+  background: linear-gradient(180deg, rgba(0, 243, 255, 0.15), rgba(10, 17, 34, 0.95) 60%) !important;
+  border-color: rgba(0, 243, 255, 0.3) !important;
 }
-
-html[data-theme="dark"] body.windsight-shell .selection-kv:nth-child(1),
-html[data-theme="dark"] body.windsight-shell .selection-kv:nth-child(4),
-body.windsight-shell[data-theme="dark"] .selection-kv:nth-child(1),
-body.windsight-shell[data-theme="dark"] .selection-kv:nth-child(4) {
-  background: rgba(47, 111, 237, 0.2) !important;
+html[data-theme="dark"] body.windsight-shell .metric-card-current {
+  background: linear-gradient(180deg, rgba(0, 255, 157, 0.15), rgba(10, 17, 34, 0.95) 60%) !important;
+  border-color: rgba(0, 255, 157, 0.3) !important;
 }
-
-html[data-theme="dark"] body.windsight-shell .selection-kv:nth-child(2),
-html[data-theme="dark"] body.windsight-shell .selection-kv:nth-child(5),
-body.windsight-shell[data-theme="dark"] .selection-kv:nth-child(2),
-body.windsight-shell[data-theme="dark"] .selection-kv:nth-child(5) {
-  background: rgba(25, 184, 214, 0.18) !important;
+html[data-theme="dark"] body.windsight-shell .metric-card-speed {
+  background: linear-gradient(180deg, rgba(255, 176, 0, 0.15), rgba(10, 17, 34, 0.95) 60%) !important;
+  border-color: rgba(255, 176, 0, 0.3) !important;
 }
-
-html[data-theme="dark"] body.windsight-shell .selection-kv:nth-child(3),
-html[data-theme="dark"] body.windsight-shell .selection-kv:nth-child(6),
-body.windsight-shell[data-theme="dark"] .selection-kv:nth-child(3),
-body.windsight-shell[data-theme="dark"] .selection-kv:nth-child(6) {
-  background: rgba(245, 158, 11, 0.18) !important;
+html[data-theme="dark"] body.windsight-shell .metric-card-temperature {
+  background: linear-gradient(180deg, rgba(255, 51, 102, 0.15), rgba(10, 17, 34, 0.95) 60%) !important;
+  border-color: rgba(255, 51, 102, 0.3) !important;
 }
-
-html[data-theme="dark"] body.windsight-shell .control-group,
-body.windsight-shell[data-theme="dark"] .control-group {
-  background: #1b2a40 !important;
+html[data-theme="dark"] body.windsight-shell .iot-map-frame {
+  background: radial-gradient(circle at 50% 50%, rgba(0, 243, 255, 0.05), transparent 70%), #080f1d !important;
+  border-color: rgba(0, 243, 255, 0.2) !important;
 }
-
-html[data-theme="dark"] body.windsight-shell .metric-card-voltage,
-body.windsight-shell[data-theme="dark"] .metric-card-voltage {
-  background: rgba(47, 111, 237, 0.18) !important;
+html[data-theme="dark"] body.windsight-shell .iot-map-frame::before {
+  background-image: linear-gradient(rgba(0, 243, 255, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 243, 255, 0.08) 1px, transparent 1px) !important;
 }
-
-html[data-theme="dark"] body.windsight-shell .metric-card-current,
-body.windsight-shell[data-theme="dark"] .metric-card-current {
-  background: rgba(25, 184, 214, 0.18) !important;
-}
-
-html[data-theme="dark"] body.windsight-shell .metric-card-speed,
-body.windsight-shell[data-theme="dark"] .metric-card-speed {
-  background: rgba(245, 158, 11, 0.18) !important;
-}
-
-html[data-theme="dark"] body.windsight-shell .metric-card-temperature,
-body.windsight-shell[data-theme="dark"] .metric-card-temperature {
-  background: rgba(239, 91, 87, 0.18) !important;
-}
-
-html[data-theme="dark"] body.windsight-shell .tree-group-header,
-html[data-theme="dark"] body.windsight-shell .tree-group-toggle,
-body.windsight-shell[data-theme="dark"] .tree-group-header,
-body.windsight-shell[data-theme="dark"] .tree-group-toggle {
-  background: #1c2a40 !important;
-  border-color: rgba(100, 126, 157, 0.22) !important;
-  color: #e6eef8 !important;
-}
-
-html[data-theme="dark"] body.windsight-shell .tree-group.is-open .tree-group-header,
-html[data-theme="dark"] body.windsight-shell .tree-group-shell.is-expanded .tree-group-toggle,
-body.windsight-shell[data-theme="dark"] .tree-group.is-open .tree-group-header,
-body.windsight-shell[data-theme="dark"] .tree-group-shell.is-expanded .tree-group-toggle {
-  background: #223553 !important;
-  border-color: rgba(79, 141, 255, 0.26) !important;
-}
-
 html[data-theme="dark"] body.windsight-shell .tree-turbine,
-body.windsight-shell[data-theme="dark"] .tree-turbine {
-  background: #162234 !important;
-  border-color: rgba(100, 126, 157, 0.18) !important;
+html[data-theme="dark"] body.windsight-shell .tree-group-shell,
+html[data-theme="dark"] body.windsight-shell .tree-node-shell {
+  background: rgba(10, 17, 34, 0.8) !important;
+  border-color: rgba(0, 243, 255, 0.15) !important;
+}
+html[data-theme="dark"] body.windsight-shell .tree-group-toggle {
+  background: rgba(0, 243, 255, 0.05) !important;
+  color: #eaffff !important;
+}
+html[data-theme="dark"] body.windsight-shell .tree-group-toggle:hover {
+  background: rgba(0, 243, 255, 0.1) !important;
+}
+html[data-theme="dark"] body.windsight-shell .selection-kv {
+  background: rgba(10, 17, 34, 0.6) !important;
+  border-color: rgba(0, 243, 255, 0.15) !important;
+}
+html[data-theme="dark"] body.windsight-shell .control-group {
+  background: rgba(10, 17, 34, 0.6) !important;
+  border-color: rgba(0, 243, 255, 0.15) !important;
+}
+html[data-theme="dark"] body.windsight-shell .metric-card-voltage .metric-value { color: #00f3ff !important; }
+html[data-theme="dark"] body.windsight-shell .metric-card-current .metric-value { color: #00ff9d !important; }
+html[data-theme="dark"] body.windsight-shell .metric-card-speed .metric-value { color: #ffb000 !important; }
+html[data-theme="dark"] body.windsight-shell .metric-card-temperature .metric-value { color: #ff3366 !important; }
+
+/* Advanced Layout & Hover Animations (Universal SCADA Neon Style) */
+body.windsight-shell .detail-layout {
+  grid-template-columns: minmax(320px, 320px) 1fr !important;
+  gap: 1.5rem !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .tree-turbine.is-selected,
-body.windsight-shell[data-theme="dark"] .tree-turbine.is-selected {
-  background: rgba(47, 111, 237, 0.2) !important;
-  border-color: rgba(79, 141, 255, 0.28) !important;
+body.windsight-shell .metric-summary-card {
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s ease !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .detail-placeholder,
-body.windsight-shell[data-theme="dark"] .detail-placeholder {
-  background: #132033 !important;
-  color: #98abc0 !important;
+body.windsight-shell .metric-summary-card:hover {
+  transform: translateY(-4px) !important;
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.1), inset 0 0 15px rgba(37, 99, 235, 0.04) !important;
+  z-index: 10 !important;
+}
+html[data-theme="dark"] body.windsight-shell .metric-summary-card:hover {
+  box-shadow: 0 12px 28px rgba(0, 243, 255, 0.15), inset 0 0 15px rgba(0, 243, 255, 0.08) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .detail-placeholder strong,
-body.windsight-shell[data-theme="dark"] .detail-placeholder strong {
-  color: #e6eef8 !important;
+body.windsight-shell .system-stat-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+  gap: 1.5rem !important;
+  margin-bottom: 2rem !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .stat-card-online,
-body.windsight-shell[data-theme="dark"] .stat-card-online {
-  background: rgba(47, 111, 237, 0.18) !important;
+body.windsight-shell .system-stat-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease !important;
+  border-radius: 12px !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .stat-card-uploads,
-body.windsight-shell[data-theme="dark"] .stat-card-uploads {
-  background: rgba(25, 184, 214, 0.18) !important;
+body.windsight-shell .system-stat-card:hover {
+  transform: translateY(-3px) !important;
+  box-shadow: 0 10px 25px rgba(37, 99, 235, 0.12) !important;
+}
+html[data-theme="dark"] body.windsight-shell .system-stat-card:hover {
+  box-shadow: 0 10px 25px rgba(0, 243, 255, 0.2) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .stat-card-latest,
-body.windsight-shell[data-theme="dark"] .stat-card-latest {
-  background: rgba(245, 158, 11, 0.18) !important;
+body.windsight-shell .node-matrix-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) !important;
+  gap: 1.25rem !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .stat-card-storage,
-body.windsight-shell[data-theme="dark"] .stat-card-storage {
-  background: rgba(18, 184, 134, 0.18) !important;
+body.windsight-shell .node-matrix-card {
+  clip-path: polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px) !important;
+  border-radius: 0 !important;
+  border: 1px solid #e2e8f0 !important;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 4px 10px rgba(15, 23, 42, 0.03) !important;
+  transition: all 0.3s ease !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .node-matrix-card.status-online,
-body.windsight-shell[data-theme="dark"] .node-matrix-card.status-online {
-  background: rgba(25, 184, 214, 0.16) !important;
+body.windsight-shell .node-matrix-card:hover {
+  transform: scale(1.02) !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 12px 28px rgba(15, 23, 42, 0.08) !important;
+}
+html[data-theme="dark"] body.windsight-shell .node-matrix-card {
+  border: 1px solid rgba(0, 243, 255, 0.15) !important;
+  background: rgba(10, 17, 34, 0.75) !important;
+}
+html[data-theme="dark"] body.windsight-shell .node-matrix-card:hover {
+  border-color: rgba(0, 243, 255, 0.4) !important;
+  box-shadow: 0 0 20px rgba(0, 243, 255, 0.15) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .node-matrix-card.status-offline,
-body.windsight-shell[data-theme="dark"] .node-matrix-card.status-offline {
-  background: rgba(148, 163, 184, 0.14) !important;
+body.windsight-shell .node-matrix-card.status-online {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.05), rgba(255, 255, 255, 0.9)) !important;
+  border-color: rgba(37, 99, 235, 0.2) !important;
+}
+body.windsight-shell .node-matrix-card.status-fault {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.05), rgba(255, 255, 255, 0.9)) !important;
+  border-color: rgba(239, 68, 68, 0.2) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .node-matrix-card.status-fault,
-body.windsight-shell[data-theme="dark"] .node-matrix-card.status-fault {
-  background: rgba(239, 91, 87, 0.16) !important;
+html[data-theme="dark"] body.windsight-shell .node-matrix-card.status-online {
+  background: linear-gradient(135deg, rgba(0, 243, 255, 0.1), rgba(10, 17, 34, 0.8)) !important;
+  border-color: rgba(0, 243, 255, 0.3) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .node-matrix-card.status-fault {
+  background: linear-gradient(135deg, rgba(255, 51, 102, 0.1), rgba(10, 17, 34, 0.8)) !important;
+  border-color: rgba(255, 51, 102, 0.3) !important;
+}
+
+/* Dotted Map Background overrides for dark mode */
+html[data-theme="dark"] body.windsight-shell .iot-map-frame {
+  background-image: radial-gradient(rgba(0, 243, 255, 0.15) 2px, transparent 2px) !important;
+  background-size: 32px 32px !important;
+  background-position: 16px 16px !important;
+}
+
+/* Three-stage drilldown layout */
+.monitor-shell {
+  min-height: 1280px;
+}
+
+.page-overview .monitor-shell {
+  min-height: 1560px;
+}
+
+.tree-stage,
+.chart-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.tree-summary-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.tree-browser-card .card-body,
+.tree-summary-card .card-body {
+  padding-top: 1rem;
+}
+
+.chart-stage-hero-body {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.chart-stage-copy {
+  max-width: 680px;
+}
+
+.chart-stage-toolbar {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1rem;
+}
+
+.chart-stage-toolbar .topbar-chip-group {
+  justify-content: flex-end;
+}
+
+.chart-stage .detail-placeholder {
+  min-height: 380px;
+}
+
+.tree-stage .turbine-tree-empty {
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 1199.98px) {
+  .monitor-shell {
+    min-height: 1420px;
+  }
+
+  .page-overview .monitor-shell {
+    min-height: 1860px;
+  }
+}
+
+@media (max-width: 991.98px) {
+  .chart-stage-hero-body {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .chart-stage-toolbar {
+    align-items: stretch;
+  }
+
+  .chart-stage-toolbar .topbar-chip-group {
+    justify-content: flex-start;
+  }
+
+  .monitor-shell {
+    min-height: 1840px;
+  }
+
+  .page-overview .monitor-shell {
+    min-height: 2420px;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .monitor-view {
+    display: none;
+    position: relative;
+    inset: auto;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: none;
+  }
+
+  .monitor-view.is-active {
+    display: block;
+  }
+
+  .monitor-shell,
+  .page-overview .monitor-shell {
+    min-height: auto;
+  }
 }

@@ -10,6 +10,7 @@
   const usesDrilldownView = isMonitorPage || isOverviewPage;
   const storageNodeKey = "selectedNodeId";
   const storageTurbineKey = "selectedTurbineCode";
+  const storageViewKey = `windsightDrillView:${pageKind}`;
   const pollIntervalMs = 3000;
   const defaultLimit = 600;
   const maxLimit = 20000;
@@ -33,7 +34,8 @@
     uploads: [],
     uploadIds: new Set(),
     pollTimer: null,
-    view: usesDrilldownView ? "map" : "detail",
+    view: usesDrilldownView ? "map" : "chart",
+    metricZoom: null,
   };
 
   const dom = {
@@ -49,11 +51,17 @@
     historyEnd: document.getElementById("historyEnd"),
     btnClearRange: document.getElementById("btnClearRange"),
     mapView: document.getElementById("map-view"),
-    detailView: document.getElementById("detail-view"),
+    treeView: document.getElementById("tree-view"),
+    chartView: document.getElementById("chart-view"),
     btnBackToMap: document.getElementById("btnBackToMap"),
+    btnBackToTree: document.getElementById("btnBackToTree"),
     lastDataTime: document.getElementById("lastDataTime"),
     topbarNodeChip: document.getElementById("topbarNodeChip"),
     topbarStatusChip: document.getElementById("topbarStatusChip"),
+    chartNodeChip: document.getElementById("chartNodeChip"),
+    chartTurbineChip: document.getElementById("chartTurbineChip"),
+    chartStatusChip: document.getElementById("chartStatusChip"),
+    chartLastDataTime: document.getElementById("chartLastDataTime"),
   };
 
   const chartStore = {
@@ -72,20 +80,20 @@
   function getThemePalette() {
     if (getThemeMode() === "dark") {
       return {
-        tooltipBg: "rgba(18, 26, 40, 0.98)",
-        tooltipBorder: "rgba(94, 131, 181, 0.32)",
-        tooltipText: "#e7eef8",
-        axisText: "#9eb1c8",
-        axisLine: "rgba(120, 140, 168, 0.34)",
-        splitLine: "rgba(120, 140, 168, 0.18)",
-        zoomBorder: "rgba(120, 140, 168, 0.22)",
-        zoomFill: "rgba(47, 111, 237, 0.24)",
-        zoomBg: "rgba(25, 35, 52, 0.92)",
-        emptyText: "#90a4bb",
-        labelText: "#e7eef8",
-        online: "#4f8dff",
-        offline: "#6f8298",
-        fault: "#ef5b57",
+        tooltipBg: "rgba(10, 17, 34, 0.95)",
+        tooltipBorder: "rgba(0, 243, 255, 0.4)",
+        tooltipText: "#eaffff",
+        axisText: "#82a0bc",
+        axisLine: "rgba(0, 243, 255, 0.3)",
+        splitLine: "rgba(0, 243, 255, 0.1)",
+        zoomBorder: "rgba(0, 243, 255, 0.2)",
+        zoomFill: "rgba(0, 243, 255, 0.15)",
+        zoomBg: "rgba(10, 17, 34, 0.92)",
+        emptyText: "#597a9f",
+        labelText: "#eaffff",
+        online: "#00f3ff",
+        offline: "#47617f",
+        fault: "#ff3366",
       };
     }
     return {
@@ -251,9 +259,54 @@
     window.localStorage.setItem(storageTurbineKey, state.selectedTurbineCode || "");
   }
 
+  function persistView(mode = state.view) {
+    if (!usesDrilldownView) {
+      return;
+    }
+    window.localStorage.setItem(storageViewKey, mode || "map");
+  }
+
   function clearUploads() {
     state.uploads = [];
     state.uploadIds = new Set();
+  }
+
+  function resetMetricZoom() {
+    state.metricZoom = null;
+  }
+
+  function rememberMetricZoomFromChart(chart) {
+    if (!chart) {
+      return;
+    }
+    const zoom = chart.getOption?.()?.dataZoom?.[0];
+    if (!zoom) {
+      return;
+    }
+    const nextZoom = {};
+    if (Number.isFinite(zoom.start)) {
+      nextZoom.start = zoom.start;
+    }
+    if (Number.isFinite(zoom.end)) {
+      nextZoom.end = zoom.end;
+    }
+    if (Object.keys(nextZoom).length) {
+      state.metricZoom = nextZoom;
+    }
+  }
+
+  function applyMetricZoom(config) {
+    if (!state.metricZoom) {
+      return config;
+    }
+    const nextConfig = { ...config };
+    if (Number.isFinite(state.metricZoom.start)) {
+      nextConfig.start = state.metricZoom.start;
+    }
+    if (Number.isFinite(state.metricZoom.end)) {
+      nextConfig.end = state.metricZoom.end;
+    }
+    return nextConfig;
   }
 
   function upsertNode(nodePatch) {
@@ -816,6 +869,7 @@
       }
       const chart = echarts.init(element);
       chart.group = chartGroup;
+      chart.on("dataZoom", () => rememberMetricZoomFromChart(chart));
       chartStore.metrics.set(metric.key, chart);
     });
     echarts.connect(chartGroup);
@@ -880,13 +934,13 @@
         },
       },
       dataZoom: [
-        {
+        applyMetricZoom({
           type: "inside",
           filterMode: "none",
-        },
+        }),
         ...(index === metrics.length - 1
           ? [
-              {
+              applyMetricZoom({
                 type: "slider",
                 height: 16,
                 bottom: 10,
@@ -894,7 +948,7 @@
                 borderColor: palette.zoomBorder,
                 fillerColor: palette.zoomFill,
                 backgroundColor: palette.zoomBg,
-              },
+              }),
             ]
           : []),
       ],
@@ -1077,6 +1131,7 @@
       state.selectedNodeId = "";
       state.selectedTurbineCode = "";
       state.expandedTurbineGroups.clear();
+      resetMetricZoom();
       clearUploads();
       persistSelection();
       stopPolling();
@@ -1093,6 +1148,9 @@
 
     const sameNode = state.selectedNodeId === nextId;
     state.selectedNodeId = nextId;
+    if (!sameNode) {
+      resetMetricZoom();
+    }
     if (clearTurbine) {
       state.selectedTurbineCode = "";
       resetExpandedGroups(nextId);
@@ -1128,7 +1186,11 @@
   }
 
   async function selectTurbine(turbineCode) {
-    state.selectedTurbineCode = String(turbineCode || "").trim();
+    const nextCode = String(turbineCode || "").trim();
+    if (state.selectedTurbineCode !== nextCode) {
+      resetMetricZoom();
+    }
+    state.selectedTurbineCode = nextCode;
     ensureExpandedGroupForTurbine(state.selectedTurbineCode);
     persistSelection();
     renderAll();
@@ -1277,6 +1339,242 @@
         startPolling();
         await loadHistory();
       }
+    }
+  }
+
+  function renderSelectionSummary() {
+    const node = state.selectedNodeId ? resolveNodeMeta(state.selectedNodeId) : null;
+    const latestTime =
+      latestSnapshotForCode()?.row?.timestamp || state.uploads[state.uploads.length - 1]?.timestamp || "--";
+
+    setText("selectedNodeLabel", node ? `${node.displayName} (${node.nodeId})` : "请选择地图节点");
+    setText("selectedNodeZone", node ? node.zoneLabel : "--");
+    setText("selectedNodeStatus", node ? getStatusLabel(node.status) : "--");
+    setText("selectedNodeTime", node?.lastUpload || "--");
+    setText("selectedNodeDescription", node ? node.description : "--");
+    setText("selectedTurbineLabel", state.selectedTurbineCode ? `发电机 ${state.selectedTurbineCode}` : "请在树中选择");
+    setText(dom.topbarNodeChip, node ? node.displayName : "未选择节点");
+    if (dom.topbarStatusChip) {
+      setText(dom.topbarStatusChip, node ? `节点${getStatusLabel(node.status)}` : "等待接入");
+    }
+    setText(dom.lastDataTime, latestTime);
+    setText(dom.chartNodeChip, node ? node.displayName : "未选择节点");
+    setText(dom.chartTurbineChip, state.selectedTurbineCode ? `发电机 ${state.selectedTurbineCode}` : "未选择发电机");
+    setText(dom.chartStatusChip, node ? `节点${getStatusLabel(node.status)}` : "等待接入");
+    setText(dom.chartLastDataTime, latestTime);
+  }
+
+  function setViewSection(element, active) {
+    if (!element) {
+      return;
+    }
+    element.classList.toggle("is-active", active);
+    element.setAttribute("aria-hidden", String(!active));
+  }
+
+  function setView(mode) {
+    if (!usesDrilldownView) {
+      return;
+    }
+    let nextMode = mode;
+    if (nextMode === "chart" && (!state.selectedNodeId || !state.selectedTurbineCode)) {
+      nextMode = state.selectedNodeId ? "tree" : "map";
+    } else if (nextMode === "tree" && !state.selectedNodeId) {
+      nextMode = "map";
+    }
+
+    state.view = nextMode;
+    persistView(state.view);
+    const mapMode = nextMode === "map";
+    const treeMode = nextMode === "tree";
+    const chartMode = nextMode === "chart";
+
+    setViewSection(dom.mapView, mapMode);
+    setViewSection(dom.treeView, treeMode);
+    setViewSection(dom.chartView, chartMode);
+
+    if (dom.btnBackToMap) {
+      dom.btnBackToMap.classList.toggle("is-hidden", !treeMode);
+    }
+    if (dom.btnBackToTree) {
+      dom.btnBackToTree.classList.toggle("is-hidden", !chartMode);
+    }
+
+    requestAnimationFrame(() => {
+      if (mapMode) {
+        chartStore.map?.resize();
+      }
+      if (chartMode) {
+        chartStore.metrics.forEach((chart) => chart.resize());
+      }
+    });
+  }
+
+  async function jumpToTree(nodeId = state.selectedNodeId) {
+    const nextId = String(nodeId || "").trim();
+    if (!nextId) {
+      jumpToMap();
+      return;
+    }
+    const preserveSelection = nextId === state.selectedNodeId && !!state.selectedTurbineCode;
+    setView("tree");
+    await selectNode(nextId, { clearTurbine: !preserveSelection, loadAfterSelect: isMonitorPage });
+    setView("tree");
+  }
+
+  async function jumpToDetail(nodeId) {
+    await jumpToTree(nodeId);
+  }
+
+  function jumpToMap() {
+    setView("map");
+    requestAnimationFrame(() => chartStore.map?.resize());
+  }
+
+  function jumpToTreeView() {
+    if (!state.selectedNodeId) {
+      jumpToMap();
+      return;
+    }
+    setView("tree");
+  }
+
+  async function selectTurbine(turbineCode) {
+    const nextCode = String(turbineCode || "").trim();
+    if (!nextCode) {
+      return;
+    }
+    if (state.selectedTurbineCode !== nextCode) {
+      resetMetricZoom();
+    }
+    state.selectedTurbineCode = nextCode;
+    ensureExpandedGroupForTurbine(state.selectedTurbineCode);
+    persistSelection();
+    setView("chart");
+    renderAll();
+
+    if (!state.selectedNodeId) {
+      return;
+    }
+    if (!isMonitorPage) {
+      await loadHistory();
+    } else {
+      requestAnimationFrame(() => chartStore.metrics.forEach((chart) => chart.resize()));
+    }
+  }
+
+  function bindEvents() {
+    dom.btnReload?.addEventListener("click", () => {
+      loadHistory().catch((error) => console.error("[dashboard] reload failed", error));
+    });
+
+    dom.historyLimit?.addEventListener("change", () => {
+      dom.historyLimit.value = String(currentLimit());
+      if (state.selectedNodeId && (!isMonitorPage ? state.selectedTurbineCode : true)) {
+        loadHistory().catch((error) => console.error("[dashboard] limit change failed", error));
+      }
+    });
+
+    dom.historyStart?.addEventListener("change", () => {
+      loadHistory().catch((error) => console.error("[dashboard] start change failed", error));
+    });
+
+    dom.historyEnd?.addEventListener("change", () => {
+      loadHistory().catch((error) => console.error("[dashboard] end change failed", error));
+    });
+
+    dom.btnClearRange?.addEventListener("click", () => {
+      if (dom.historyStart) dom.historyStart.value = "";
+      if (dom.historyEnd) dom.historyEnd.value = "";
+      loadHistory().catch((error) => console.error("[dashboard] clear range failed", error));
+    });
+
+    document.querySelectorAll("[data-range-min]").forEach((button) => {
+      button.addEventListener("click", () => applyQuickRange(button.dataset.rangeMin || "0"));
+    });
+
+    dom.btnBackToMap?.addEventListener("click", jumpToMap);
+    dom.btnBackToTree?.addEventListener("click", jumpToTreeView);
+    window.addEventListener("resize", resizeCharts);
+    window.addEventListener("windsight:themechange", () => {
+      renderAll();
+      requestAnimationFrame(resizeCharts);
+    });
+  }
+
+  function resolveInitialView(options = {}) {
+    const savedView = usesDrilldownView ? window.localStorage.getItem(storageViewKey) || "" : "";
+    const preferTree = !!options.preferTree;
+
+    if (!usesDrilldownView) {
+      return "chart";
+    }
+    if ((preferTree || savedView === "tree") && state.selectedNodeId) {
+      return "tree";
+    }
+    if (savedView === "chart" && state.selectedNodeId && state.selectedTurbineCode) {
+      return "chart";
+    }
+    if (savedView === "map") {
+      return "map";
+    }
+    if (state.selectedNodeId && !state.selectedTurbineCode) {
+      return "tree";
+    }
+    return "map";
+  }
+
+  async function loadNodes() {
+    const result = await fetchJson("/api/nodes");
+    state.nodes = sortNodes(Array.isArray(result.nodes) ? result.nodes : []);
+    state.nodeMap = new Map(
+      state.nodes.map((node) => [
+        node.node_id,
+        {
+          ...node,
+          turbines: normalizeTurbines(node.turbines || []),
+        },
+      ])
+    );
+
+    const fromQuery = new URLSearchParams(window.location.search).get("select");
+    const fromStorage = window.localStorage.getItem(storageNodeKey) || "";
+    const restoredNode = fromQuery || fromStorage;
+    const restoredTurbine = window.localStorage.getItem(storageTurbineKey) || "";
+
+    if (restoredNode && state.nodeMap.has(restoredNode)) {
+      state.selectedNodeId = restoredNode;
+      if (availableTurbines(restoredNode).includes(restoredTurbine)) {
+        state.selectedTurbineCode = restoredTurbine;
+      } else {
+        state.selectedTurbineCode = "";
+      }
+    } else {
+      state.selectedNodeId = "";
+      state.selectedTurbineCode = "";
+    }
+
+    if (state.selectedNodeId && state.selectedTurbineCode) {
+      ensureExpandedGroupForTurbine(state.selectedTurbineCode, state.selectedNodeId);
+    }
+
+    renderAll();
+    setView(resolveInitialView({ preferTree: !!fromQuery }));
+    persistSelection();
+
+    if (!state.selectedNodeId) {
+      return;
+    }
+
+    if (isMonitorPage) {
+      subscribeToNode(state.selectedNodeId);
+      startPolling();
+      await loadHistory();
+      return;
+    }
+
+    if (state.selectedTurbineCode) {
+      await loadHistory();
     }
   }
 

@@ -595,256 +595,241 @@
   }
 }
 
+/* Theme System v2 - authoritative settings layer. */
+html[data-theme="light"] body.windsight-shell .settings-console,
+body.windsight-shell[data-theme="light"] .settings-console {
+  --settings-blue-bg: #dbe7fb;
+  --settings-blue-border: rgba(47, 111, 237, 0.24);
+  --settings-teal-bg: #d9edf4;
+  --settings-teal-border: rgba(25, 184, 214, 0.22);
+  --settings-orange-bg: #faecd8;
+  --settings-orange-border: rgba(245, 158, 11, 0.24);
+  --settings-green-bg: #dcefe5;
+  --settings-green-border: rgba(18, 184, 134, 0.24);
+  --settings-red-bg: #f6e0de;
+  --settings-red-border: rgba(239, 91, 87, 0.24);
+  --settings-slate-bg: #e3eaf2;
+  --settings-slate-border: rgba(94, 121, 156, 0.2);
+  --settings-panel-bg: #edf2f7;
+  --settings-panel-strong: #dde6f0;
+  --settings-panel-soft: #f5f8fb;
+  --settings-panel-border: rgba(94, 121, 156, 0.18);
+  --settings-hero-bg: #d6e0eb;
+  --settings-text: #22384d;
+  --settings-text-soft: #6f839d;
+  --settings-shadow: 0 14px 28px rgba(108, 127, 153, 0.12);
+  --settings-control-bg: #f4f7fb;
+  --settings-control-border: rgba(104, 125, 151, 0.18);
+}
+
 html[data-theme="dark"] body.windsight-shell .settings-console,
 body.windsight-shell[data-theme="dark"] .settings-console {
-  --settings-panel-bg: #162234;
-  --settings-panel-border: rgba(100, 126, 157, 0.24);
+  --settings-blue-bg: #22385a;
+  --settings-blue-border: rgba(103, 162, 255, 0.28);
+  --settings-teal-bg: #1d3743;
+  --settings-teal-border: rgba(80, 221, 236, 0.22);
+  --settings-orange-bg: #3a3123;
+  --settings-orange-border: rgba(242, 174, 55, 0.24);
+  --settings-green-bg: #20342d;
+  --settings-green-border: rgba(32, 201, 133, 0.24);
+  --settings-red-bg: #382629;
+  --settings-red-border: rgba(240, 107, 101, 0.26);
+  --settings-slate-bg: #243242;
+  --settings-slate-border: rgba(103, 126, 154, 0.22);
+  --settings-panel-bg: #182537;
+  --settings-panel-strong: #223147;
+  --settings-panel-soft: #132032;
+  --settings-panel-border: rgba(103, 126, 154, 0.22);
   --settings-hero-bg: #162234;
-  --settings-text: #e6eef8;
-  --settings-text-soft: #98abc0;
+  --settings-text: #e4edf7;
+  --settings-text-soft: #9aacbf;
+  --settings-shadow: 0 18px 34px rgba(0, 0, 0, 0.26);
+  --settings-control-bg: #111d2d;
+  --settings-control-border: rgba(103, 126, 154, 0.22);
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-hero-panel,
-body.windsight-shell[data-theme="dark"] .settings-hero-panel {
-  background: #162234 !important;
-  border-color: rgba(79, 141, 255, 0.24) !important;
-  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.28) !important;
+.settings-hero-panel,
+.settings-panel,
+.settings-section-card {
+  background: var(--settings-panel-bg) !important;
+  border: 1px solid var(--settings-panel-border) !important;
+  box-shadow: var(--settings-shadow) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-kicker,
-html[data-theme="dark"] body.windsight-shell .settings-hero-text,
-html[data-theme="dark"] body.windsight-shell .settings-card-kicker,
-html[data-theme="dark"] body.windsight-shell .settings-panel-text,
-html[data-theme="dark"] body.windsight-shell .settings-help-text,
-html[data-theme="dark"] body.windsight-shell .settings-danger-text,
-body.windsight-shell[data-theme="dark"] .settings-kicker,
-body.windsight-shell[data-theme="dark"] .settings-hero-text,
-body.windsight-shell[data-theme="dark"] .settings-card-kicker,
-body.windsight-shell[data-theme="dark"] .settings-panel-text,
-body.windsight-shell[data-theme="dark"] .settings-help-text,
-body.windsight-shell[data-theme="dark"] .settings-danger-text {
-  color: #98abc0 !important;
+.settings-hero-panel {
+  background: var(--settings-hero-bg) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-hero-title,
-html[data-theme="dark"] body.windsight-shell .settings-card-title,
-html[data-theme="dark"] body.windsight-shell .settings-label,
-html[data-theme="dark"] body.windsight-shell .settings-switch-label,
-html[data-theme="dark"] body.windsight-shell .settings-danger-title,
-body.windsight-shell[data-theme="dark"] .settings-hero-title,
-body.windsight-shell[data-theme="dark"] .settings-card-title,
-body.windsight-shell[data-theme="dark"] .settings-label,
-body.windsight-shell[data-theme="dark"] .settings-switch-label,
-body.windsight-shell[data-theme="dark"] .settings-danger-title {
-  color: #e6eef8 !important;
+.settings-kicker,
+.settings-hero-text,
+.settings-card-kicker,
+.settings-panel-text,
+.settings-help-text,
+.settings-danger-text,
+.settings-stat-label {
+  color: var(--settings-text-soft) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-panel,
-html[data-theme="dark"] body.windsight-shell .settings-section-card,
-body.windsight-shell[data-theme="dark"] .settings-panel,
-body.windsight-shell[data-theme="dark"] .settings-section-card {
-  background: #162234 !important;
-  border-color: rgba(100, 126, 157, 0.24) !important;
-  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.28) !important;
+.settings-hero-title,
+.settings-card-title,
+.settings-label,
+.settings-switch-label,
+.settings-danger-title,
+.settings-stat-value,
+.settings-badge-chip {
+  color: var(--settings-text) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-summary-panel,
-body.windsight-shell[data-theme="dark"] .settings-summary-panel {
-  background: #162234 !important;
+.settings-summary-panel {
+  background: var(--settings-panel-bg) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-save-panel,
-body.windsight-shell[data-theme="dark"] .settings-save-panel {
-  background: #16283b !important;
+.settings-save-panel {
+  background: var(--settings-panel-strong) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-section-blue,
-body.windsight-shell[data-theme="dark"] .settings-section-blue {
-  background: rgba(47, 111, 237, 0.12) !important;
-  border-color: rgba(79, 141, 255, 0.26) !important;
+.settings-section-blue {
+  background: var(--settings-blue-bg) !important;
+  border-color: var(--settings-blue-border) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-section-teal,
-body.windsight-shell[data-theme="dark"] .settings-section-teal {
-  background: rgba(25, 184, 214, 0.12) !important;
-  border-color: rgba(25, 184, 214, 0.24) !important;
+.settings-section-teal {
+  background: var(--settings-teal-bg) !important;
+  border-color: var(--settings-teal-border) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-section-orange,
-body.windsight-shell[data-theme="dark"] .settings-section-orange {
-  background: rgba(245, 158, 11, 0.12) !important;
-  border-color: rgba(245, 158, 11, 0.22) !important;
+.settings-section-orange {
+  background: var(--settings-orange-bg) !important;
+  border-color: var(--settings-orange-border) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-section-danger,
-body.windsight-shell[data-theme="dark"] .settings-section-danger {
-  background: rgba(239, 91, 87, 0.12) !important;
-  border-color: rgba(239, 91, 87, 0.24) !important;
+.settings-section-danger {
+  background: var(--settings-red-bg) !important;
+  border-color: var(--settings-red-border) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-card-icon,
-body.windsight-shell[data-theme="dark"] .settings-card-icon {
-  background: #1b2a40 !important;
+.settings-card-icon {
+  background: var(--settings-panel-strong) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-icon-blue,
-body.windsight-shell[data-theme="dark"] .settings-icon-blue {
-  border-color: rgba(79, 141, 255, 0.3) !important;
-  color: #70a3ff !important;
+.settings-icon-blue {
+  background: var(--settings-blue-bg) !important;
+  border-color: var(--settings-blue-border) !important;
+  color: #2f6fed !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-icon-teal,
-body.windsight-shell[data-theme="dark"] .settings-icon-teal {
-  border-color: rgba(25, 184, 214, 0.28) !important;
-  color: #5fd6ea !important;
+.settings-icon-teal {
+  background: var(--settings-teal-bg) !important;
+  border-color: var(--settings-teal-border) !important;
+  color: #19b8d6 !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-icon-orange,
-body.windsight-shell[data-theme="dark"] .settings-icon-orange {
-  border-color: rgba(245, 158, 11, 0.28) !important;
-  color: #f3bd56 !important;
+.settings-icon-orange {
+  background: var(--settings-orange-bg) !important;
+  border-color: var(--settings-orange-border) !important;
+  color: #f59e0b !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-icon-danger,
-body.windsight-shell[data-theme="dark"] .settings-icon-danger {
-  border-color: rgba(239, 91, 87, 0.28) !important;
-  color: #ff8d8a !important;
+.settings-icon-danger {
+  background: var(--settings-red-bg) !important;
+  border-color: var(--settings-red-border) !important;
+  color: #ef5b57 !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-stat-tile,
-body.windsight-shell[data-theme="dark"] .settings-stat-tile {
-  box-shadow: none;
+.settings-pill-blue,
+.settings-stat-blue {
+  background: var(--settings-blue-bg) !important;
+  border-color: var(--settings-blue-border) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-pill-blue,
-body.windsight-shell[data-theme="dark"] .settings-pill-blue {
-  background: rgba(47, 111, 237, 0.18) !important;
-  border-color: rgba(79, 141, 255, 0.28) !important;
-  color: #dbe6ff !important;
+.settings-pill-teal,
+.settings-stat-teal {
+  background: var(--settings-teal-bg) !important;
+  border-color: var(--settings-teal-border) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-pill-teal,
-body.windsight-shell[data-theme="dark"] .settings-pill-teal {
-  background: rgba(25, 184, 214, 0.18) !important;
-  border-color: rgba(25, 184, 214, 0.26) !important;
-  color: #d7f5fb !important;
+.settings-pill-orange,
+.settings-stat-orange {
+  background: var(--settings-orange-bg) !important;
+  border-color: var(--settings-orange-border) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-pill-orange,
-body.windsight-shell[data-theme="dark"] .settings-pill-orange {
-  background: rgba(245, 158, 11, 0.18) !important;
-  border-color: rgba(245, 158, 11, 0.24) !important;
-  color: #ffe0a0 !important;
+.settings-stat-green {
+  background: var(--settings-green-bg) !important;
+  border-color: var(--settings-green-border) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-stat-blue,
-body.windsight-shell[data-theme="dark"] .settings-stat-blue {
-  background: rgba(47, 111, 237, 0.18) !important;
-  border-color: rgba(79, 141, 255, 0.28) !important;
+.settings-stat-slate {
+  background: var(--settings-slate-bg) !important;
+  border-color: var(--settings-slate-border) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-stat-teal,
-body.windsight-shell[data-theme="dark"] .settings-stat-teal {
-  background: rgba(25, 184, 214, 0.18) !important;
-  border-color: rgba(25, 184, 214, 0.24) !important;
+.settings-stat-tile {
+  box-shadow: none !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-stat-orange,
-body.windsight-shell[data-theme="dark"] .settings-stat-orange {
-  background: rgba(245, 158, 11, 0.18) !important;
-  border-color: rgba(245, 158, 11, 0.24) !important;
+.settings-badge-chip,
+.settings-inline-value {
+  background: var(--settings-panel-strong) !important;
+  border-color: var(--settings-panel-border) !important;
+  color: var(--settings-text) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-stat-green,
-body.windsight-shell[data-theme="dark"] .settings-stat-green {
-  background: rgba(18, 184, 134, 0.18) !important;
-  border-color: rgba(18, 184, 134, 0.24) !important;
+.settings-switch-row,
+.settings-subpanel,
+.settings-danger-box {
+  background: var(--settings-panel-soft) !important;
+  border: 1px solid var(--settings-panel-border) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-stat-slate,
-body.windsight-shell[data-theme="dark"] .settings-stat-slate {
-  background: rgba(148, 163, 184, 0.16) !important;
-  border-color: rgba(148, 163, 184, 0.2) !important;
+.settings-divider {
+  background: var(--settings-panel-border) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-stat-label,
-body.windsight-shell[data-theme="dark"] .settings-stat-label {
-  color: #a6b7ca !important;
+.settings-console .form-control,
+.settings-console .form-select,
+.settings-console .input-group-text {
+  background: var(--settings-control-bg) !important;
+  border-color: var(--settings-control-border) !important;
+  color: var(--settings-text) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-stat-value,
-html[data-theme="dark"] body.windsight-shell .settings-badge-chip,
-body.windsight-shell[data-theme="dark"] .settings-stat-value,
-body.windsight-shell[data-theme="dark"] .settings-badge-chip {
-  color: #e6eef8 !important;
+.settings-console .form-control::placeholder {
+  color: var(--settings-text-soft) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-badge-chip,
-body.windsight-shell[data-theme="dark"] .settings-badge-chip {
-  background: #1d2c43 !important;
-  border-color: rgba(79, 141, 255, 0.24) !important;
+.settings-console .btn-outline-primary,
+.settings-console .btn-outline-secondary {
+  background: var(--settings-control-bg) !important;
+  border-color: var(--settings-control-border) !important;
+  color: var(--settings-text) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-inline-value,
-body.windsight-shell[data-theme="dark"] .settings-inline-value {
-  background: #1d2c43 !important;
-  border-color: rgba(79, 141, 255, 0.26) !important;
-  color: #d8e5f7 !important;
-}
-
-html[data-theme="dark"] body.windsight-shell .settings-switch-row,
-html[data-theme="dark"] body.windsight-shell .settings-subpanel,
-html[data-theme="dark"] body.windsight-shell .settings-danger-box,
-body.windsight-shell[data-theme="dark"] .settings-switch-row,
-body.windsight-shell[data-theme="dark"] .settings-subpanel,
-body.windsight-shell[data-theme="dark"] .settings-danger-box {
-  background: #1a2940 !important;
-  border-color: rgba(100, 126, 157, 0.22) !important;
-}
-
-html[data-theme="dark"] body.windsight-shell .settings-divider,
-body.windsight-shell[data-theme="dark"] .settings-divider {
-  background: rgba(100, 126, 157, 0.22) !important;
-}
-
-html[data-theme="dark"] body.windsight-shell .settings-console .form-control,
-html[data-theme="dark"] body.windsight-shell .settings-console .form-select,
-html[data-theme="dark"] body.windsight-shell .settings-console .input-group-text,
-body.windsight-shell[data-theme="dark"] .settings-console .form-control,
-body.windsight-shell[data-theme="dark"] .settings-console .form-select,
-body.windsight-shell[data-theme="dark"] .settings-console .input-group-text {
-  background: #0f1b2b !important;
-  border-color: rgba(100, 126, 157, 0.24) !important;
-  color: #e6eef8 !important;
-}
-
-html[data-theme="dark"] body.windsight-shell .settings-console .btn-outline-primary,
-body.windsight-shell[data-theme="dark"] .settings-console .btn-outline-primary {
-  background: #1a2940 !important;
-  border-color: rgba(79, 141, 255, 0.28) !important;
-  color: #d7e6ff !important;
-}
-
-html[data-theme="dark"] body.windsight-shell .settings-console .btn-outline-secondary,
-body.windsight-shell[data-theme="dark"] .settings-console .btn-outline-secondary {
-  background: #1a2940 !important;
-  border-color: rgba(148, 163, 184, 0.24) !important;
-  color: #d4deea !important;
+.settings-console .btn-outline-danger {
+  background: var(--settings-red-bg) !important;
+  border-color: var(--settings-red-border) !important;
+  color: #b53a36 !important;
 }
 
 html[data-theme="dark"] body.windsight-shell .settings-console .btn-outline-danger,
 body.windsight-shell[data-theme="dark"] .settings-console .btn-outline-danger {
-  background: rgba(239, 91, 87, 0.12) !important;
-  border-color: rgba(239, 91, 87, 0.28) !important;
-  color: #f6c0bd !important;
+  color: #f7c4c1 !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-console .form-range::-webkit-slider-runnable-track,
-body.windsight-shell[data-theme="dark"] .settings-console .form-range::-webkit-slider-runnable-track {
-  background: #30455f;
+.settings-console .form-range::-webkit-slider-runnable-track,
+.settings-console .form-range::-moz-range-track {
+  background: var(--settings-slate-border) !important;
 }
 
-html[data-theme="dark"] body.windsight-shell .settings-console .form-range::-moz-range-track,
-body.windsight-shell[data-theme="dark"] .settings-console .form-range::-moz-range-track {
-  background: #30455f;
+html[data-theme="dark"] body.windsight-shell .settings-console .form-switch .form-check-input,
+body.windsight-shell[data-theme="dark"] .settings-console .form-switch .form-check-input {
+  background-color: var(--settings-control-bg) !important;
+  border-color: var(--settings-control-border) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .settings-console .form-range::-webkit-slider-thumb,
+body.windsight-shell[data-theme="dark"] .settings-console .form-range::-webkit-slider-thumb,
+html[data-theme="dark"] body.windsight-shell .settings-console .form-range::-moz-range-thumb,
+body.windsight-shell[data-theme="dark"] .settings-console .form-range::-moz-range-thumb {
+  border-color: var(--settings-panel-bg) !important;
 }
