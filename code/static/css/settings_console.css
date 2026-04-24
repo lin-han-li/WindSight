@@ -1182,9 +1182,10 @@ body.windsight-shell[data-theme="dark"] .settings-section-blue input[type="numbe
 }
 
 .settings-stack-grid {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(340px, 0.9fr);
   gap: 1rem;
+  align-items: stretch;
 }
 
 .settings-summary-panel,
@@ -1229,6 +1230,14 @@ body.windsight-shell[data-theme="dark"] .settings-section-blue input[type="numbe
 .settings-section-orange,
 .settings-section-danger {
   min-height: 0 !important;
+  height: 100% !important;
+}
+
+.settings-section-orange .card-body,
+.settings-section-danger .card-body {
+  height: calc(100% - 72px);
+  display: flex;
+  flex-direction: column;
 }
 
 .settings-form-grid {
@@ -1240,17 +1249,35 @@ body.windsight-shell[data-theme="dark"] .settings-section-blue input[type="numbe
 }
 
 .settings-danger-box {
-  min-height: 136px !important;
+  min-height: 100% !important;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.settings-danger-button {
+  align-self: flex-end;
+}
+
+.settings-section-orange .settings-subpanel:last-child {
+  flex: 1 1 auto;
 }
 
 @media (max-width: 1500px) {
   .settings-top-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .settings-stack-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 900px) {
   .settings-top-grid,
+  .settings-stack-grid,
   .settings-form-grid,
   .settings-action-grid {
     grid-template-columns: 1fr !important;
@@ -1266,7 +1293,9 @@ body.windsight-shell[data-theme="dark"] .settings-section-blue input[type="numbe
   .settings-summary-panel .card-body,
   .settings-save-panel .card-body,
   .settings-section-blue .card-body,
-  .settings-section-teal .card-body {
+  .settings-section-teal .card-body,
+  .settings-section-orange .card-body,
+  .settings-section-danger .card-body {
     height: auto;
   }
 }
