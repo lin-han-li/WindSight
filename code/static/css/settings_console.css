@@ -1188,6 +1188,11 @@ body.windsight-shell[data-theme="dark"] .settings-section-blue input[type="numbe
   align-items: stretch;
 }
 
+.settings-stack-grid > .settings-section-orange,
+.settings-stack-grid > .settings-section-danger {
+  grid-column: auto !important;
+}
+
 .settings-summary-panel,
 .settings-save-panel,
 .settings-section-blue,
