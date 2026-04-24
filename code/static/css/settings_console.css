@@ -1167,41 +1167,32 @@ body.windsight-shell[data-theme="dark"] .settings-section-blue input[type="numbe
   }
 }
 
-/* 2026-04-24 UI hotfix: uniform card heights and tighter grid rhythm */
+/* 2026-04-24 UI hotfix: stable top grid without overlap */
 .settings-shell {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1rem !important;
+}
+
+.settings-top-grid {
   display: grid !important;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1rem !important;
   align-items: stretch !important;
 }
 
-.settings-sidebar,
-.settings-main {
-  display: contents !important;
+.settings-stack-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .settings-summary-panel,
 .settings-save-panel,
 .settings-section-blue,
 .settings-section-teal {
-  grid-column: span 1 !important;
-}
-
-.settings-summary-panel,
-.settings-save-panel,
-.settings-section-blue,
-.settings-section-teal,
-.settings-section-orange,
-.settings-section-danger {
+  min-height: 320px !important;
   height: 100% !important;
-  min-height: 0 !important;
-}
-
-.settings-summary-panel,
-.settings-save-panel,
-.settings-section-blue,
-.settings-section-teal {
-  min-height: 340px !important;
 }
 
 .settings-summary-panel .card-body,
@@ -1221,12 +1212,9 @@ body.windsight-shell[data-theme="dark"] .settings-section-blue input[type="numbe
   justify-content: space-between;
 }
 
-.settings-section-blue .card-body {
-  justify-content: space-between;
-}
-
+.settings-section-blue .card-body,
 .settings-section-teal .card-body {
-  justify-content: stretch;
+  justify-content: flex-start;
 }
 
 .settings-switch-stack {
@@ -1235,53 +1223,43 @@ body.windsight-shell[data-theme="dark"] .settings-section-blue input[type="numbe
 
 .settings-switch-row {
   flex: 1 1 0;
-  min-height: 108px !important;
-}
-
-.settings-save-button {
-  margin-top: 1rem;
+  min-height: 110px !important;
 }
 
 .settings-section-orange,
 .settings-section-danger {
-  grid-column: 1 / -1 !important;
+  min-height: 0 !important;
 }
 
-.settings-subpanel,
+.settings-form-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px) !important;
+}
+
+.settings-action-grid {
+  grid-template-columns: 1fr !important;
+}
+
 .settings-danger-box {
-  min-height: 100% !important;
+  min-height: 136px !important;
 }
 
-@media (max-width: 1400px) {
-  .settings-shell {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
-
-  .settings-summary-panel,
-  .settings-save-panel,
-  .settings-section-blue,
-  .settings-section-teal {
-    grid-column: span 1 !important;
-  }
-
-  .settings-section-orange,
-  .settings-section-danger {
-    grid-column: 1 / -1 !important;
+@media (max-width: 1500px) {
+  .settings-top-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 900px) {
-  .settings-shell {
+  .settings-top-grid,
+  .settings-form-grid,
+  .settings-action-grid {
     grid-template-columns: 1fr !important;
   }
 
   .settings-summary-panel,
   .settings-save-panel,
   .settings-section-blue,
-  .settings-section-teal,
-  .settings-section-orange,
-  .settings-section-danger {
-    grid-column: 1 / -1 !important;
+  .settings-section-teal {
     min-height: 0 !important;
   }
 

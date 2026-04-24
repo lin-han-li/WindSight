@@ -4,7 +4,7 @@
 {% block page_title %}系统设置{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/settings_console.css') }}?v=20260424-ui3">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settings_console.css') }}?v=20260424-ui4">
 {% endblock %}
 
 {% block content %}
@@ -23,7 +23,7 @@
     </section>
 
     <div class="settings-shell">
-        <aside class="settings-sidebar">
+        <div class="settings-top-grid">
             <section class="card settings-panel settings-summary-panel">
                 <div class="card-header settings-card-header">
                     <div class="settings-card-title-wrap">
@@ -81,9 +81,7 @@
                     </button>
                 </div>
             </section>
-        </aside>
 
-        <div class="settings-main">
             <section class="card settings-section-card settings-section-blue">
                 <div class="card-header settings-card-header">
                     <div class="settings-card-title-wrap">
@@ -145,7 +143,9 @@
                     </div>
                 </div>
             </section>
+        </div>
 
+        <div class="settings-stack-grid">
             <section class="card settings-section-card settings-section-orange settings-span-2">
                 <div class="card-header settings-card-header">
                     <div class="settings-card-title-wrap">
