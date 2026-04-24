@@ -833,3 +833,336 @@ html[data-theme="dark"] body.windsight-shell .settings-console .form-range::-moz
 body.windsight-shell[data-theme="dark"] .settings-console .form-range::-moz-range-thumb {
   border-color: var(--settings-panel-bg) !important;
 }
+
+
+.settings-console {
+  gap: 1rem;
+}
+
+.settings-console .card {
+  overflow: hidden;
+}
+
+.settings-hero-panel {
+  min-height: 132px;
+  padding: 1.25rem 1.5rem !important;
+  border-radius: 22px !important;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(0, 210, 255, 0.14), transparent 28%),
+    linear-gradient(135deg, rgba(47, 111, 237, 0.12), rgba(25, 184, 214, 0.08) 45%, rgba(245, 158, 11, 0.05)) !important;
+  box-shadow: 0 16px 34px rgba(48, 80, 125, 0.10) !important;
+}
+
+.settings-hero-title {
+  font-size: clamp(1.5rem, 2vw, 2rem) !important;
+  letter-spacing: -0.035em;
+}
+
+.settings-hero-text {
+  max-width: 860px;
+  margin-top: 0.45rem !important;
+  font-size: 0.95rem !important;
+  line-height: 1.65 !important;
+}
+
+.settings-hero-pills {
+  align-self: flex-end;
+}
+
+.settings-pill {
+  min-width: auto !important;
+  padding: 0.55rem 0.9rem !important;
+  font-size: 0.82rem !important;
+  box-shadow: 0 10px 20px rgba(55, 88, 130, 0.10);
+}
+
+.settings-shell {
+  grid-template-columns: minmax(250px, 310px) minmax(0, 1fr) !important;
+  gap: 1rem !important;
+}
+
+.settings-sidebar {
+  position: sticky;
+  top: 0.9rem;
+  gap: 1rem !important;
+}
+
+.settings-main {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem !important;
+  align-items: stretch;
+}
+
+.settings-section-card {
+  min-height: 100%;
+}
+
+.settings-section-blue,
+.settings-section-teal {
+  grid-column: span 1;
+}
+
+.settings-span-2,
+.settings-section-orange,
+.settings-section-danger {
+  grid-column: 1 / -1;
+}
+
+.settings-panel,
+.settings-section-card {
+  border-radius: 22px !important;
+  box-shadow: 0 14px 30px rgba(46, 75, 112, 0.10) !important;
+}
+
+.settings-section-blue {
+  background:
+    linear-gradient(180deg, rgba(47, 111, 237, 0.11), rgba(47, 111, 237, 0.05)) !important;
+}
+
+.settings-section-teal {
+  background:
+    linear-gradient(180deg, rgba(25, 184, 214, 0.12), rgba(25, 184, 214, 0.05)) !important;
+}
+
+.settings-section-orange {
+  background:
+    linear-gradient(180deg, rgba(245, 158, 11, 0.13), rgba(245, 158, 11, 0.06)) !important;
+}
+
+.settings-section-danger {
+  background:
+    linear-gradient(180deg, rgba(239, 68, 68, 0.12), rgba(239, 68, 68, 0.05)) !important;
+}
+
+.settings-card-header {
+  padding: 1rem 1.1rem 0.65rem !important;
+}
+
+.settings-card-icon {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 13px !important;
+  font-size: 0.95rem !important;
+}
+
+.settings-card-title {
+  font-size: 1.05rem !important;
+  letter-spacing: -0.02em;
+}
+
+.settings-card-kicker {
+  font-size: 0.68rem !important;
+  letter-spacing: 0.2em !important;
+}
+
+.settings-panel .card-body,
+.settings-section-card .card-body {
+  padding: 0 1.1rem 1.1rem !important;
+}
+
+.settings-summary-panel .card-body {
+  padding-top: 0.2rem !important;
+}
+
+.settings-stat-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 0.7rem !important;
+}
+
+.settings-stat-tile {
+  min-height: 88px !important;
+  padding: 0.85rem !important;
+  border-radius: 16px !important;
+  background: rgba(255, 255, 255, 0.48) !important;
+  backdrop-filter: blur(14px);
+}
+
+.settings-stat-value {
+  font-size: 1.35rem !important;
+}
+
+.settings-stat-value-sm {
+  font-size: 0.86rem !important;
+  line-height: 1.35 !important;
+}
+
+.settings-save-panel {
+  background:
+    linear-gradient(135deg, rgba(0, 210, 255, 0.10), rgba(47, 111, 237, 0.08)) !important;
+}
+
+.settings-save-button {
+  width: 100%;
+  min-height: 44px;
+  border-radius: 14px !important;
+  font-weight: 800 !important;
+  box-shadow: 0 12px 24px rgba(0, 188, 255, 0.18) !important;
+}
+
+.settings-panel-text {
+  font-size: 0.9rem !important;
+  line-height: 1.65 !important;
+}
+
+.settings-section-blue .card-body {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.85rem;
+}
+
+.settings-section-blue .settings-range-row,
+.settings-section-blue input[type="number"] {
+  background: rgba(255, 255, 255, 0.48) !important;
+  border: 1px solid rgba(89, 126, 178, 0.22) !important;
+  border-radius: 16px !important;
+}
+
+.settings-section-blue .settings-range-row {
+  padding: 0.85rem 0.9rem;
+  align-items: center;
+}
+
+.settings-section-blue input[type="number"] {
+  min-height: 46px;
+  padding: 0.75rem 0.9rem;
+  font-weight: 800;
+}
+
+.settings-label {
+  margin-bottom: 0.45rem !important;
+  font-size: 0.86rem !important;
+  font-weight: 800 !important;
+}
+
+.settings-help-text {
+  margin-top: 0.25rem !important;
+  font-size: 0.78rem !important;
+  line-height: 1.55 !important;
+}
+
+.settings-switch-stack {
+  gap: 0.75rem !important;
+}
+
+.settings-switch-row {
+  min-height: 82px;
+  padding: 0.9rem 1rem !important;
+  border-radius: 18px !important;
+  background: rgba(255, 255, 255, 0.48) !important;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.settings-switch-row:hover,
+.settings-subpanel:hover,
+.settings-danger-box:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 24px rgba(48, 80, 125, 0.10);
+}
+
+.settings-form-grid {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 0.85rem !important;
+  align-items: stretch;
+}
+
+.settings-action-grid {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 0.85rem !important;
+}
+
+.settings-subpanel,
+.settings-danger-box {
+  border-radius: 18px !important;
+  background: rgba(255, 255, 255, 0.46) !important;
+  padding: 1rem !important;
+}
+
+.settings-subpanel .input-group,
+.settings-console .form-select,
+.settings-console .form-control {
+  border-radius: 14px !important;
+}
+
+.settings-console .form-select,
+.settings-console .form-control {
+  min-height: 44px;
+}
+
+.settings-console .input-group > .form-select,
+.settings-console .input-group > .form-control {
+  border-top-right-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+
+.settings-console .input-group > .btn {
+  border-top-left-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+}
+
+.settings-console .btn {
+  border-radius: 13px !important;
+  font-weight: 750 !important;
+}
+
+.settings-divider {
+  margin: 0.95rem 0 !important;
+  opacity: 0.55;
+}
+
+.settings-danger-box {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+}
+
+html[data-theme="dark"] body.windsight-shell .settings-hero-panel,
+body.windsight-shell[data-theme="dark"] .settings-hero-panel {
+  background:
+    radial-gradient(circle at 12% 18%, rgba(0, 210, 255, 0.16), transparent 28%),
+    linear-gradient(135deg, rgba(47, 111, 237, 0.20), rgba(25, 184, 214, 0.11) 46%, rgba(245, 158, 11, 0.08)) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .settings-stat-tile,
+body.windsight-shell[data-theme="dark"] .settings-stat-tile,
+html[data-theme="dark"] body.windsight-shell .settings-switch-row,
+body.windsight-shell[data-theme="dark"] .settings-switch-row,
+html[data-theme="dark"] body.windsight-shell .settings-subpanel,
+body.windsight-shell[data-theme="dark"] .settings-subpanel,
+html[data-theme="dark"] body.windsight-shell .settings-danger-box,
+body.windsight-shell[data-theme="dark"] .settings-danger-box,
+html[data-theme="dark"] body.windsight-shell .settings-section-blue .settings-range-row,
+body.windsight-shell[data-theme="dark"] .settings-section-blue .settings-range-row,
+html[data-theme="dark"] body.windsight-shell .settings-section-blue input[type="number"],
+body.windsight-shell[data-theme="dark"] .settings-section-blue input[type="number"] {
+  background: rgba(12, 28, 48, 0.62) !important;
+  border-color: rgba(92, 132, 186, 0.24) !important;
+}
+
+@media (max-width: 1200px) {
+  .settings-shell {
+    grid-template-columns: 1fr !important;
+  }
+  .settings-sidebar {
+    position: static;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1.3fr) minmax(240px, 0.7fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .settings-hero-panel,
+  .settings-danger-box {
+    grid-template-columns: 1fr;
+    display: grid !important;
+  }
+  .settings-main,
+  .settings-sidebar,
+  .settings-form-grid,
+  .settings-action-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
