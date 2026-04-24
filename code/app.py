@@ -244,7 +244,6 @@ def load_user(user_id):
 # ==================== 全局变量（节点管理） ====================
 active_nodes = {}
 node_commands = {}
-NODE_TIMEOUT = 10
 
 # ==================== 后台任务线程池 ====================
 db_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="DB-Worker")

@@ -7,12 +7,13 @@ from flask_socketio import emit, join_room, leave_room
 import time
 import logging
 
+from windsight.routes.api import get_node_timeout_seconds
+
 logger = logging.getLogger(__name__)
 
 # 全局变量（将从app传入）
 client_subscriptions = {}  # {session_id: set of node_ids}
 active_nodes = {}
-NODE_TIMEOUT = 10
 
 
 def init_socket_events(socketio, nodes):
@@ -31,7 +32,7 @@ def init_socket_events(socketio, nodes):
         node_status_list = []
         current_time = time.time()
         for node_id, node_data in active_nodes.items():
-            if current_time - node_data['timestamp'] < NODE_TIMEOUT:
+            if current_time - node_data['timestamp'] < get_node_timeout_seconds():
                 node_status_list.append({
                     'node_id': node_id,
                     'status': 'online',

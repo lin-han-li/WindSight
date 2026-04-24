@@ -6,7 +6,7 @@
       description: "风场边缘采集节点",
     },
     nodes: {
-      WIN_001: {
+      WIND_001: {
         displayName: "北侧一号阵列",
         zoneLabel: "北侧风廊",
         mapX: 16,
@@ -14,7 +14,7 @@
         accentColor: "#00f3ff", // Cyan
         description: "北线入口采集节点，负责上游阵列状态回传。",
       },
-      WIN_002: {
+      WIND_002: {
         displayName: "北侧二号阵列",
         zoneLabel: "北侧风廊",
         mapX: 34,
@@ -22,7 +22,7 @@
         accentColor: "#b042ff", // Purple
         description: "北线中段节点，承担主风廊补盲监测。",
       },
-      WIN_003: {
+      WIND_003: {
         displayName: "东侧主阵列",
         zoneLabel: "东部高地",
         mapX: 58,
@@ -30,7 +30,7 @@
         accentColor: "#ffe600", // Yellow
         description: "东线主阵列节点，覆盖高地风机群。",
       },
-      WIN_004: {
+      WIND_004: {
         displayName: "东侧前哨阵列",
         zoneLabel: "东部高地",
         mapX: 79,
@@ -38,7 +38,7 @@
         accentColor: "#00ff9d", // Green
         description: "东线前沿采集节点，适合观察突发波动。",
       },
-      WIN_005: {
+      WIND_005: {
         displayName: "南侧一号阵列",
         zoneLabel: "南侧缓坡",
         mapX: 27,
@@ -46,7 +46,7 @@
         accentColor: "#ff5100", // Orange
         description: "南线回风区节点，重点关注温升和转速抖动。",
       },
-      WIN_006: {
+      WIND_006: {
         displayName: "南侧二号阵列",
         zoneLabel: "南侧缓坡",
         mapX: 63,

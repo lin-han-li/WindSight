@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 MAX_HISTORY_LIMIT = 20000
 active_nodes = {}
-NODE_TIMEOUT = 10
+DEFAULT_NODE_TIMEOUT = int(os.environ.get("NODE_TIMEOUT_SECONDS", os.environ.get("NODE_TIMEOUT", 10)))
 db_executor = None
 socketio_instance = None
 app_instance = None
@@ -44,9 +44,25 @@ def _now_ts() -> float:
     return time.time()
 
 
-def _is_online(node_info: dict, now_ts: float) -> bool:
+def get_node_timeout_seconds() -> int:
     try:
-        return (now_ts - float(node_info.get("timestamp", 0))) <= NODE_TIMEOUT
+        row = SystemConfig.query.filter_by(key="node_timeout_seconds").first()
+        if row and row.value is not None:
+            value = json.loads(row.value)
+        else:
+            value = DEFAULT_NODE_TIMEOUT
+        timeout = int(value)
+        if timeout < 1 or timeout > 86400:
+            raise ValueError("node_timeout_seconds out of range")
+        return timeout
+    except Exception:
+        return DEFAULT_NODE_TIMEOUT
+
+
+def _is_online(node_info: dict, now_ts: float, timeout_sec: int | None = None) -> bool:
+    try:
+        timeout = int(timeout_sec if timeout_sec is not None else get_node_timeout_seconds())
+        return (now_ts - float(node_info.get("timestamp", 0))) <= timeout
     except Exception:
         return False
 
@@ -369,7 +385,7 @@ def dashboard_stats():
                 "records_24h": int(records_24h),
                 "latest_upload": iso_beijing(latest_ts) if latest_ts else None,
                 "database_size_mb": float(db_size_mb),
-                "node_timeout_sec": int(NODE_TIMEOUT),
+                "node_timeout_sec": int(get_node_timeout_seconds()),
             }
         ), 200
     except Exception as exc:
@@ -469,10 +485,10 @@ def admin_system_info():
 @api_bp.route("/admin/config", methods=["GET", "POST"])
 @login_required
 def admin_config():
-    keys = ["poll_interval", "auto_refresh", "show_debug_log", "log_retention"]
+    keys = ["poll_interval", "auto_refresh", "show_debug_log", "log_retention", "node_timeout_seconds"]
     try:
         if request.method == "GET":
-            data = {}
+            data = {"node_timeout_seconds": get_node_timeout_seconds()}
             for key in keys:
                 row = SystemConfig.query.filter_by(key=key).first()
                 if row and row.value is not None:
@@ -483,6 +499,14 @@ def admin_config():
             return jsonify({"success": True, "data": data}), 200
 
         payload = request.get_json(silent=True) or {}
+        if "node_timeout_seconds" in payload:
+            try:
+                payload["node_timeout_seconds"] = int(payload.get("node_timeout_seconds"))
+                if payload["node_timeout_seconds"] < 1 or payload["node_timeout_seconds"] > 86400:
+                    raise ValueError
+            except Exception:
+                return jsonify({"success": False, "error": "node_timeout_seconds must be an integer between 1 and 86400"}), 400
+
         for key in keys:
             if key not in payload:
                 continue

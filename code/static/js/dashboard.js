@@ -236,7 +236,9 @@
     const node = typeof nodeOrId === "string" ? getNodeRecord(nodeOrId) || { node_id: nodeOrId } : nodeOrId || {};
     const nodeId = node.node_id || "";
     const defaults = nodeMapConfig.defaults || {};
-    const preset = (nodeMapConfig.nodes || {})[nodeId] || {};
+    const configNodes = nodeMapConfig.nodes || {};
+    const aliasId = nodeId.startsWith("WIND_") ? nodeId.replace("WIND_", "WIN_") : nodeId.startsWith("WIN_") ? nodeId.replace("WIN_", "WIND_") : nodeId;
+    const preset = configNodes[nodeId] || configNodes[aliasId] || {};
     const turbines = normalizeTurbines(node.turbines || []);
     return {
       nodeId,
@@ -252,6 +254,17 @@
       turbineCount: node.turbine_count || turbines.length || 0,
       turbines,
     };
+  }
+
+  function assignAutoMapPosition(index, total) {
+    const safeTotal = Math.max(1, Number(total) || 1);
+    const columns = Math.ceil(Math.sqrt(safeTotal));
+    const rows = Math.ceil(safeTotal / columns);
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    const x = columns <= 1 ? 50 : 18 + (column * 64) / (columns - 1);
+    const y = rows <= 1 ? 50 : 20 + (row * 60) / (rows - 1);
+    return { mapX: Math.round(x), mapY: Math.round(y) };
   }
 
   function persistSelection() {
@@ -512,12 +525,14 @@
 
     const configuredNodes = [];
     const fallbackNodes = [];
-    state.nodes.forEach((node) => {
+    const totalNodes = state.nodes.length;
+    state.nodes.forEach((node, index) => {
       const meta = resolveNodeMeta(node);
       if (Number.isFinite(meta.mapX) && Number.isFinite(meta.mapY)) {
         configuredNodes.push(meta);
       } else {
-        fallbackNodes.push(meta);
+        const autoPosition = assignAutoMapPosition(index, totalNodes);
+        configuredNodes.push({ ...meta, ...autoPosition, autoPositioned: true });
       }
     });
 
@@ -726,10 +741,6 @@
   }
 
   function renderGroupedTurbineTree(node, turbineCodes) {
-    if (state.selectedTurbineCode) {
-      ensureExpandedGroupForTurbine(state.selectedTurbineCode);
-    }
-
     const turbineGroups = buildTurbineGroups(turbineCodes);
     const expandedGroups = getExpandedGroupSet(state.selectedNodeId);
 

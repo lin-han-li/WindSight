@@ -105,6 +105,11 @@
                     <div class="form-text settings-help-text">
                         当 WebSocket 不可用时，前端会按该间隔使用 HTTP 拉取数据。间隔越低越实时，但服务端负载也越高。
                     </div>
+                    <label class="form-label settings-label mt-3" for="nodeTimeoutSeconds">&#33410;&#28857;&#31163;&#32447;&#21028;&#23450;&#26102;&#38388;&#65288;&#31186;&#65289;</label>
+                    <input type="number" class="form-control" id="nodeTimeoutSeconds" min="1" max="86400" step="1" value="10" aria-label="&#33410;&#28857;&#31163;&#32447;&#21028;&#23450;&#26102;&#38388;&#65288;&#31186;&#65289;">
+                    <div class="form-text settings-help-text">
+                        ????????????????????????????????????????
+                    </div>
                 </div>
             </section>
 
@@ -250,6 +255,7 @@
     const elPollInterval = document.getElementById('pollInterval');
     const elPollVal = document.getElementById('pollVal');
     const elAutoRefresh = document.getElementById('autoRefresh');
+    const elNodeTimeoutSeconds = document.getElementById('nodeTimeoutSeconds');
     const elShowDebugLog = document.getElementById('showDebugLog');
     const elLogRetention = document.getElementById('logRetention');
     const elDeleteNodeSelect = document.getElementById('deleteNodeSelect');
@@ -315,6 +321,9 @@
             if (elAutoRefresh && config.auto_refresh !== undefined) {
                 elAutoRefresh.checked = !!config.auto_refresh;
             }
+            if (elNodeTimeoutSeconds && config.node_timeout_seconds !== undefined) {
+                elNodeTimeoutSeconds.value = String(config.node_timeout_seconds);
+            }
             if (elShowDebugLog && config.show_debug_log !== undefined) {
                 elShowDebugLog.checked = !!config.show_debug_log;
             }
@@ -336,6 +345,10 @@
             if (elAutoRefresh && autoRefresh !== null) {
                 elAutoRefresh.checked = autoRefresh === 'true';
             }
+            const nodeTimeoutSeconds = localStorage.getItem('nodeTimeoutSeconds');
+            if (elNodeTimeoutSeconds && nodeTimeoutSeconds !== null) {
+                elNodeTimeoutSeconds.value = String(nodeTimeoutSeconds);
+            }
             const showDebugLog = localStorage.getItem('showDebugLog');
             if (elShowDebugLog && showDebugLog !== null) {
                 elShowDebugLog.checked = showDebugLog === 'true';
@@ -354,6 +367,10 @@
 
         const pollInterval = parseInt(String(elPollInterval ? elPollInterval.value : '1000'), 10) || 1000;
         const autoRefresh = !!(elAutoRefresh && elAutoRefresh.checked);
+        const nodeTimeoutSeconds = Math.min(86400, Math.max(1, parseInt(String(elNodeTimeoutSeconds ? elNodeTimeoutSeconds.value : '10'), 10) || 10));
+        if (elNodeTimeoutSeconds) {
+            elNodeTimeoutSeconds.value = String(nodeTimeoutSeconds);
+        }
         const showDebugLog = !!(elShowDebugLog && elShowDebugLog.checked);
         const logRetention = parseInt(String(elLogRetention ? elLogRetention.value : '30'), 10) || 30;
 
@@ -364,6 +381,7 @@
                 body: JSON.stringify({
                     poll_interval: pollInterval,
                     auto_refresh: autoRefresh,
+                    node_timeout_seconds: nodeTimeoutSeconds,
                     show_debug_log: showDebugLog,
                     log_retention: logRetention,
                 }),
@@ -371,6 +389,7 @@
 
             localStorage.setItem('pollInterval', String(pollInterval));
             localStorage.setItem('autoRefresh', String(autoRefresh));
+            localStorage.setItem('nodeTimeoutSeconds', String(nodeTimeoutSeconds));
             localStorage.setItem('showDebugLog', String(showDebugLog));
             localStorage.setItem('logRetention', String(logRetention));
 
