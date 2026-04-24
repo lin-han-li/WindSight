@@ -2461,3 +2461,99 @@ html[data-theme="dark"] body.windsight-shell .iot-map-frame {
     min-height: auto;
   }
 }
+
+/* 2026-04-24 UI simplification: remove decorative hero blocks and English kickers */
+.dashboard-page > .monitor-topbar {
+  margin-bottom: 0.85rem !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  border-radius: 0 !important;
+}
+
+.dashboard-page > .monitor-topbar .monitor-topbar-copy,
+.dashboard-page .panel-kicker,
+.dashboard-page .dashboard-subtitle,
+.dashboard-page .chart-stage-copy,
+.system-overview-page .system-hero,
+.system-overview-page .panel-kicker,
+.system-overview-page .dashboard-subtitle,
+.system-overview-page .hero-pill-group,
+.system-overview-page .system-stat-kicker {
+  display: none !important;
+}
+
+.dashboard-page > .monitor-topbar .monitor-topbar-actions {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.dashboard-page > .monitor-topbar .topbar-chip-group {
+  flex: 1 1 auto;
+}
+
+.dashboard-page > .monitor-topbar .monitor-back-button {
+  margin-left: auto;
+}
+
+.dashboard-page .dashboard-card .card-header,
+.system-overview-page .dashboard-card .card-header {
+  padding-top: 1rem !important;
+  padding-bottom: 0.9rem !important;
+  align-items: center !important;
+}
+
+.dashboard-page .dashboard-title,
+.system-overview-page .dashboard-title {
+  font-size: 1rem !important;
+}
+
+.dashboard-page .chart-stage-hero {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+
+.dashboard-page .chart-stage-hero .card-body {
+  padding: 0 !important;
+}
+
+.dashboard-page .chart-stage-toolbar {
+  width: 100%;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 0.75rem !important;
+  flex-wrap: wrap;
+}
+
+.dashboard-page .chart-stage-toolbar .topbar-chip-group {
+  justify-content: flex-start !important;
+}
+
+.system-overview-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.system-overview-page .system-stat-grid {
+  margin-bottom: 1rem !important;
+}
+
+.system-overview-page .system-stat-card {
+  min-height: 156px !important;
+}
+
+@media (max-width: 991.98px) {
+  .dashboard-page > .monitor-topbar .monitor-topbar-actions,
+  .dashboard-page .chart-stage-toolbar {
+    align-items: stretch !important;
+  }
+}

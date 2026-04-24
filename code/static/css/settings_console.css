@@ -1304,3 +1304,44 @@ body.windsight-shell[data-theme="dark"] .settings-section-blue input[type="numbe
     height: auto;
   }
 }
+
+/* 2026-04-24 UI simplification: remove decorative hero blocks and English kickers */
+.settings-hero-panel {
+  display: none !important;
+}
+
+.settings-kicker,
+.settings-card-kicker,
+.settings-hero-pills {
+  display: none !important;
+}
+
+.settings-console {
+  gap: 1rem !important;
+}
+
+.settings-card-header {
+  padding-top: 1rem !important;
+  padding-bottom: 0.85rem !important;
+  align-items: center !important;
+}
+
+.settings-card-title {
+  font-size: 1.12rem !important;
+}
+
+.settings-panel .card-body,
+.settings-section-card .card-body {
+  padding-top: 0 !important;
+}
+
+.settings-save-panel .card-body {
+  justify-content: flex-end !important;
+  gap: 1rem !important;
+}
+
+.settings-panel-text {
+  margin: 0 !important;
+  font-size: 0.92rem !important;
+  line-height: 1.65 !important;
+}
