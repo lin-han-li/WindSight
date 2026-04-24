@@ -1166,3 +1166,129 @@ body.windsight-shell[data-theme="dark"] .settings-section-blue input[type="numbe
     grid-template-columns: 1fr !important;
   }
 }
+
+/* 2026-04-24 UI hotfix: uniform card heights and tighter grid rhythm */
+.settings-shell {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 1rem !important;
+  align-items: stretch !important;
+}
+
+.settings-sidebar,
+.settings-main {
+  display: contents !important;
+}
+
+.settings-summary-panel,
+.settings-save-panel,
+.settings-section-blue,
+.settings-section-teal {
+  grid-column: span 1 !important;
+}
+
+.settings-summary-panel,
+.settings-save-panel,
+.settings-section-blue,
+.settings-section-teal,
+.settings-section-orange,
+.settings-section-danger {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+.settings-summary-panel,
+.settings-save-panel,
+.settings-section-blue,
+.settings-section-teal {
+  min-height: 340px !important;
+}
+
+.settings-summary-panel .card-body,
+.settings-save-panel .card-body,
+.settings-section-blue .card-body,
+.settings-section-teal .card-body {
+  height: calc(100% - 72px);
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-summary-panel .settings-stat-grid {
+  flex: 1 1 auto;
+}
+
+.settings-save-panel .card-body {
+  justify-content: space-between;
+}
+
+.settings-section-blue .card-body {
+  justify-content: space-between;
+}
+
+.settings-section-teal .card-body {
+  justify-content: stretch;
+}
+
+.settings-switch-stack {
+  flex: 1 1 auto;
+}
+
+.settings-switch-row {
+  flex: 1 1 0;
+  min-height: 108px !important;
+}
+
+.settings-save-button {
+  margin-top: 1rem;
+}
+
+.settings-section-orange,
+.settings-section-danger {
+  grid-column: 1 / -1 !important;
+}
+
+.settings-subpanel,
+.settings-danger-box {
+  min-height: 100% !important;
+}
+
+@media (max-width: 1400px) {
+  .settings-shell {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .settings-summary-panel,
+  .settings-save-panel,
+  .settings-section-blue,
+  .settings-section-teal {
+    grid-column: span 1 !important;
+  }
+
+  .settings-section-orange,
+  .settings-section-danger {
+    grid-column: 1 / -1 !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .settings-shell {
+    grid-template-columns: 1fr !important;
+  }
+
+  .settings-summary-panel,
+  .settings-save-panel,
+  .settings-section-blue,
+  .settings-section-teal,
+  .settings-section-orange,
+  .settings-section-danger {
+    grid-column: 1 / -1 !important;
+    min-height: 0 !important;
+  }
+
+  .settings-summary-panel .card-body,
+  .settings-save-panel .card-body,
+  .settings-section-blue .card-body,
+  .settings-section-teal .card-body {
+    height: auto;
+  }
+}
