@@ -14,6 +14,12 @@
   const elParsed = document.getElementById("parsed");
   const elRaw = document.getElementById("raw-json");
   const elBtnClear = document.getElementById("btnClearView");
+  const elBtnShowAll = document.getElementById("btnShowAll");
+  const elViewModeBadge = document.getElementById("view-mode-badge");
+  const elLatestNodeId = document.getElementById("latest-node-id");
+  const elLatestNodeSummary = document.getElementById("latest-node-summary");
+  const elNodeWall = document.getElementById("node-wall");
+  const elNodeWallEmpty = document.getElementById("node-wall-empty");
 
   const latestByNode = new Map();
   const nodeMetaByNode = new Map();
@@ -67,8 +73,48 @@
     return [...nodeMetaByNode.keys()].sort((left, right) => {
       const a = nodeMetaByNode.get(left) || {};
       const b = nodeMetaByNode.get(right) || {};
-      return String(b.received_at || "").localeCompare(String(a.received_at || "")) || left.localeCompare(right);
+      return (
+        String(b.received_at || "").localeCompare(String(a.received_at || "")) ||
+        left.localeCompare(right)
+      );
     });
+  }
+
+  function getLatestMessageOverall() {
+    for (const nodeId of getSortedNodeIds()) {
+      const msg = latestByNode.get(nodeId);
+      if (msg) return msg;
+    }
+    return null;
+  }
+
+  function getCurrentMessage() {
+    if (currentNodeId !== allNodesToken) {
+      return latestByNode.get(currentNodeId) || null;
+    }
+    return getLatestMessageOverall();
+  }
+
+  function extractSummary(msg) {
+    if (!msg) return "等待数据";
+
+    const raw = msg.raw && typeof msg.raw === "object" ? msg.raw : {};
+    const parsed = msg.parsed && typeof msg.parsed === "object" ? msg.parsed : {};
+    const parts = [];
+
+    if (typeof raw.note === "string" && raw.note.trim()) {
+      parts.push(raw.note.trim());
+    }
+
+    if (parsed.lengths) {
+      parts.push(
+        `V/C/S ${parsed.lengths.voltages || 0}/${parsed.lengths.currents || 0}/${parsed.lengths.speeds || 0}`
+      );
+    } else {
+      parts.push("仅文本状态上报");
+    }
+
+    return parts.join(" · ");
   }
 
   function renderNodeOptions() {
@@ -89,34 +135,84 @@
       elNodeFilter.appendChild(option);
     });
 
-    elNodeFilter.value = ids.includes(currentValue) || currentValue === allNodesToken ? currentValue : allNodesToken;
+    elNodeFilter.value =
+      ids.includes(currentValue) || currentValue === allNodesToken
+        ? currentValue
+        : allNodesToken;
   }
 
   function renderNodeSummary() {
     const ids = getSortedNodeIds();
     if (elNodeCount) elNodeCount.textContent = String(ids.length);
     if (elKnownNodes) {
-      elKnownNodes.textContent = ids.length ? ids.join("、") : "暂无";
+      const preview = ids.slice(0, 6).join("、");
+      elKnownNodes.textContent =
+        ids.length === 0 ? "暂无" : ids.length > 6 ? `${preview} 等 ${ids.length} 个` : preview;
     }
   }
 
-  function getCurrentMessage() {
-    if (currentNodeId !== allNodesToken) {
-      return latestByNode.get(currentNodeId) || null;
+  function renderViewMode() {
+    if (!elViewModeBadge) return;
+    if (currentNodeId === allNodesToken) {
+      elViewModeBadge.textContent = "全部节点模式";
+      elViewModeBadge.className = "badge bg-primary-subtle text-primary-emphasis";
+    } else {
+      elViewModeBadge.textContent = `单节点：${currentNodeId}`;
+      elViewModeBadge.className = "badge bg-warning-subtle text-warning-emphasis";
+    }
+  }
+
+  function renderLatestOverview() {
+    const latest = getLatestMessageOverall();
+    if (elLatestNodeId) {
+      elLatestNodeId.textContent = latest ? latest.node_id : "--";
+    }
+    if (elLatestNodeSummary) {
+      elLatestNodeSummary.textContent = latest ? extractSummary(latest) : "等待节点上报";
+    }
+  }
+
+  function renderNodeWall() {
+    if (!elNodeWall || !elNodeWallEmpty) return;
+
+    const ids = getSortedNodeIds();
+    elNodeWall.innerHTML = "";
+
+    if (ids.length === 0) {
+      elNodeWallEmpty.classList.remove("d-none");
+      return;
     }
 
-    for (const nodeId of getSortedNodeIds()) {
-      const msg = latestByNode.get(nodeId);
-      if (msg) return msg;
-    }
-    return null;
+    elNodeWallEmpty.classList.add("d-none");
+
+    ids.forEach((nodeId) => {
+      const meta = nodeMetaByNode.get(nodeId) || {};
+      const msg = latestByNode.get(nodeId) || null;
+      const isActive = currentNodeId === nodeId;
+      const isLatestOverall = currentNodeId === allNodesToken && getLatestMessageOverall()?.node_id === nodeId;
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `node-card-mini${isActive ? " active" : ""}${isLatestOverall ? " latest" : ""}`;
+      button.innerHTML = `
+        <div class="node-card-head">
+          <div>
+            <div class="node-card-id">${nodeId}</div>
+            <div class="node-card-time">${meta.received_at || "--"}</div>
+          </div>
+          <span class="badge ${isActive ? "bg-primary" : "bg-light text-dark"}">${meta.message_count || 0} 条</span>
+        </div>
+        <div class="node-card-note">${extractSummary(msg)}</div>
+      `;
+      button.addEventListener("click", () => applyNodeSelection(nodeId));
+      elNodeWall.appendChild(button);
+    });
   }
 
   function renderMessage(msg) {
     if (!msg) {
       if (elNodeId) {
-        elNodeId.textContent =
-          currentNodeId === allNodesToken ? "全部节点" : currentNodeId;
+        elNodeId.textContent = currentNodeId === allNodesToken ? "全部节点" : currentNodeId;
       }
       if (elLast) elLast.textContent = "--";
       if (elParsed) {
@@ -153,6 +249,9 @@
     if (syncUrl) updateUrl();
     renderNodeOptions();
     renderNodeSummary();
+    renderViewMode();
+    renderLatestOverview();
+    renderNodeWall();
     renderMessage(getCurrentMessage());
   }
 
@@ -165,6 +264,18 @@
     });
   }
 
+  function rememberMessage(msg) {
+    if (!msg || !msg.node_id) return;
+    latestByNode.set(msg.node_id, msg);
+    const previous = nodeMetaByNode.get(msg.node_id) || {};
+    nodeMetaByNode.set(msg.node_id, {
+      ...previous,
+      node_id: msg.node_id,
+      received_at: msg.received_at,
+      message_count: Number(previous.message_count || 0) + 1,
+    });
+  }
+
   setStatus("disconnected");
   resetView("等待数据...");
 
@@ -172,6 +283,12 @@
     elBtnClear.addEventListener("click", () => {
       resetView();
       renderMessage(getCurrentMessage());
+    });
+  }
+
+  if (elBtnShowAll) {
+    elBtnShowAll.addEventListener("click", () => {
+      applyNodeSelection(allNodesToken);
     });
   }
 
@@ -219,6 +336,9 @@
     nodes.forEach((node) => rememberNode(node));
     renderNodeOptions();
     renderNodeSummary();
+    renderViewMode();
+    renderLatestOverview();
+    renderNodeWall();
     renderMessage(getCurrentMessage());
   });
 
@@ -227,13 +347,18 @@
     messages.forEach((msg) => {
       if (!msg || !msg.node_id) return;
       latestByNode.set(msg.node_id, msg);
-      rememberNode({
+      const previous = nodeMetaByNode.get(msg.node_id) || {};
+      nodeMetaByNode.set(msg.node_id, {
+        ...previous,
         node_id: msg.node_id,
         received_at: msg.received_at,
       });
     });
     renderNodeOptions();
     renderNodeSummary();
+    renderViewMode();
+    renderLatestOverview();
+    renderNodeWall();
     renderMessage(getCurrentMessage());
   });
 
@@ -243,14 +368,12 @@
     recvCount += 1;
     if (elRecvCount) elRecvCount.textContent = String(recvCount);
 
-    latestByNode.set(msg.node_id, msg);
-    rememberNode({
-      node_id: msg.node_id,
-      received_at: msg.received_at,
-    });
-
+    rememberMessage(msg);
     renderNodeOptions();
     renderNodeSummary();
+    renderViewMode();
+    renderLatestOverview();
+    renderNodeWall();
 
     if (currentNodeId === allNodesToken || currentNodeId === msg.node_id) {
       renderMessage(msg);
