@@ -207,6 +207,13 @@
         gap: 12px;
       }
 
+      .node-wall-compact {
+        grid-template-columns: 1fr;
+        max-height: 520px;
+        overflow-y: auto;
+        padding-right: 4px;
+      }
+
       .node-card-mini {
         border: 1px solid #dbe3ef;
         background: #f8fbff;
@@ -266,6 +273,34 @@
         color: #64748b;
       }
 
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .summary-tile {
+        border: 1px solid #e5e7eb;
+        background: #f8fafc;
+        border-radius: 14px;
+        padding: 14px;
+        min-height: 112px;
+      }
+
+      .summary-label {
+        font-size: 12px;
+        color: #64748b;
+        margin-bottom: 8px;
+      }
+
+      .summary-value {
+        font-size: 18px;
+        font-weight: 700;
+        color: #0f172a;
+        line-height: 1.45;
+        word-break: break-word;
+      }
+
       @media (max-width: 992px) {
         .sidebar {
           position: static;
@@ -285,6 +320,10 @@
 
         .content-wrap {
           padding: 20px;
+        }
+
+        .summary-grid {
+          grid-template-columns: 1fr;
         }
       }
     </style>
@@ -329,9 +368,6 @@
           </div>
         </div>
         <div class="d-flex align-items-center gap-3 flex-wrap">
-          <button class="btn btn-outline-primary btn-sm" id="btnShowAll" type="button">
-            <i class="bi bi-grid-3x3-gap me-1"></i>切回全部节点
-          </button>
           <button class="btn btn-outline-danger btn-sm" id="btnClearView" type="button">
             <i class="bi bi-trash3 me-1"></i>清空显示
           </button>
@@ -434,23 +470,20 @@
           <div class="col-lg-4">
             <div class="card h-100">
               <div class="card-header d-flex justify-content-between align-items-center">
-                <span>查看模式</span>
-                <span class="badge bg-primary-subtle text-primary-emphasis" id="view-mode-badge">
-                  全部节点模式
-                </span>
+                <span>节点消息列表</span>
+                <span class="section-hint">点击节点卡片切换详情</span>
               </div>
-              <div class="card-body mode-card-copy">
-                <div class="mode-card-summary">
-                  <div class="text-muted small mb-1">最近活跃节点</div>
-                  <div class="fw-bold" id="latest-node-id">--</div>
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <span class="badge bg-primary-subtle text-primary-emphasis" id="view-mode-badge">
+                    全部节点模式
+                  </span>
+                  <button class="btn btn-outline-primary btn-sm" id="btnShowAll" type="button">
+                    <i class="bi bi-grid-3x3-gap me-1"></i>切回全部节点
+                  </button>
                 </div>
-                <div class="mode-card-summary">
-                  <div class="text-muted small mb-1">最近消息摘要</div>
-                  <div class="small" id="latest-node-summary">等待节点上报</div>
-                </div>
-                <div class="section-hint">
-                  点击右侧任意节点卡片，底部 JSON 详情会立刻切换到该节点。
-                </div>
+                <div class="section-hint mb-3" id="node-wall-empty">等待节点上报...</div>
+                <div class="node-wall node-wall-compact" id="node-wall"></div>
               </div>
             </div>
           </div>
@@ -458,12 +491,50 @@
           <div class="col-lg-8">
             <div class="card h-100">
               <div class="card-header d-flex justify-content-between align-items-center">
-                <span>节点消息列表</span>
-                <span class="section-hint">按最近上报时间排序</span>
+                <span>实时摘要</span>
+                <span class="section-hint">所有显示时间均为北京时间（UTC+8）</span>
               </div>
               <div class="card-body">
-                <div class="section-hint mb-3" id="node-wall-empty">等待节点上报...</div>
-                <div class="node-wall" id="node-wall"></div>
+                <div class="row g-3 mb-3">
+                  <div class="col-md-6">
+                    <div class="mode-card-summary">
+                      <div class="text-muted small mb-1">最近活跃节点</div>
+                      <div class="fw-bold" id="latest-node-id">--</div>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="mode-card-summary">
+                      <div class="text-muted small mb-1">最近消息摘要</div>
+                      <div class="small" id="latest-node-summary">等待节点上报</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="summary-grid">
+                  <div class="summary-tile">
+                    <div class="summary-label">当前详情节点</div>
+                    <div class="summary-value" id="summary-node-id">--</div>
+                  </div>
+                  <div class="summary-tile">
+                    <div class="summary-label">北京时间</div>
+                    <div class="summary-value" id="summary-time">--</div>
+                  </div>
+                  <div class="summary-tile">
+                    <div class="summary-label">消息计数</div>
+                    <div class="summary-value" id="summary-count">0</div>
+                  </div>
+                  <div class="summary-tile">
+                    <div class="summary-label">数组长度</div>
+                    <div class="summary-value" id="summary-lengths">--</div>
+                  </div>
+                  <div class="summary-tile">
+                    <div class="summary-label">备注 / 摘要</div>
+                    <div class="summary-value" id="summary-note">等待节点上报</div>
+                  </div>
+                  <div class="summary-tile">
+                    <div class="summary-label">首采样值</div>
+                    <div class="summary-value" id="summary-sample">--</div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

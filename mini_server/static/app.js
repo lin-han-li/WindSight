@@ -20,11 +20,43 @@
   const elLatestNodeSummary = document.getElementById("latest-node-summary");
   const elNodeWall = document.getElementById("node-wall");
   const elNodeWallEmpty = document.getElementById("node-wall-empty");
+  const elSummaryNodeId = document.getElementById("summary-node-id");
+  const elSummaryTime = document.getElementById("summary-time");
+  const elSummaryNote = document.getElementById("summary-note");
+  const elSummaryCount = document.getElementById("summary-count");
+  const elSummaryLengths = document.getElementById("summary-lengths");
+  const elSummarySample = document.getElementById("summary-sample");
 
   const latestByNode = new Map();
   const nodeMetaByNode = new Map();
   let currentNodeId = initialNodeId;
   let recvCount = 0;
+
+  function formatBeijingTime(value) {
+    if (!value) return "--";
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+
+    const parts = new Intl.DateTimeFormat("zh-CN", {
+      timeZone: "Asia/Shanghai",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    }).formatToParts(date);
+
+    const map = Object.fromEntries(
+      parts
+        .filter((item) => item.type !== "literal")
+        .map((item) => [item.type, item.value])
+    );
+
+    return `${map.year}-${map.month}-${map.day} ${map.hour}:${map.minute}:${map.second}`;
+  }
 
   function resetView(message = "已清空，等待数据...") {
     recvCount = 0;
@@ -198,7 +230,7 @@
         <div class="node-card-head">
           <div>
             <div class="node-card-id">${nodeId}</div>
-            <div class="node-card-time">${meta.received_at || "--"}</div>
+            <div class="node-card-time">${formatBeijingTime(meta.received_at)}</div>
           </div>
           <span class="badge ${isActive ? "bg-primary" : "bg-light text-dark"}">${meta.message_count || 0} 条</span>
         </div>
@@ -234,13 +266,54 @@
       elNodeId.textContent =
         currentNodeId === allNodesToken ? `${msg.node_id}（最新）` : msg.node_id;
     }
-    if (elLast) elLast.textContent = msg.received_at || "--";
+    if (elLast) elLast.textContent = formatBeijingTime(msg.received_at);
     if (elParsed) {
-      elParsed.textContent = JSON.stringify(msg.parsed || {}, null, 2);
+      const parsedView = {
+        ...(msg.parsed || {}),
+        received_at_beijing: formatBeijingTime(msg.received_at),
+      };
+      elParsed.textContent = JSON.stringify(parsedView, null, 2);
     }
     if (elRaw) {
       const raw = typeof msg.raw === "object" ? msg.raw : msg;
       elRaw.textContent = JSON.stringify(raw, null, 2);
+    }
+  }
+
+  function renderDetailSummary(msg) {
+    const meta = msg && msg.node_id ? nodeMetaByNode.get(msg.node_id) || {} : {};
+    const parsed = msg && typeof msg.parsed === "object" ? msg.parsed || {} : {};
+    const raw = msg && typeof msg.raw === "object" ? msg.raw || {} : {};
+    const lengths = parsed.lengths || {};
+    const sample = parsed.sample || {};
+
+    if (elSummaryNodeId) {
+      elSummaryNodeId.textContent = msg ? msg.node_id : "--";
+    }
+    if (elSummaryTime) {
+      elSummaryTime.textContent = msg ? formatBeijingTime(msg.received_at) : "--";
+    }
+    if (elSummaryNote) {
+      elSummaryNote.textContent = extractSummary(msg);
+    }
+    if (elSummaryCount) {
+      elSummaryCount.textContent = msg ? String(meta.message_count || 0) : "0";
+    }
+    if (elSummaryLengths) {
+      elSummaryLengths.textContent = msg
+        ? lengths.voltages || lengths.currents || lengths.speeds
+          ? `V/C/S ${lengths.voltages || 0}/${lengths.currents || 0}/${lengths.speeds || 0}`
+          : "无数组数据"
+        : "--";
+    }
+    if (elSummarySample) {
+      elSummarySample.textContent = msg
+        ? sample.v0 !== undefined || sample.c0 !== undefined || sample.s0 !== undefined
+          ? `v0=${sample.v0 ?? "-"} · c0=${sample.c0 ?? "-"} · s0=${sample.s0 ?? "-"}`
+          : typeof raw.note === "string" && raw.note.trim()
+            ? raw.note.trim()
+            : "无采样摘要"
+        : "--";
     }
   }
 
@@ -253,6 +326,7 @@
     renderLatestOverview();
     renderNodeWall();
     renderMessage(getCurrentMessage());
+    renderDetailSummary(getCurrentMessage());
   }
 
   function rememberNode(meta) {
@@ -340,6 +414,7 @@
     renderLatestOverview();
     renderNodeWall();
     renderMessage(getCurrentMessage());
+    renderDetailSummary(getCurrentMessage());
   });
 
   socket.on("snapshot", (payload) => {
@@ -360,6 +435,7 @@
     renderLatestOverview();
     renderNodeWall();
     renderMessage(getCurrentMessage());
+    renderDetailSummary(getCurrentMessage());
   });
 
   socket.on("mini_update", (msg) => {
@@ -377,6 +453,7 @@
 
     if (currentNodeId === allNodesToken || currentNodeId === msg.node_id) {
       renderMessage(msg);
+      renderDetailSummary(msg);
     }
   });
 
