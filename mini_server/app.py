@@ -2,62 +2,110 @@ from __future__ import annotations
 
 import os
 from datetime import datetime
+from typing import Any
 
 from flask import Flask, jsonify, render_template, request
 from flask_socketio import SocketIO, emit, join_room, leave_room
 
-DEFAULT_NODE_ID = os.environ.get("MINI_NODE_ID", "WIND_001")
+ALL_NODES_TOKEN = "__all__"
+ALL_NODES_ROOM = "nodes_all"
+DEFAULT_NODE_ID = (os.environ.get("MINI_NODE_ID") or "").strip()
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "mini_server")
+app.config["SESSION_COOKIE_NAME"] = os.environ.get(
+    "SESSION_COOKIE_NAME", "mini_server_session"
+)
 
-# Flask-SocketIO 5.x：与 Socket.IO JS client v4（Engine.IO v4）匹配
 socketio = SocketIO(app, cors_allowed_origins="*")
+
+LAST_MESSAGES: dict[str, dict[str, Any]] = {}
+NODE_MESSAGE_COUNTS: dict[str, int] = {}
 
 
 def _utc_iso() -> str:
     return datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
 
-def _coerce_float_list(arr, expected_len: int = 32) -> list[float] | None:
+def _normalize_node_id(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def _coerce_float_list(arr: Any, expected_len: int = 32) -> list[float] | None:
     if not isinstance(arr, list) or len(arr) != expected_len:
         return None
+
     out: list[float] = []
-    for x in arr:
+    for item in arr:
         try:
-            out.append(float(x))
+            out.append(float(item))
         except Exception:
             return None
     return out
 
 
+def _node_registry() -> list[dict[str, Any]]:
+    nodes: list[dict[str, Any]] = []
+    for node_id, msg in LAST_MESSAGES.items():
+        nodes.append(
+            {
+                "node_id": node_id,
+                "received_at": msg.get("received_at"),
+                "message_count": NODE_MESSAGE_COUNTS.get(node_id, 0),
+            }
+        )
+    nodes.sort(key=lambda item: (item["received_at"] or "", item["node_id"]), reverse=True)
+    return nodes
+
+
+def _latest_snapshot() -> list[dict[str, Any]]:
+    return [LAST_MESSAGES[item["node_id"]] for item in _node_registry()]
+
+
+def _emit_registry_to_current_client() -> None:
+    emit(
+        "node_registry",
+        {
+            "nodes": _node_registry(),
+            "all_nodes_token": ALL_NODES_TOKEN,
+            "default_node_id": DEFAULT_NODE_ID or None,
+        },
+    )
+
+
 @app.get("/")
 def index():
-    return render_template("index.html", default_node_id=DEFAULT_NODE_ID)
+    return render_template(
+        "index.html",
+        default_node_id=DEFAULT_NODE_ID,
+        all_nodes_token=ALL_NODES_TOKEN,
+    )
+
+
+@app.get("/api/nodes")
+def list_nodes():
+    return jsonify(
+        {
+            "status": "success",
+            "nodes": _node_registry(),
+            "all_nodes_token": ALL_NODES_TOKEN,
+        }
+    )
 
 
 @app.post("/api/upload")
 def upload():
-    """
-    最小上报接口（无需登录）：
-
-    必填：
-    - node_id: string
-
-    可选（若出现任何一个，则必须同时提供三者）：
-    - voltages / currents / speeds：长度 32，元素可转 float
-    """
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
         return jsonify({"status": "error", "error": "JSON body required"}), 400
 
-    node_id = (payload.get("node_id") or "").strip()
+    node_id = _normalize_node_id(payload.get("node_id"))
     if not node_id:
         return jsonify({"status": "error", "error": "node_id is required"}), 400
 
-    parsed: dict = {"node_id": node_id, "received_at": _utc_iso()}
+    parsed: dict[str, Any] = {"node_id": node_id, "received_at": _utc_iso()}
 
-    has_any_arrays = any(k in payload for k in ("voltages", "currents", "speeds"))
+    has_any_arrays = any(key in payload for key in ("voltages", "currents", "speeds"))
     if has_any_arrays:
         if "voltages" not in payload or "currents" not in payload or "speeds" not in payload:
             return (
@@ -102,30 +150,79 @@ def upload():
         "raw": payload,
         "parsed": parsed,
     }
+
+    LAST_MESSAGES[node_id] = msg
+    NODE_MESSAGE_COUNTS[node_id] = NODE_MESSAGE_COUNTS.get(node_id, 0) + 1
+
     socketio.emit("mini_update", msg, room=f"node_{node_id}")
-    return jsonify({"status": "success"}), 200
+    socketio.emit("mini_update", msg, room=ALL_NODES_ROOM)
+    socketio.emit(
+        "node_registry",
+        {
+            "nodes": _node_registry(),
+            "all_nodes_token": ALL_NODES_TOKEN,
+            "default_node_id": DEFAULT_NODE_ID or None,
+        },
+        room=ALL_NODES_ROOM,
+    )
+    return jsonify({"status": "success", "node_id": node_id}), 200
 
 
 @socketio.on("connect")
 def on_connect():
-    emit("connected", {"status": "ok"})
+    emit(
+        "connected",
+        {
+            "status": "ok",
+            "all_nodes_token": ALL_NODES_TOKEN,
+            "default_node_id": DEFAULT_NODE_ID or None,
+        },
+    )
+    _emit_registry_to_current_client()
+
+
+@socketio.on("subscribe_all")
+def subscribe_all():
+    join_room(ALL_NODES_ROOM)
+    emit("subscribed_all", {"scope": ALL_NODES_TOKEN})
+    _emit_registry_to_current_client()
+    emit("snapshot", {"messages": _latest_snapshot()})
+
+
+@socketio.on("unsubscribe_all")
+def unsubscribe_all():
+    leave_room(ALL_NODES_ROOM)
+    emit("unsubscribed_all", {"scope": ALL_NODES_TOKEN})
 
 
 @socketio.on("subscribe_node")
 def subscribe_node(data):
-    node_id = (data or {}).get("node_id")
+    node_id = _normalize_node_id((data or {}).get("node_id"))
     if not node_id:
         emit("error", {"message": "node_id is required"})
         return
+
+    if node_id == ALL_NODES_TOKEN:
+        subscribe_all()
+        return
+
     join_room(f"node_{node_id}")
     emit("subscribed", {"node_id": node_id})
+    latest = LAST_MESSAGES.get(node_id)
+    if latest:
+        emit("mini_update", latest)
 
 
 @socketio.on("unsubscribe_node")
 def unsubscribe_node(data):
-    node_id = (data or {}).get("node_id")
+    node_id = _normalize_node_id((data or {}).get("node_id"))
     if not node_id:
         return
+
+    if node_id == ALL_NODES_TOKEN:
+        unsubscribe_all()
+        return
+
     leave_room(f"node_{node_id}")
     emit("unsubscribed", {"node_id": node_id})
 
@@ -133,4 +230,3 @@ def unsubscribe_node(data):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     socketio.run(app, host="0.0.0.0", port=port, debug=False)
-
