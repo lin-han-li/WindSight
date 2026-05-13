@@ -9,12 +9,19 @@ class ProtocolParserTests(unittest.TestCase):
             "node_id": "WIN_001",
             "sub": "2",
             "001": [1, 2, 3, 4],
-            "002": [5, 6, 7, 8],
+            "002": [5, 5, 5, 5],
         }
         parsed = parse_turbine_upload(payload)
         self.assertEqual(parsed.node_id, "WIN_001")
         self.assertEqual(parsed.turbine_count, 2)
-        self.assertEqual(parsed.turbines["001"].temperature, 4.0)
+        self.assertAlmostEqual(parsed.turbines["001"].voltage, 50.0)
+        self.assertAlmostEqual(parsed.turbines["001"].current, 2.0)
+        self.assertAlmostEqual(parsed.turbines["001"].speed, 1500.0)
+        self.assertAlmostEqual(parsed.turbines["001"].temperature, 80.0)
+        self.assertAlmostEqual(parsed.turbines["002"].voltage, 250.0)
+        self.assertAlmostEqual(parsed.turbines["002"].current, 5.0)
+        self.assertAlmostEqual(parsed.turbines["002"].speed, 2500.0)
+        self.assertAlmostEqual(parsed.turbines["002"].temperature, 100.0)
 
     def test_reject_missing_node_id(self):
         with self.assertRaises(ProtocolValidationError):
@@ -46,6 +53,10 @@ class ProtocolParserTests(unittest.TestCase):
     def test_reject_non_numeric_value(self):
         with self.assertRaises(ProtocolValidationError):
             parse_turbine_upload({"node_id": "WIN_001", "sub": "1", "001": [1, 2, "x", 4]})
+
+    def test_reject_raw_sensor_value_outside_0_to_5v(self):
+        with self.assertRaises(ProtocolValidationError):
+            parse_turbine_upload({"node_id": "WIN_001", "sub": "1", "001": [1, 2, 5.1, 4]})
 
     def test_reject_non_integer_sub(self):
         with self.assertRaises(ProtocolValidationError):

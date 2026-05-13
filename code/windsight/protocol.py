@@ -1,9 +1,18 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 MAX_TURBINE_COUNT = 64
 RESERVED_KEYS = {"node_id", "sub"}
+SENSOR_MIN_VOLTAGE = 0.0
+SENSOR_MAX_VOLTAGE = 5.0
+FULL_SCALE_BY_METRIC = {
+    "voltage": 250.0,
+    "current": 5.0,
+    "speed": 2500.0,
+    "temperature": 100.0,
+}
 
 
 class ProtocolValidationError(ValueError):
@@ -47,20 +56,28 @@ def _parse_int(value, field_name: str):
         raise ProtocolValidationError(f"{field_name} must be an integer") from exc
 
 
+def _map_sensor_voltage(code: str, metric: str, raw_voltage: float) -> float:
+    if not math.isfinite(raw_voltage):
+        raise ProtocolValidationError(f"{code}.{metric} raw sensor voltage must be finite")
+    if raw_voltage < SENSOR_MIN_VOLTAGE or raw_voltage > SENSOR_MAX_VOLTAGE:
+        raise ProtocolValidationError(f"{code}.{metric} raw sensor voltage must be between 0 and 5V")
+    return raw_voltage / SENSOR_MAX_VOLTAGE * FULL_SCALE_BY_METRIC[metric]
+
+
 def _parse_turbine_sample(code: str, value):
     if not isinstance(value, list) or len(value) != 4:
         raise ProtocolValidationError(f"{code} must be a 4-item array")
 
     try:
-        voltage, current, speed, temperature = (float(item) for item in value)
+        raw_voltage, raw_current, raw_speed, raw_temperature = (float(item) for item in value)
     except Exception as exc:
         raise ProtocolValidationError(f"{code} must contain numeric values") from exc
 
     return TurbineSample(
-        voltage=voltage,
-        current=current,
-        speed=speed,
-        temperature=temperature,
+        voltage=_map_sensor_voltage(code, "voltage", raw_voltage),
+        current=_map_sensor_voltage(code, "current", raw_current),
+        speed=_map_sensor_voltage(code, "speed", raw_speed),
+        temperature=_map_sensor_voltage(code, "temperature", raw_temperature),
     )
 
 

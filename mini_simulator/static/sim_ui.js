@@ -88,10 +88,10 @@
     for (let i = 1; i <= subCount; i += 1) {
       const code = String(i).padStart(3, "0");
       payload[code] = [
-        Number((690 + i * 0.8).toFixed(3)),
-        Number((100 + i * 0.5).toFixed(3)),
-        Number((15 + i * 0.2).toFixed(3)),
-        Number((32 + i * 0.4).toFixed(3)),
+        Number((3.5 + i * 0.02).toFixed(3)),
+        Number((2 + i * 0.02).toFixed(3)),
+        Number((2 + i * 0.03).toFixed(3)),
+        Number((1.6 + i * 0.02).toFixed(3)),
       ];
     }
     return payload;

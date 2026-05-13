@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import time
 from urllib.parse import urlparse
 
@@ -21,7 +22,17 @@ DEFAULT_TARGET_PATH = os.environ.get("MINI_TARGET_PATH", "/api/upload")
 SIM_UI_HOST = os.environ.get("SIM_UI_HOST", "127.0.0.1")
 SIM_UI_PORT = int(os.environ.get("SIM_UI_PORT", "5100"))
 
-app = Flask(__name__)
+
+def _resource_path(relative_path: str) -> str:
+    base_path = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_path, relative_path)
+
+
+app = Flask(
+    __name__,
+    template_folder=_resource_path("templates"),
+    static_folder=_resource_path("static"),
+)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "mini_simulator")
 
 
@@ -55,6 +66,11 @@ def index():
         sim_ui_host=SIM_UI_HOST,
         sim_ui_port=SIM_UI_PORT,
     )
+
+
+@app.get("/api/health")
+def api_health():
+    return jsonify({"ok": True, "service": "windsight-mini-simulator", "pid": os.getpid()})
 
 
 @app.post("/api/send")

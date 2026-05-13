@@ -70,45 +70,57 @@ def _gen_series(
     return out
 
 
+def _clamp_sensor_volts(values: list[float]) -> list[float]:
+    return [round(max(0.0, min(5.0, value)), 4) for value in values]
+
+
 def build_payload(node: NodeSimState, t: float) -> dict:
     count = _clamp_turbine_count(node.turbine_count)
     node_hash = abs(hash(node.node_id))
 
-    voltages = _gen_series(
-        count=count,
-        t=t,
-        base=690.0 + (node_hash % 7) * 5.0,
-        amp=25.0,
-        noise=1.5,
-        w_base=0.8,
-        rng=node.rng,
+    voltages = _clamp_sensor_volts(
+        _gen_series(
+            count=count,
+            t=t,
+            base=3.55 + (node_hash % 7) * 0.03,
+            amp=0.18,
+            noise=0.015,
+            w_base=0.8,
+            rng=node.rng,
+        )
     )
-    currents = _gen_series(
-        count=count,
-        t=t,
-        base=100.0 + (node_hash % 5) * 3.0,
-        amp=8.0,
-        noise=0.5,
-        w_base=1.1,
-        rng=node.rng,
+    currents = _clamp_sensor_volts(
+        _gen_series(
+            count=count,
+            t=t,
+            base=2.0 + (node_hash % 5) * 0.08,
+            amp=0.2,
+            noise=0.015,
+            w_base=1.1,
+            rng=node.rng,
+        )
     )
-    speeds = _gen_series(
-        count=count,
-        t=t,
-        base=15.0 + (node_hash % 9) * 0.5,
-        amp=2.0,
-        noise=0.1,
-        w_base=0.35,
-        rng=node.rng,
+    speeds = _clamp_sensor_volts(
+        _gen_series(
+            count=count,
+            t=t,
+            base=2.0 + (node_hash % 9) * 0.04,
+            amp=0.22,
+            noise=0.012,
+            w_base=0.35,
+            rng=node.rng,
+        )
     )
-    temperatures = _gen_series(
-        count=count,
-        t=t,
-        base=48.0 + (node_hash % 6) * 1.2,
-        amp=4.0,
-        noise=0.3,
-        w_base=0.22,
-        rng=node.rng,
+    temperatures = _clamp_sensor_volts(
+        _gen_series(
+            count=count,
+            t=t,
+            base=1.6 + (node_hash % 6) * 0.04,
+            amp=0.18,
+            noise=0.015,
+            w_base=0.22,
+            rng=node.rng,
+        )
     )
 
     payload = {"node_id": node.node_id, "sub": str(count)}

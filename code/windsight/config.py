@@ -15,6 +15,10 @@ class Config:
     # - 为了避免把“固定弱口令密钥”写死到公开仓库，这里在未配置时自动生成随机密钥（仅适合本地/演示）
     _sk = (os.environ.get('SECRET_KEY') or '').strip()
     SECRET_KEY = _sk if _sk else secrets.token_urlsafe(32)
+    # Distinct cookie names prevent cross-project session collisions when
+    # multiple Flask apps share the same host on different ports.
+    SESSION_COOKIE_NAME = os.environ.get('SESSION_COOKIE_NAME', 'windsight_session')
+    REMEMBER_COOKIE_NAME = os.environ.get('REMEMBER_COOKIE_NAME', 'windsight_remember')
     
     # ==================== 数据库配置 ====================
     # 如需自定义数据库路径，请设置环境变量 DATABASE_URL

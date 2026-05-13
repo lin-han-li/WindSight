@@ -22,12 +22,15 @@ http://127.0.0.1:5100
 {
   "node_id": "WIN_001",
   "sub": "4",
-  "001": [690.8, 100.5, 15.2, 32.4],
-  "002": [691.1, 100.9, 15.4, 32.8],
-  "003": [689.9, 99.8, 14.9, 31.7],
-  "004": [690.3, 100.2, 15.1, 32.0]
+  "001": [3.50, 2.00, 2.00, 1.60],
+  "002": [3.52, 2.02, 2.03, 1.62],
+  "003": [3.54, 2.04, 2.06, 1.64],
+  "004": [3.56, 2.06, 2.09, 1.66]
 }
 ```
+
+The sample values are raw `0..5V` sensor voltages. WindSight maps them to
+`0..250V`, `0..5A`, `0..2500r/min`, and `0..100°C` after upload.
 
 ## Run
 
@@ -37,6 +40,27 @@ venv\Scripts\activate
 pip install -r requirements.txt
 python sim.py
 ```
+
+## Windows desktop package
+
+This folder can build a double-clickable Electron desktop app. The packaged app starts the bundled Flask backend automatically, so the target machine does not need Python installed.
+
+```bash
+npm install
+npm run dist:win
+```
+
+Output:
+
+```text
+release\WindSight Manual Simulator Setup 1.0.0.exe
+```
+
+Build layout follows the Codex Gateway pattern:
+
+- `scripts/build-server-binary.mjs` builds the Flask backend into `build/server/windsight-mini-simulator-backend.exe`
+- `electron/main.cjs` starts the backend from Electron resources and opens the local UI
+- `build/installer.nsh` closes stale app/backend processes during install or uninstall
 
 ## Notes
 

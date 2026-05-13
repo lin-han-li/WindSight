@@ -572,9 +572,25 @@
 
 .metric-value {
   margin-top: 0.9rem;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.35rem;
   font-size: 2rem;
   font-weight: 800;
   line-height: 1.06;
+}
+
+.metric-value-number {
+  line-height: 1.06;
+}
+
+.metric-value-unit {
+  font-size: 1em;
+  font-weight: 800;
+  line-height: 1;
+  color: currentColor;
+  opacity: 0.9;
 }
 
 .metric-card-voltage .metric-value,

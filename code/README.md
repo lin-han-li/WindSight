@@ -12,11 +12,22 @@ Required fields:
 - `sub`: turbine count, integer/string, range `1..64`
 - `001..NNN`: one key per turbine, zero-padded and continuous from `001` to `sub`
 
-Each turbine value must be:
+Each turbine value must be a 4-item raw sensor-voltage array. Every raw value
+must be in the `0..5V` range:
 
 ```json
-[voltage, current, speed, temperature]
+[voltage_sensor_v, current_sensor_v, speed_sensor_v, temperature_sensor_v]
 ```
+
+The server maps raw `0..5V` sensor values to engineering values before storing
+and pushing them to the UI:
+
+| Metric | Raw input | Stored/displayed range |
+| --- | --- | --- |
+| Voltage | `0..5V` | `0..250V` |
+| Current | `0..5V` | `0..5A` |
+| Speed | `0..5V` | `0..2500r/min` |
+| Temperature | `0..5V` | `0..100°C` |
 
 Example:
 
@@ -24,10 +35,10 @@ Example:
 {
   "node_id": "WIN_001",
   "sub": "4",
-  "001": [690.1, 101.2, 15.4, 32.8],
-  "002": [689.8, 100.9, 15.1, 32.5],
-  "003": [691.0, 101.6, 15.8, 33.1],
-  "004": [690.4, 100.7, 15.0, 32.2]
+  "001": [3.50, 2.00, 2.00, 1.60],
+  "002": [3.52, 2.02, 2.03, 1.62],
+  "003": [3.54, 2.04, 2.06, 1.64],
+  "004": [3.56, 2.06, 2.09, 1.66]
 }
 ```
 

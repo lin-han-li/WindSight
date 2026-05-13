@@ -14,16 +14,16 @@
   const pollIntervalMs = 3000;
   const defaultLimit = 600;
   const maxLimit = 20000;
-  const chartGroup = `windsight-${pageKind}-metrics`;
   const nodeMapConfig = window.WindSightNodeMapConfig || { defaults: {}, nodes: {} };
   const socket = isMonitorPage && typeof io === "function" ? io() : null;
 
   const metrics = [
-    { key: "voltage", label: "电压", unit: "V", color: "#2f6fed", elementId: "chartVoltage" },
-    { key: "current", label: "电流", unit: "A", color: "#19b8d6", elementId: "chartCurrent" },
-    { key: "speed", label: "转速", unit: "rpm", color: "#f59e0b", elementId: "chartSpeed" },
-    { key: "temperature", label: "温度", unit: "°C", color: "#ef4444", elementId: "chartTemperature" },
+    { key: "voltage", label: "电压", unit: "V", min: 0, max: 250, color: "#2f6fed", elementId: "chartVoltage" },
+    { key: "current", label: "电流", unit: "A", min: 0, max: 5, color: "#19b8d6", elementId: "chartCurrent" },
+    { key: "speed", label: "转速", unit: "r/min", min: 0, max: 2500, color: "#f59e0b", elementId: "chartSpeed" },
+    { key: "temperature", label: "温度", unit: "℃", min: 0, max: 100, color: "#ef4444", elementId: "chartTemperature" },
   ];
+  const metricByKey = new Map(metrics.map((metric) => [metric.key, metric]));
 
   const state = {
     nodes: [],
@@ -36,6 +36,7 @@
     pollTimer: null,
     view: usesDrilldownView ? "map" : "chart",
     metricZoom: null,
+    syncingMetricZoom: false,
   };
 
   const dom = {
@@ -185,6 +186,39 @@
     return number === null ? "--" : number.toFixed(2);
   }
 
+  function setMetricCardValue(metric, value) {
+    const element = byId(`cardValue-${metric.key}`);
+    if (!element) {
+      return;
+    }
+
+    const textValue = formatValue(value);
+    if (textValue === "--") {
+      element.textContent = "--";
+      return;
+    }
+
+    element.textContent = "";
+    const numberElement = document.createElement("span");
+    numberElement.className = "metric-value-number";
+    numberElement.textContent = textValue;
+
+    const unitElement = document.createElement("span");
+    unitElement.className = "metric-value-unit";
+    unitElement.textContent = metric.unit;
+
+    element.append(numberElement, unitElement);
+  }
+
+  function updateMetricChartTitles() {
+    metrics.forEach((metric) => {
+      const titleElement = document.querySelector(`.detail-chart-${metric.key} .chart-card-head span:last-child`);
+      if (titleElement) {
+        titleElement.textContent = `${metric.label}波形（${metric.unit}）`;
+      }
+    });
+  }
+
   function currentLimit() {
     const raw = parseInt((dom.historyLimit && dom.historyLimit.value) || `${defaultLimit}`, 10);
     if (!Number.isFinite(raw)) {
@@ -288,38 +322,433 @@
     state.metricZoom = null;
   }
 
-  function rememberMetricZoomFromChart(chart) {
+  function clampNumber(value, min, max) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) {
+      return min;
+    }
+    return Math.max(min, Math.min(max, number));
+  }
+
+  function getMetricXExtent() {
+    return { min: 0, max: Math.max(state.uploads.length - 1, 1) };
+  }
+
+  function getMetricYExtent(metricKey) {
+    const metric = metricByKey.get(metricKey);
+    const min = Number(metric?.min);
+    const max = Number(metric?.max);
+    return {
+      min: Number.isFinite(min) ? min : 0,
+      max: Number.isFinite(max) && max > min ? max : 1,
+    };
+  }
+
+  function normalizeMetricZoomRange(startValue, endValue, extent) {
+    const min = Number(extent?.min);
+    const max = Number(extent?.max);
+    const start = Number(startValue);
+    const end = Number(endValue);
+    if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min || !Number.isFinite(start) || !Number.isFinite(end)) {
+      return null;
+    }
+    const fullSpan = max - min;
+    const minSpan = Math.max(fullSpan * 0.001, 1e-6);
+    let nextStart = Math.min(start, end);
+    let nextEnd = Math.max(start, end);
+    let span = nextEnd - nextStart;
+    if (span >= fullSpan * 0.98) {
+      return { startValue: min, endValue: max };
+    }
+    if (span < minSpan) {
+      const center = (nextStart + nextEnd) / 2;
+      nextStart = center - minSpan / 2;
+      nextEnd = center + minSpan / 2;
+      span = nextEnd - nextStart;
+    }
+    if (nextStart < min) {
+      nextEnd += min - nextStart;
+      nextStart = min;
+    }
+    if (nextEnd > max) {
+      nextStart -= nextEnd - max;
+      nextEnd = max;
+    }
+    nextStart = clampNumber(nextStart, min, max);
+    nextEnd = clampNumber(nextEnd, min, max);
+    if (nextEnd - nextStart < minSpan) {
+      return { startValue: min, endValue: max };
+    }
+    return { startValue: nextStart, endValue: nextEnd };
+  }
+
+  function isFullMetricZoomRange(range, extent) {
+    if (!range || !extent) {
+      return false;
+    }
+    const span = Math.max(Number(extent.max) - Number(extent.min), 1);
+    const tolerance = span * 0.002;
+    return range.startValue <= extent.min + tolerance && range.endValue >= extent.max - tolerance;
+  }
+
+  function readMetricZoomRange(zoom, extent) {
+    if (!zoom || !extent) {
+      return null;
+    }
+    const startValue = Number(zoom.startValue);
+    const endValue = Number(zoom.endValue);
+    if (Number.isFinite(startValue) && Number.isFinite(endValue)) {
+      return normalizeMetricZoomRange(startValue, endValue, extent);
+    }
+    const start = Number(zoom.start);
+    const end = Number(zoom.end);
+    if (Number.isFinite(start) && Number.isFinite(end)) {
+      const fullSpan = extent.max - extent.min;
+      return normalizeMetricZoomRange(
+        extent.min + fullSpan * (start / 100),
+        extent.min + fullSpan * (end / 100),
+        extent
+      );
+    }
+    return null;
+  }
+
+  function getMetricZoomPayload(event, axis) {
+    const payloads = Array.isArray(event?.batch) ? event.batch : event ? [event] : [];
+    const ids = axis === "x" ? new Set(["metric-x-inside", "metric-x-slider"]) : new Set(["metric-y-inside"]);
+    const indexes = axis === "x" ? new Set([0, 2]) : new Set([1]);
+    return payloads.find((payload) => ids.has(payload?.dataZoomId) || indexes.has(payload?.dataZoomIndex)) || null;
+  }
+
+  function getStoredMetricZoom(axis, metricKey) {
+    if (axis === "x") {
+      return state.metricZoom?.x || null;
+    }
+    return state.metricZoom?.y?.[metricKey] || null;
+  }
+
+  function rememberMetricZoomFromChart(chart, metricKey, event) {
     if (!chart) {
+      return { xRange: null, xIsFull: false, yRange: null, yIsFull: false };
+    }
+    const zoomItems = chart.getOption?.()?.dataZoom || [];
+    const xExtent = getMetricXExtent();
+    const yExtent = getMetricYExtent(metricKey);
+    const nextZoom = {
+      ...(state.metricZoom || {}),
+      y: { ...(state.metricZoom?.y || {}) },
+    };
+    const xZoom = zoomItems.find((zoom) => zoom.id === "metric-x-inside") || zoomItems[0];
+    const yZoom = zoomItems.find((zoom) => zoom.id === "metric-y-inside") || zoomItems[1];
+    const xRange = readMetricZoomRange(getMetricZoomPayload(event, "x") || xZoom, xExtent);
+    const yRange = readMetricZoomRange(getMetricZoomPayload(event, "y") || yZoom, yExtent);
+    const xIsFull = isFullMetricZoomRange(xRange, xExtent);
+    const yIsFull = isFullMetricZoomRange(yRange, yExtent);
+
+    if (xRange) {
+      if (xIsFull) {
+        delete nextZoom.x;
+      } else {
+        nextZoom.x = xRange;
+      }
+    }
+    if (yRange && metricKey) {
+      if (yIsFull) {
+        delete nextZoom.y[metricKey];
+      } else {
+        nextZoom.y[metricKey] = yRange;
+      }
+    }
+    if (!Object.keys(nextZoom.y).length) {
+      delete nextZoom.y;
+    }
+    state.metricZoom = Object.keys(nextZoom).length ? nextZoom : null;
+    return { xRange, xIsFull, yRange, yIsFull };
+  }
+
+  function applyMetricZoom(config, axis = "x", metricKey = "") {
+    const extent = axis === "x" ? getMetricXExtent() : getMetricYExtent(metricKey);
+    const zoom = getStoredMetricZoom(axis, metricKey);
+    const range = zoom ? normalizeMetricZoomRange(zoom.startValue, zoom.endValue, extent) : null;
+    if (!range || isFullMetricZoomRange(range, extent)) {
+      return config;
+    }
+    return {
+      ...config,
+      startValue: range.startValue,
+      endValue: range.endValue,
+    };
+  }
+
+  function findMetricDataZoomIndex(chart, axis) {
+    const id = axis === "x" ? "metric-x-inside" : "metric-y-inside";
+    const zoomItems = chart?.getOption?.()?.dataZoom || [];
+    const index = zoomItems.findIndex((zoom) => zoom.id === id);
+    return index >= 0 ? index : axis === "x" ? 0 : 1;
+  }
+
+  function findMetricDataZoomIndexes(chart, axis) {
+    const ids = axis === "x" ? new Set(["metric-x-inside", "metric-x-slider"]) : new Set(["metric-y-inside"]);
+    const zoomItems = chart?.getOption?.()?.dataZoom || [];
+    const indexes = zoomItems
+      .map((zoom, index) => (ids.has(zoom.id) ? index : -1))
+      .filter((index) => index >= 0);
+    if (indexes.length) {
+      return indexes;
+    }
+    return [axis === "x" ? 0 : 1];
+  }
+
+  function dispatchMetricZoomByValue(chart, axis, metricKey, startValue, endValue) {
+    const extent = axis === "x" ? getMetricXExtent() : getMetricYExtent(metricKey);
+    const range = normalizeMetricZoomRange(startValue, endValue, extent);
+    if (!chart || !range) {
+      return null;
+    }
+    findMetricDataZoomIndexes(chart, axis).forEach((dataZoomIndex) => {
+      chart.dispatchAction({
+        type: "dataZoom",
+        dataZoomIndex,
+        startValue: range.startValue,
+        endValue: range.endValue,
+      });
+    });
+    return range;
+  }
+
+  function syncMetricXZoom(sourceChart, range, resetFull = false) {
+    const nextRange = resetFull ? getMetricXExtent() : range;
+    if (!nextRange || state.syncingMetricZoom) {
       return;
     }
-    const zoom = chart.getOption?.()?.dataZoom?.[0];
-    if (!zoom) {
-      return;
-    }
-    const nextZoom = {};
-    if (Number.isFinite(zoom.start)) {
-      nextZoom.start = zoom.start;
-    }
-    if (Number.isFinite(zoom.end)) {
-      nextZoom.end = zoom.end;
-    }
-    if (Object.keys(nextZoom).length) {
-      state.metricZoom = nextZoom;
+    state.syncingMetricZoom = true;
+    try {
+      chartStore.metrics.forEach((chart) => {
+        if (!chart || chart === sourceChart) {
+          return;
+        }
+        dispatchMetricZoomByValue(chart, "x", chart.__windsightMetricKey || "", nextRange.startValue, nextRange.endValue);
+      });
+    } finally {
+      state.syncingMetricZoom = false;
     }
   }
 
-  function applyMetricZoom(config) {
-    if (!state.metricZoom) {
-      return config;
+  function getMetricGridRect(chart) {
+    try {
+      const grid = chart.getModel().getComponent("grid", 0);
+      const rect = grid?.coordinateSystem?.getRect?.();
+      if (!rect) {
+        return null;
+      }
+      const x = Number(rect.x);
+      const y = Number(rect.y);
+      const width = Number(rect.width);
+      const height = Number(rect.height);
+      return [x, y, width, height].every(Number.isFinite) && width > 2 && height > 2
+        ? { x, y, width, height }
+        : null;
+    } catch (error) {
+      return null;
     }
-    const nextConfig = { ...config };
-    if (Number.isFinite(state.metricZoom.start)) {
-      nextConfig.start = state.metricZoom.start;
+  }
+
+  function getMetricHitRegion(chart, element, x, y) {
+    const grid = getMetricGridRect(chart);
+    if (grid) {
+      const inPlot = x >= grid.x && x <= grid.x + grid.width && y >= grid.y && y <= grid.y + grid.height;
+      const onYAxis = x < grid.x;
+      const onXAxis = y > grid.y + grid.height;
+      if (onYAxis && onXAxis) {
+        return "y";
+      }
+      if (onYAxis) {
+        return "y";
+      }
+      if (onXAxis) {
+        return "x";
+      }
+      return inPlot ? "plot" : "none";
     }
-    if (Number.isFinite(state.metricZoom.end)) {
-      nextConfig.end = state.metricZoom.end;
+    const rect = element.getBoundingClientRect();
+    if (x < rect.width * 0.18) {
+      return "y";
     }
-    return nextConfig;
+    if (y > rect.height * 0.8) {
+      return "x";
+    }
+    return "plot";
+  }
+
+  function getMetricAxisValueAtPixel(chart, x, y) {
+    try {
+      const grid = getMetricGridRect(chart);
+      const px = grid ? clampNumber(x, grid.x + 1, grid.x + grid.width - 1) : x;
+      const py = grid ? clampNumber(y, grid.y + 1, grid.y + grid.height - 1) : y;
+      const value = chart.convertFromPixel({ gridIndex: 0 }, [px, py]);
+      if (!Array.isArray(value) || value.length < 2) {
+        return [null, null];
+      }
+      const xValue = Number(value[0]);
+      const yValue = Number(value[1]);
+      return [Number.isFinite(xValue) ? xValue : null, Number.isFinite(yValue) ? yValue : null];
+    } catch (error) {
+      return [null, null];
+    }
+  }
+
+  function getMetricZoomWindow(chart, axis, metricKey) {
+    const extent = axis === "x" ? getMetricXExtent() : getMetricYExtent(metricKey);
+    const zoomItems = chart?.getOption?.()?.dataZoom || [];
+    const zoom = zoomItems[findMetricDataZoomIndex(chart, axis)];
+    const range = readMetricZoomRange(zoom, extent) || normalizeMetricZoomRange(extent.min, extent.max, extent);
+    return range ? { ...range, extent } : null;
+  }
+
+  function zoomMetricAroundAnchor(chart, axis, metricKey, anchorValue, factor) {
+    const windowRange = getMetricZoomWindow(chart, axis, metricKey);
+    if (!windowRange) {
+      return;
+    }
+    const start = windowRange.startValue;
+    const end = windowRange.endValue;
+    const span = Math.max(end - start, 1e-9);
+    const anchor = Number.isFinite(anchorValue) ? anchorValue : (start + end) / 2;
+    const ratio = clampNumber((anchor - start) / span, 0, 1);
+    const nextSpan = span / factor;
+    const nextStart = anchor - ratio * nextSpan;
+    const nextEnd = nextStart + nextSpan;
+    dispatchMetricZoomByValue(chart, axis, metricKey, nextStart, nextEnd);
+  }
+
+  function setupMetricChartZoom(chart, element, metricKey) {
+    const zr = chart?.getZr?.();
+    if (!chart || !element || !zr) {
+      return;
+    }
+    if (chart.__windsightZoomHandlers) {
+      const old = chart.__windsightZoomHandlers;
+      try { zr.off("mousewheel", old.onWheel); } catch (error) {}
+      try { zr.off("dblclick", old.onDblClick); } catch (error) {}
+      try { zr.off("mousedown", old.onDown); } catch (error) {}
+      try { zr.off("mousemove", old.onMove); } catch (error) {}
+      try { zr.off("mouseup", old.onUp); } catch (error) {}
+      try { zr.off("globalout", old.onUp); } catch (error) {}
+    }
+
+    let dragging = false;
+    let dragStartPoint = null;
+    let dragStartWindow = null;
+
+    const onWheel = (params) => {
+      const event = params?.event;
+      if (event?.preventDefault) {
+        event.preventDefault();
+      }
+      const x = Number(params?.offsetX);
+      const y = Number(params?.offsetY);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        return;
+      }
+      const region = getMetricHitRegion(chart, element, x, y);
+      if (region === "none") {
+        return;
+      }
+      const delta = Number.isFinite(params?.wheelDelta) ? params.wheelDelta : -Number(event?.deltaY || 0);
+      const factor = delta > 0 ? 1.1 : 0.9;
+      const [xValue, yValue] = getMetricAxisValueAtPixel(chart, x, y);
+      if (region === "x") {
+        zoomMetricAroundAnchor(chart, "x", metricKey, xValue, factor);
+      } else if (region === "y") {
+        zoomMetricAroundAnchor(chart, "y", metricKey, yValue, factor);
+      } else {
+        zoomMetricAroundAnchor(chart, "x", metricKey, xValue, factor);
+        zoomMetricAroundAnchor(chart, "y", metricKey, yValue, factor);
+      }
+    };
+
+    const onDblClick = (params) => {
+      const x = Number(params?.offsetX);
+      const y = Number(params?.offsetY);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        return;
+      }
+      const region = getMetricHitRegion(chart, element, x, y);
+      const xExtent = getMetricXExtent();
+      const yExtent = getMetricYExtent(metricKey);
+      if (region === "x") {
+        dispatchMetricZoomByValue(chart, "x", metricKey, xExtent.min, xExtent.max);
+      } else if (region === "y") {
+        dispatchMetricZoomByValue(chart, "y", metricKey, yExtent.min, yExtent.max);
+      } else if (region === "plot") {
+        dispatchMetricZoomByValue(chart, "x", metricKey, xExtent.min, xExtent.max);
+        dispatchMetricZoomByValue(chart, "y", metricKey, yExtent.min, yExtent.max);
+      }
+    };
+
+    const onDown = (params) => {
+      const event = params?.event;
+      if (event && event.button !== undefined && event.button !== 0) {
+        return;
+      }
+      const x = Number(params?.offsetX);
+      const y = Number(params?.offsetY);
+      if (!Number.isFinite(x) || !Number.isFinite(y) || getMetricHitRegion(chart, element, x, y) !== "plot") {
+        return;
+      }
+      const xWindow = getMetricZoomWindow(chart, "x", metricKey);
+      const yWindow = getMetricZoomWindow(chart, "y", metricKey);
+      if (!xWindow || !yWindow) {
+        return;
+      }
+      dragging = true;
+      dragStartPoint = { x, y };
+      dragStartWindow = {
+        xStart: xWindow.startValue,
+        xEnd: xWindow.endValue,
+        yStart: yWindow.startValue,
+        yEnd: yWindow.endValue,
+      };
+      element.style.cursor = "grabbing";
+    };
+
+    const onMove = (params) => {
+      if (!dragging || !dragStartPoint || !dragStartWindow) {
+        return;
+      }
+      const x = Number(params?.offsetX);
+      const y = Number(params?.offsetY);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        return;
+      }
+      const grid = getMetricGridRect(chart);
+      const width = grid ? grid.width : Math.max(1, element.getBoundingClientRect().width);
+      const height = grid ? grid.height : Math.max(1, element.getBoundingClientRect().height);
+      const xSpan = Math.max(dragStartWindow.xEnd - dragStartWindow.xStart, 1e-9);
+      const ySpan = Math.max(dragStartWindow.yEnd - dragStartWindow.yStart, 1e-9);
+      const xShift = -((x - dragStartPoint.x) / width) * xSpan;
+      const yShift = ((y - dragStartPoint.y) / height) * ySpan;
+      dispatchMetricZoomByValue(chart, "x", metricKey, dragStartWindow.xStart + xShift, dragStartWindow.xEnd + xShift);
+      dispatchMetricZoomByValue(chart, "y", metricKey, dragStartWindow.yStart + yShift, dragStartWindow.yEnd + yShift);
+    };
+
+    const onUp = () => {
+      if (!dragging) {
+        return;
+      }
+      dragging = false;
+      dragStartPoint = null;
+      dragStartWindow = null;
+      element.style.cursor = "";
+    };
+
+    zr.on("mousewheel", onWheel);
+    zr.on("dblclick", onDblClick);
+    zr.on("mousedown", onDown);
+    zr.on("mousemove", onMove);
+    zr.on("mouseup", onUp);
+    zr.on("globalout", onUp);
+    chart.__windsightZoomHandlers = { onWheel, onDblClick, onDown, onMove, onUp };
   }
 
   function upsertNode(nodePatch) {
@@ -824,7 +1253,7 @@
       ? `${state.selectedNodeId || "--"} · 发电机 ${state.selectedTurbineCode}`
       : "等待选择发电机";
     metrics.forEach((metric) => {
-      setText(`cardValue-${metric.key}`, snapshot ? formatValue(snapshot.turbine[metric.key]) : "--");
+      setMetricCardValue(metric, snapshot ? snapshot.turbine[metric.key] : null);
       setText(`cardHint-${metric.key}`, hint);
     });
   }
@@ -879,21 +1308,28 @@
         return;
       }
       const chart = echarts.init(element);
-      chart.group = chartGroup;
-      chart.on("dataZoom", () => rememberMetricZoomFromChart(chart));
+      chart.__windsightMetricKey = metric.key;
+      chart.on("dataZoom", (event) => {
+        if (state.syncingMetricZoom) {
+          return;
+        }
+        const remembered = rememberMetricZoomFromChart(chart, metric.key, event);
+        syncMetricXZoom(chart, remembered.xRange, remembered.xIsFull);
+      });
+      setupMetricChartZoom(chart, element, metric.key);
       chartStore.metrics.set(metric.key, chart);
     });
-    echarts.connect(chartGroup);
   }
 
   function buildMetricOption(metric, index) {
     const palette = getThemePalette();
     const axisColor = palette.axisText;
     const times = state.uploads.map((row) => row.timestamp || "");
-    const seriesData = state.uploads.map((row) => {
+    const xMax = Math.max(times.length - 1, 1);
+    const seriesData = state.uploads.map((row, rowIndex) => {
       const turbine = row?.turbines?.[state.selectedTurbineCode];
       const value = turbine ? turbine[metric.key] : null;
-      return safeNumber(value);
+      return [rowIndex, safeNumber(value)];
     });
 
     return {
@@ -911,6 +1347,15 @@
           getThemeMode() === "dark"
             ? "box-shadow: 0 16px 28px rgba(0, 0, 0, 0.32); border-radius: 12px;"
             : "box-shadow: 0 14px 24px rgba(116, 142, 172, 0.16); border-radius: 12px;",
+        formatter(params) {
+          const point = Array.isArray(params) ? params[0] : params;
+          const value = Array.isArray(point?.value) ? point.value : [point?.dataIndex, point?.value];
+          const rowIndex = Math.round(Number(value?.[0]));
+          const metricValue = Number(value?.[1]);
+          const time = times[rowIndex] || "--";
+          const textValue = Number.isFinite(metricValue) ? metricValue.toFixed(2) : "--";
+          return `${time}<br/>${metric.label}: ${textValue} ${metric.unit}`;
+        },
       },
       grid: {
         left: 48,
@@ -919,21 +1364,35 @@
         bottom: index === metrics.length - 1 ? 48 : 24,
       },
       xAxis: {
-        type: "category",
-        boundaryGap: false,
-        data: times,
+        type: "value",
+        min: 0,
+        max: xMax,
         axisLine: {
           lineStyle: { color: palette.axisLine },
         },
         axisLabel: {
           color: axisColor,
           hideOverlap: true,
+          formatter(value) {
+            const rowIndex = Math.round(Number(value));
+            if (!Number.isFinite(rowIndex) || Math.abs(Number(value) - rowIndex) > 0.25) {
+              return "";
+            }
+            const timestamp = times[rowIndex];
+            if (!timestamp) {
+              return "";
+            }
+            const parts = String(timestamp).split(/[ T]/);
+            return (parts[1] || parts[0] || "").slice(0, 8);
+          },
         },
       },
       yAxis: {
         type: "value",
-        scale: true,
-        name: metric.unit,
+        min: metric.min,
+        max: metric.max,
+        scale: false,
+        name: "",
         nameTextStyle: {
           color: axisColor,
         },
@@ -946,20 +1405,36 @@
       },
       dataZoom: [
         applyMetricZoom({
+          id: "metric-x-inside",
           type: "inside",
+          xAxisIndex: 0,
           filterMode: "none",
-        }),
+          zoomOnMouseWheel: false,
+          moveOnMouseMove: false,
+          moveOnMouseWheel: false,
+        }, "x", metric.key),
+        applyMetricZoom({
+          id: "metric-y-inside",
+          type: "inside",
+          yAxisIndex: 0,
+          filterMode: "none",
+          zoomOnMouseWheel: false,
+          moveOnMouseMove: false,
+          moveOnMouseWheel: false,
+        }, "y", metric.key),
         ...(index === metrics.length - 1
           ? [
               applyMetricZoom({
+                id: "metric-x-slider",
                 type: "slider",
+                xAxisIndex: 0,
                 height: 16,
                 bottom: 10,
                 filterMode: "none",
                 borderColor: palette.zoomBorder,
                 fillerColor: palette.zoomFill,
                 backgroundColor: palette.zoomBg,
-              }),
+              }, "x", metric.key),
             ]
           : []),
       ],
@@ -1591,6 +2066,7 @@
 
   bindEvents();
   bindSocket();
+  updateMetricChartTitles();
   renderAll();
   loadNodes().catch((error) => console.error("[dashboard] init failed", error));
 })();
