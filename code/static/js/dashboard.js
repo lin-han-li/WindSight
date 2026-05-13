@@ -31,6 +31,7 @@
     selectedNodeId: "",
     selectedTurbineCode: window.localStorage.getItem(storageTurbineKey) || "",
     expandedTurbineGroups: new Map(),
+    collapsedTurbineRoots: new Set(),
     uploads: [],
     uploadIds: new Set(),
     pollTimer: null,
@@ -66,7 +67,8 @@
   };
 
   const chartStore = {
-    map: dom.nodeMapChart ? echarts.init(dom.nodeMapChart) : null,
+    map: dom.nodeMapChart || null,
+    turbineTree: null,
     metrics: new Map(),
   };
 
@@ -115,6 +117,57 @@
     };
   }
 
+  function getTreeGraphPalette() {
+    if (getThemeMode() === "dark") {
+      return {
+        tooltipBg: "rgba(7, 14, 27, 0.94)",
+        tooltipBorder: "rgba(125, 211, 252, 0.55)",
+        tooltipText: "#f8fafc",
+        hintText: "rgba(226, 232, 240, 0.78)",
+        link: "rgba(56, 189, 248, 0.62)",
+        rootFill: "#2563eb",
+        rootBorder: "#bfdbfe",
+        rootText: "#ffffff",
+        rootSubText: "#dbeafe",
+        rootShadow: "#60a5fa",
+        groupFill: "#14243a",
+        groupExpanded: "#22d3ee",
+        groupSelected: "#f59e0b",
+        groupDefault: "#93c5fd",
+        groupText: "#f8fafc",
+        groupSubText: "#cbd5e1",
+        turbineFill: "#10233d",
+        turbineSelectedFill: "#1d4ed8",
+        turbineText: "#f7fbff",
+        turbineSubText: "#dbeafe",
+        seriesLabel: "#f8fafc",
+      };
+    }
+    return {
+      tooltipBg: "rgba(255, 255, 255, 0.98)",
+      tooltipBorder: "rgba(37, 99, 235, 0.28)",
+      tooltipText: "#0f172a",
+      hintText: "rgba(51, 65, 85, 0.82)",
+      link: "rgba(37, 99, 235, 0.5)",
+      rootFill: "#2563eb",
+      rootBorder: "#1e40af",
+      rootText: "#ffffff",
+      rootSubText: "#dbeafe",
+      rootShadow: "#93c5fd",
+      groupFill: "#ffffff",
+      groupExpanded: "#0f766e",
+      groupSelected: "#b45309",
+      groupDefault: "#3b82f6",
+      groupText: "#0f172a",
+      groupSubText: "#334155",
+      turbineFill: "#ffffff",
+      turbineSelectedFill: "#dbe7fb",
+      turbineText: "#0f172a",
+      turbineSubText: "#475569",
+      seriesLabel: "#0f172a",
+    };
+  }
+
   function withAlpha(color, alpha) {
     const value = String(color || "").trim();
     if (!value.startsWith("#")) {
@@ -140,6 +193,20 @@
       return;
     }
     element.textContent = value === undefined || value === null || value === "" ? fallback : String(value);
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function formatNodeShortCode(nodeId) {
+    const matched = /(\d+)$/.exec(String(nodeId || ""));
+    return matched ? matched[1].padStart(3, "0").slice(-3) : String(nodeId || "--").slice(-3);
   }
 
   async function fetchJson(url) {
@@ -281,6 +348,9 @@
       description: preset.description || defaults.description || "风场边缘采集节点",
       mapX: preset.mapX,
       mapY: preset.mapY,
+      topologyX: preset.topologyX ?? preset.mapX,
+      topologyY: preset.topologyY ?? preset.mapY,
+      geo: preset.geo || null,
       accentColor: preset.accentColor || defaults.accentColor || "#2f6fed",
       status: getNodeStatus(node),
       online: !!node.online,
@@ -299,6 +369,21 @@
     const x = columns <= 1 ? 50 : 18 + (column * 64) / (columns - 1);
     const y = rows <= 1 ? 50 : 20 + (row * 60) / (rows - 1);
     return { mapX: Math.round(x), mapY: Math.round(y) };
+  }
+
+  function resolveTopologyPosition(node, index, total) {
+    const x = Number(node?.topologyX);
+    const y = Number(node?.topologyY);
+    if (Number.isFinite(x) && Number.isFinite(y)) {
+      return { x, y, configured: true };
+    }
+    const legacyX = Number(node?.mapX);
+    const legacyY = Number(node?.mapY);
+    if (Number.isFinite(legacyX) && Number.isFinite(legacyY)) {
+      return { x: legacyX, y: legacyY, configured: true };
+    }
+    const auto = assignAutoMapPosition(index, total);
+    return { x: auto.mapX, y: auto.mapY, configured: false };
   }
 
   function persistSelection() {
@@ -840,11 +925,40 @@
     state.expandedTurbineGroups.set(nodeId, new Set(groupSet || []));
   }
 
+  function getExpandedGroupsForRender(nodeId, groups) {
+    if (!nodeId) {
+      return new Set();
+    }
+    return getExpandedGroupSet(nodeId);
+  }
+
   function resetExpandedGroups(nodeId) {
     if (!nodeId) {
       return;
     }
     state.expandedTurbineGroups.set(nodeId, new Set());
+    state.collapsedTurbineRoots.delete(nodeId);
+  }
+
+  function isTurbineRootCollapsed(nodeId = state.selectedNodeId) {
+    return !!nodeId && state.collapsedTurbineRoots.has(nodeId);
+  }
+
+  function toggleTurbineRootGroups(nodeId = state.selectedNodeId) {
+    if (!nodeId) {
+      return;
+    }
+    if (state.collapsedTurbineRoots.has(nodeId)) {
+      state.collapsedTurbineRoots.delete(nodeId);
+    } else {
+      state.collapsedTurbineRoots.add(nodeId);
+      setExpandedGroupSet(nodeId, new Set());
+      if (state.selectedNodeId === nodeId) {
+        state.selectedTurbineCode = "";
+        persistSelection();
+      }
+    }
+    renderAll();
   }
 
   function ensureExpandedGroupForTurbine(turbineCode, nodeId = state.selectedNodeId) {
@@ -897,7 +1011,10 @@
     const total = state.nodes.length;
     const online = state.nodes.filter((node) => getNodeStatus(node) === "online").length;
     const fault = state.nodes.filter((node) => getNodeStatus(node) === "fault").length;
-    const configured = state.nodes.filter((node) => Number.isFinite(resolveNodeMeta(node).mapX)).length;
+    const configured = state.nodes.filter((node) => {
+      const meta = resolveNodeMeta(node);
+      return Number.isFinite(Number(meta.topologyX)) || Number.isFinite(Number(meta.mapX));
+    }).length;
     const chips = [
       { label: "总节点", value: total },
       { label: "在线", value: online },
@@ -909,199 +1026,148 @@
       .join("");
   }
 
-  function renderFallbackNodes(list) {
+  function buildTopologyNodes() {
+    const totalNodes = state.nodes.length;
+    return state.nodes.map((node, index) => {
+      const meta = resolveNodeMeta(node);
+      const position = resolveTopologyPosition(meta, index, totalNodes);
+      return {
+        ...meta,
+        x: position.x,
+        y: position.y,
+        configured: position.configured,
+      };
+    });
+  }
+
+  function buildTopologyLinks(nodes) {
+    const zones = new Map();
+    nodes.forEach((node) => {
+      const key = node.zoneLabel || "default";
+      if (!zones.has(key)) {
+        zones.set(key, []);
+      }
+      zones.get(key).push(node);
+    });
+
+    const links = [];
+    zones.forEach((items) => {
+      const sorted = [...items].sort((a, b) => a.x - b.x || a.y - b.y);
+      for (let index = 0; index < sorted.length - 1; index += 1) {
+        links.push([sorted[index], sorted[index + 1]]);
+      }
+    });
+    if (!links.length && nodes.length > 1) {
+      const sorted = [...nodes].sort((a, b) => a.x - b.x || a.y - b.y);
+      for (let index = 0; index < sorted.length - 1; index += 1) {
+        links.push([sorted[index], sorted[index + 1]]);
+      }
+    }
+    return links;
+  }
+
+  function renderTopologyLegend() {
     if (!dom.nodeMapFallback) {
       return;
     }
-    if (!list.length) {
-      dom.nodeMapFallback.innerHTML = '<div class="text-muted small">暂无未配置节点</div>';
+    dom.nodeMapFallback.innerHTML = `
+      <div class="topology-legend">
+        <span><i class="legend-dot is-online"></i>在线节点</span>
+        <span><i class="legend-dot is-offline"></i>离线节点</span>
+        <span><i class="legend-dot is-fault"></i>故障节点</span>
+        <span><i class="legend-line"></i>风场关联</span>
+      </div>
+    `;
+  }
+
+  function renderTopologyMap() {
+    const element = dom.nodeMapChart;
+    if (!element) {
       return;
     }
-    dom.nodeMapFallback.innerHTML = list
+
+    const nodes = buildTopologyNodes();
+    const links = buildTopologyLinks(nodes);
+    renderTopologyLegend();
+
+    if (!nodes.length) {
+      element.innerHTML = '<div class="topology-empty">暂无节点</div>';
+      return;
+    }
+
+    const linkSvg = links
+      .map(([from, to]) => {
+        const dx = Math.abs(Number(to.x) - Number(from.x));
+        const bend = Math.max(5, Math.min(14, dx * 0.22));
+        const c1x = Number(from.x) + bend;
+        const c2x = Number(to.x) - bend;
+        return `<path class="topology-link" d="M${from.x},${from.y} C${c1x},${from.y} ${c2x},${to.y} ${to.x},${to.y}" />`;
+      })
+      .join("");
+
+    const nodeHtml = nodes
       .map((node) => {
+        const status = node.status || "offline";
         const selectedClass = node.nodeId === state.selectedNodeId ? "is-selected" : "";
+        const statusClass = `is-${status}`;
+        const color = node.accentColor || getNodeVisualColor(node);
+        const count = Number(node.turbineCount) || 0;
+        const statusText = getStatusLabel(status);
         return `
-          <button class="fallback-node ${selectedClass}" type="button" data-node-id="${node.nodeId}">
-            <div>
-              <div class="fw-bold">${node.displayName}</div>
-              <div class="small text-muted">${node.nodeId} · ${node.zoneLabel}</div>
-            </div>
-            <span class="small">${getStatusLabel(node.status)}</span>
+          <button
+            class="topology-node ${statusClass} ${selectedClass}"
+            type="button"
+            data-node-id="${escapeHtml(node.nodeId)}"
+            style="--node-x:${node.x}%;--node-y:${node.y}%;--node-color:${escapeHtml(color)};"
+            aria-label="${escapeHtml(node.displayName)}"
+          >
+            <span class="topology-node-core">
+              <span class="topology-node-code">${escapeHtml(formatNodeShortCode(node.nodeId))}</span>
+              <span class="topology-node-count">${count}</span>
+              <span class="topology-node-status" aria-hidden="true"></span>
+            </span>
+            <span class="topology-node-label">
+              <strong>${escapeHtml(node.displayName || node.nodeId)}</strong>
+              <small>${escapeHtml(node.zoneLabel || "--")} · ${escapeHtml(statusText)}</small>
+            </span>
           </button>
         `;
       })
       .join("");
 
-    dom.nodeMapFallback.querySelectorAll("[data-node-id]").forEach((button) => {
+    element.innerHTML = `
+      <div class="topology-map-surface">
+        <svg class="topology-map-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="topologyLinkGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="rgba(0, 243, 255, 0.08)" />
+              <stop offset="45%" stop-color="rgba(0, 243, 255, 0.55)" />
+              <stop offset="100%" stop-color="rgba(47, 111, 237, 0.2)" />
+            </linearGradient>
+          </defs>
+          <path class="topology-corridor" d="M6,75 C21,60 30,66 43,52 C58,36 69,29 94,17" />
+          <path class="topology-corridor muted" d="M8,26 C24,34 36,18 52,26 C68,35 78,47 94,37" />
+          <path class="topology-corridor muted" d="M10,88 C29,79 45,84 62,68 C76,55 83,51 94,57" />
+          ${linkSvg}
+        </svg>
+        <div class="topology-map-meta">
+          <span>风场拓扑</span>
+          <strong>${nodes.length} 个节点</strong>
+        </div>
+        <div class="topology-node-layer">${nodeHtml}</div>
+      </div>
+    `;
+
+    element.querySelectorAll("[data-node-id]").forEach((button) => {
       button.addEventListener("click", () => {
         const nodeId = button.dataset.nodeId || "";
-        if (usesDrilldownView) {
-          jumpToDetail(nodeId);
-        } else {
-          selectNode(nodeId, { clearTurbine: true, loadAfterSelect: false }).catch((error) =>
-            console.error("[dashboard] select node failed", error)
-          );
-        }
+        jumpToTree(nodeId).catch((error) => console.error("[dashboard] jump to tree failed", error));
       });
     });
   }
 
   function renderMapChart() {
-    if (!chartStore.map) {
-      return;
-    }
-    const palette = getThemePalette();
-
-    const configuredNodes = [];
-    const fallbackNodes = [];
-    const totalNodes = state.nodes.length;
-    state.nodes.forEach((node, index) => {
-      const meta = resolveNodeMeta(node);
-      if (Number.isFinite(meta.mapX) && Number.isFinite(meta.mapY)) {
-        configuredNodes.push(meta);
-      } else {
-        const autoPosition = assignAutoMapPosition(index, totalNodes);
-        configuredNodes.push({ ...meta, ...autoPosition, autoPositioned: true });
-      }
-    });
-
-    renderFallbackNodes(fallbackNodes);
-
-    chartStore.map.setOption(
-      {
-        backgroundColor: "transparent",
-        animationDuration: 400,
-        tooltip: {
-          trigger: "item",
-          backgroundColor: palette.tooltipBg,
-          borderColor: palette.tooltipBorder,
-          borderWidth: 1,
-          textStyle: {
-            color: palette.tooltipText,
-          },
-          extraCssText:
-            getThemeMode() === "dark"
-              ? "box-shadow: 0 18px 34px rgba(0, 0, 0, 0.34); border-radius: 14px;"
-              : "box-shadow: 0 16px 28px rgba(116, 142, 172, 0.18); border-radius: 14px;",
-          formatter(params) {
-            const data = params.data || {};
-            return `
-              <div style="min-width:180px;color:${palette.tooltipText};">
-                <div style="font-weight:700;margin-bottom:6px;">${data.displayName || data.nodeId}</div>
-                <div>节点编号：${data.nodeId || "--"}</div>
-                <div>区域：${data.zoneLabel || "--"}</div>
-                <div>状态：${data.statusLabel || "--"}</div>
-                <div>发电机：${data.turbineCount || 0} 台</div>
-              </div>
-            `;
-          },
-        },
-        grid: {
-          left: 30,
-          right: 30,
-          top: 30,
-          bottom: 30,
-        },
-        xAxis: {
-          type: "value",
-          min: 0,
-          max: 100,
-          show: false,
-        },
-        yAxis: {
-          type: "value",
-          min: 0,
-          max: 100,
-          inverse: true,
-          show: false,
-        },
-        graphic: configuredNodes.length
-          ? []
-          : [
-              {
-                type: "text",
-                left: "center",
-                top: "middle",
-                style: {
-                  text: "暂无节点",
-                  fill: palette.emptyText,
-                  fontSize: 18,
-                },
-              },
-            ],
-        series: [
-          {
-            type: "effectScatter",
-            coordinateSystem: "cartesian2d",
-            rippleEffect: {
-              scale: 4,
-              brushType: "stroke",
-            },
-            symbolSize(_value, params) {
-              return params?.data?.nodeId === state.selectedNodeId ? 28 : 20;
-            },
-            label: {
-              show: true,
-              position: "right",
-              distance: 14,
-              color: palette.labelText,
-              fontWeight: 700,
-              formatter(params) {
-                return params.data?.displayName || params.data?.nodeId || "";
-              },
-            },
-            itemStyle: {
-              shadowBlur: 14,
-              shadowColor: withAlpha(palette.online, getThemeMode() === "dark" ? 0.28 : 0.16),
-            },
-            data: configuredNodes.map((node) => ({
-              color: getNodeVisualColor(node),
-              value: [node.mapX, node.mapY, node.turbineCount],
-              nodeId: node.nodeId,
-              displayName: node.displayName,
-              zoneLabel: node.zoneLabel,
-              turbineCount: node.turbineCount,
-              statusLabel: getStatusLabel(node.status),
-              itemStyle: {
-                color: getNodeVisualColor(node),
-                shadowColor: withAlpha(getNodeVisualColor(node), getThemeMode() === "dark" ? 0.42 : 0.33),
-              },
-            })),
-          },
-        ],
-      },
-      true
-    );
-
-    chartStore.map.off("click");
-    chartStore.map.on("click", (params) => {
-      const nodeId = params?.data?.nodeId;
-      if (!nodeId) {
-        return;
-      }
-      if (usesDrilldownView) {
-        jumpToDetail(nodeId);
-      } else {
-        selectNode(nodeId, { clearTurbine: true, loadAfterSelect: false }).catch((error) =>
-          console.error("[dashboard] select node failed", error)
-        );
-      }
-    });
-  }
-
-  function renderSelectionSummary() {
-    const node = state.selectedNodeId ? resolveNodeMeta(state.selectedNodeId) : null;
-    setText("selectedNodeLabel", node ? `${node.displayName} (${node.nodeId})` : "请选择地图节点");
-    setText("selectedNodeZone", node ? node.zoneLabel : "--");
-    setText("selectedNodeStatus", node ? getStatusLabel(node.status) : "--");
-    setText("selectedNodeTime", node?.lastUpload || "--");
-    setText("selectedNodeDescription", node ? node.description : "--");
-    setText("selectedTurbineLabel", state.selectedTurbineCode ? `发电机 ${state.selectedTurbineCode}` : "请在左侧树中选择");
-    setText(dom.topbarNodeChip, node ? node.displayName : "未选择节点");
-    if (dom.topbarStatusChip) {
-      setText(dom.topbarStatusChip, node ? `节点${getStatusLabel(node.status)}` : "等待接入");
-    }
-    setText(dom.lastDataTime, latestSnapshotForCode()?.row?.timestamp || state.uploads[state.uploads.length - 1]?.timestamp || "--");
+    renderTopologyMap();
   }
 
   function renderTurbineTree() {
@@ -1109,6 +1175,7 @@
       return;
     }
     if (!state.selectedNodeId) {
+      disposeTurbineTreeChart();
       dom.turbineTree.innerHTML = '<div class="turbine-tree-empty">请先选择地图节点。</div>';
       return;
     }
@@ -1116,135 +1183,355 @@
     const node = resolveNodeMeta(state.selectedNodeId);
     const turbineCodes = availableTurbines();
     if (!turbineCodes.length) {
+      disposeTurbineTreeChart();
       dom.turbineTree.innerHTML = '<div class="turbine-tree-empty">当前节点没有可用的发电机清单。</div>';
       return;
     }
 
-    renderGroupedTurbineTree(node, turbineCodes);
-    return;
-
-    dom.turbineTree.innerHTML = `
-      <div class="tree-node-shell">
-        <div class="tree-node-head">
-          <div>
-            <div class="tree-node-title">${node.displayName}</div>
-            <div class="tree-node-subtitle">${node.zoneLabel} · ${node.nodeId}</div>
-          </div>
-          <div class="tree-node-count">${turbineCodes.length}</div>
-        </div>
-        <div class="tree-turbine-list">
-          ${turbineCodes
-            .map((code) => {
-              const snapshot = latestSnapshotForCode(code);
-              const selectedClass = code === state.selectedTurbineCode ? "is-selected" : "";
-              const statusClass = snapshot ? "is-online" : node.online ? "is-warning" : "";
-              const statusText = snapshot ? "有数据" : node.online ? "待数据" : "离线";
-              return `
-                <button class="tree-turbine ${selectedClass}" type="button" data-turbine-code="${code}">
-                  <div class="tree-turbine-title">
-                    <span class="tree-turbine-icon"><i class="bi bi-fan"></i></span>
-                    <span class="tree-turbine-copy">
-                      <span class="tree-turbine-name">发电机 ${code}</span>
-                      <span class="tree-turbine-meta">点击后显示四图联动波形</span>
-                    </span>
-                  </div>
-                  <span class="tree-turbine-status">
-                    <span class="state-dot ${statusClass}"></span>
-                    ${statusText}
-                  </span>
-                </button>
-              `;
-            })
-            .join("")}
-        </div>
-      </div>
-    `;
-
-    dom.turbineTree.querySelectorAll("[data-turbine-code]").forEach((button) => {
-      button.addEventListener("click", () => {
-        selectTurbine(button.dataset.turbineCode || "").catch((error) =>
-          console.error("[dashboard] select turbine failed", error)
-        );
-      });
-    });
+    renderTurbineTreeGraph(node, turbineCodes);
   }
 
-  function renderGroupedTurbineTree(node, turbineCodes) {
+  function disposeTurbineTreeChart() {
+    if (chartStore.turbineTree) {
+      chartStore.turbineTree.dispose();
+      chartStore.turbineTree = null;
+    }
+    dom.turbineTree?.classList.remove("is-graph-mode");
+    if (dom.turbineTree) {
+      dom.turbineTree.style.height = "";
+    }
+  }
+
+  function ensureTurbineTreeChart() {
+    if (!dom.turbineTree || typeof echarts !== "object") {
+      return null;
+    }
+    if (!chartStore.turbineTree || chartStore.turbineTree.isDisposed?.()) {
+      chartStore.turbineTree = echarts.init(dom.turbineTree);
+      chartStore.turbineTree.off("click");
+      chartStore.turbineTree.off("dblclick");
+      const handleTreeGraphNodeAction = (params) => {
+        if (params.dataType !== "node") {
+          return;
+        }
+        const item = params.data || {};
+        if (item.nodeKind === "root") {
+          toggleTurbineRootGroups(item.nodeId || state.selectedNodeId);
+          return;
+        }
+        if (item.nodeKind === "group") {
+          toggleTurbineGroup(item.groupId || "");
+          return;
+        }
+        if (item.nodeKind === "turbine") {
+          selectTurbine(item.turbineCode || "").catch((error) =>
+            console.error("[dashboard] select turbine failed", error)
+          );
+        }
+      };
+      chartStore.turbineTree.on("click", handleTreeGraphNodeAction);
+      chartStore.turbineTree.on("dblclick", handleTreeGraphNodeAction);
+    }
+    return chartStore.turbineTree;
+  }
+
+  function buildRadialTurbineTreeLayout(turbineGroups, expandedGroups, rootCollapsed, containerWidth) {
+    const canvasWidth = Math.max(980, Number(containerWidth) || 980);
+    const groupCount = turbineGroups.length;
+    const rootSize = { width: 154, height: 74 };
+    const groupSize = { width: 122, height: 56 };
+    const turbineSize = { width: 70, height: 36 };
+    const margin = 76;
+    const centerX = Math.max(300, Math.min(canvasWidth * 0.42, canvasWidth - 410));
+    const groupRadius = Math.max(190, Math.min(330, canvasWidth * 0.23));
+    const turbineRadius = Math.max(178, Math.min(250, canvasWidth * 0.17));
+    const baseCenterY = groupRadius + turbineRadius + margin;
+
+    const points = [
+      {
+        kind: "root",
+        x: centerX,
+        y: baseCenterY,
+        width: rootSize.width,
+        height: rootSize.height,
+      },
+    ];
+
+    const groupLayouts = rootCollapsed
+      ? []
+      : turbineGroups.map((group, index) => {
+          const expanded = expandedGroups.has(group.groupId);
+          const angle = groupCount <= 1 ? 0 : -Math.PI / 2 + (index * Math.PI * 2) / groupCount;
+          const groupX = centerX + Math.cos(angle) * groupRadius;
+          const groupY = baseCenterY + Math.sin(angle) * groupRadius;
+          const visibleItems = expanded ? group.items : [];
+          const fanSpan = Math.min(Math.PI * 1.25, Math.max(Math.PI * 0.55, visibleItems.length * 0.38));
+          const itemLayouts = visibleItems.map((code, itemIndex) => {
+            const offset = visibleItems.length <= 1
+              ? 0
+              : (itemIndex / (visibleItems.length - 1) - 0.5) * fanSpan;
+            const itemAngle = angle + offset;
+            return {
+              code,
+              x: groupX + Math.cos(itemAngle) * turbineRadius,
+              y: groupY + Math.sin(itemAngle) * turbineRadius,
+              angle: itemAngle,
+            };
+          });
+
+          points.push({
+            kind: "group",
+            x: groupX,
+            y: groupY,
+            width: groupSize.width,
+            height: groupSize.height,
+          });
+          itemLayouts.forEach((item) => {
+            points.push({
+              kind: "turbine",
+              x: item.x,
+              y: item.y,
+              width: turbineSize.width,
+              height: turbineSize.height,
+            });
+          });
+
+          return { group, expanded, angle, x: groupX, y: groupY, itemLayouts };
+        });
+
+    const bounds = points.reduce(
+      (acc, point) => ({
+        minX: Math.min(acc.minX, point.x - point.width / 2),
+        maxX: Math.max(acc.maxX, point.x + point.width / 2),
+        minY: Math.min(acc.minY, point.y - point.height / 2),
+        maxY: Math.max(acc.maxY, point.y + point.height / 2),
+      }),
+      { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity }
+    );
+
+    const shiftX = Math.max(0, margin - bounds.minX)
+      - Math.max(0, bounds.maxX - (canvasWidth - margin));
+    const shiftY = Math.max(0, margin - bounds.minY);
+    const root = { x: centerX + shiftX, y: baseCenterY + shiftY };
+    const shiftedGroups = groupLayouts.map((layout) => ({
+      ...layout,
+      x: layout.x + shiftX,
+      y: layout.y + shiftY,
+      itemLayouts: layout.itemLayouts.map((item) => ({
+        ...item,
+        x: item.x + shiftX,
+        y: item.y + shiftY,
+      })),
+    }));
+    const canvasHeight = Math.max(520, bounds.maxY - bounds.minY + margin * 2);
+
+    return { canvasWidth, canvasHeight, root, groupLayouts: shiftedGroups };
+  }
+
+  function renderTurbineTreeGraph(node, turbineCodes) {
+    const chart = ensureTurbineTreeChart();
+    if (!chart) {
+      return;
+    }
+
     const turbineGroups = buildTurbineGroups(turbineCodes);
-    const expandedGroups = getExpandedGroupSet(state.selectedNodeId);
+    const expandedGroups = getExpandedGroupsForRender(state.selectedNodeId, turbineGroups);
+    const rootCollapsed = isTurbineRootCollapsed(state.selectedNodeId);
+    const layout = buildRadialTurbineTreeLayout(
+      turbineGroups,
+      expandedGroups,
+      rootCollapsed,
+      (dom.turbineTree?.clientWidth || 960) - 16
+    );
+    const treePalette = getTreeGraphPalette();
+    const groupLayouts = layout.groupLayouts;
 
-    dom.turbineTree.innerHTML = `
-      <div class="tree-node-shell">
-        <div class="tree-node-head">
-          <div>
-            <div class="tree-node-title">${node.displayName}</div>
-            <div class="tree-node-subtitle">${node.zoneLabel} 路 ${node.nodeId}</div>
-          </div>
-          <div class="tree-node-count">${turbineCodes.length}</div>
-        </div>
-        <div class="tree-group-list">
-          ${turbineGroups
-            .map((group) => {
-              const expanded = expandedGroups.has(group.groupId);
-              const expandedClass = expanded ? "is-expanded" : "";
-              return `
-                <div class="tree-group-shell ${expandedClass}">
-                  <button class="tree-group-toggle" type="button" data-group-id="${group.groupId}" aria-expanded="${expanded}">
-                    <span class="tree-group-main">
-                      <span class="tree-group-caret"><i class="bi bi-chevron-right"></i></span>
-                      <span class="tree-group-copy">
-                        <span class="tree-group-title">发电机组 ${group.label}</span>
-                        <span class="tree-group-meta">点击展开本组风机</span>
-                      </span>
-                    </span>
-                    <span class="tree-group-count">${group.items.length}</span>
-                  </button>
-                  <div class="tree-group-children ${expandedClass}">
-                    ${group.items
-                      .map((code) => {
-                        const snapshot = latestSnapshotForCode(code);
-                        const selectedClass = code === state.selectedTurbineCode ? "is-selected" : "";
-                        const statusClass = snapshot ? "is-online" : node.online ? "is-warning" : "";
-                        const statusText = snapshot ? "有数据" : node.online ? "待数据" : "离线";
-                        return `
-                          <button class="tree-turbine tree-turbine-leaf ${selectedClass}" type="button" data-turbine-code="${code}">
-                            <div class="tree-turbine-title">
-                              <span class="tree-turbine-icon"><i class="bi bi-fan"></i></span>
-                              <span class="tree-turbine-copy">
-                                <span class="tree-turbine-name">发电机 ${code}</span>
-                                <span class="tree-turbine-meta">点击进入该发电机四图详情</span>
-                              </span>
-                            </div>
-                            <span class="tree-turbine-status">
-                              <span class="state-dot ${statusClass}"></span>
-                              ${statusText}
-                            </span>
-                          </button>
-                        `;
-                      })
-                      .join("")}
-                  </div>
-                </div>
-              `;
-            })
-            .join("")}
-        </div>
-      </div>
-    `;
+    dom.turbineTree.style.height = `${layout.canvasHeight}px`;
+    dom.turbineTree.classList.add("is-graph-mode");
 
-    dom.turbineTree.querySelectorAll("[data-group-id]").forEach((button) => {
-      button.addEventListener("click", () => {
-        toggleTurbineGroup(button.dataset.groupId || "");
+    const nodeStatus = node.status || "offline";
+    const rootActionText = rootCollapsed ? "展开分组" : "收回分组";
+
+    const graphNodes = [
+      {
+        id: `node:${node.nodeId}`,
+        name: formatNodeShortCode(node.nodeId),
+        nodeKind: "root",
+        nodeId: node.nodeId,
+        x: layout.root.x,
+        y: layout.root.y,
+        symbol: "roundRect",
+        symbolSize: [154, 74],
+        draggable: true,
+        fixed: true,
+        value: rootActionText,
+        itemStyle: {
+          color: treePalette.rootFill,
+          borderColor: treePalette.rootBorder,
+          borderWidth: 3,
+          shadowBlur: 14,
+          shadowColor: withAlpha(treePalette.rootShadow, 0.42),
+        },
+        label: {
+          show: true,
+          formatter: `{code|${formatNodeShortCode(node.nodeId)}}\n{name|${getStatusLabel(nodeStatus)} · ${rootActionText}}`,
+          rich: {
+            code: { color: treePalette.rootText, fontSize: 18, fontWeight: 800, lineHeight: 24 },
+            name: { color: treePalette.rootSubText, fontSize: 11, lineHeight: 16 },
+          },
+        },
+      },
+    ];
+
+    const graphLinks = [];
+
+    groupLayouts.forEach((layout) => {
+      const selectedInGroup = layout.group.items.includes(state.selectedTurbineCode);
+      const groupColor = layout.expanded
+        ? treePalette.groupExpanded
+        : selectedInGroup
+          ? treePalette.groupSelected
+          : treePalette.groupDefault;
+      graphNodes.push({
+        id: `group:${layout.group.groupId}`,
+        name: layout.group.label,
+        nodeKind: "group",
+        groupId: layout.group.groupId,
+        x: layout.x,
+        y: layout.y,
+        symbol: "roundRect",
+        symbolSize: layout.expanded ? [128, 58] : [116, 54],
+        draggable: true,
+        fixed: true,
+        value: layout.expanded ? "收起" : "展开",
+        itemStyle: {
+          color: treePalette.groupFill,
+          borderColor: groupColor,
+          borderWidth: layout.expanded ? 4 : 3,
+          shadowBlur: layout.expanded ? 14 : 4,
+          shadowColor: withAlpha(groupColor, layout.expanded ? 0.32 : 0.16),
+        },
+        label: {
+          show: true,
+          formatter: `{code|${layout.group.label}}\n{name|${layout.group.items.length} 台 · ${layout.expanded ? "收起" : "展开"}}`,
+          rich: {
+            code: { color: treePalette.groupText, fontSize: 13, fontWeight: 800, lineHeight: 20 },
+            name: { color: treePalette.groupSubText, fontSize: 10, lineHeight: 14 },
+          },
+        },
+      });
+      graphLinks.push({
+        source: `node:${node.nodeId}`,
+        target: `group:${layout.group.groupId}`,
+        lineStyle: { color: treePalette.link, width: 3, curveness: 0.18 },
+      });
+
+      layout.itemLayouts.forEach((item) => {
+        const snapshot = latestSnapshotForCode(item.code);
+        const selected = item.code === state.selectedTurbineCode;
+        const turbineColor = selected ? "#2563eb" : snapshot ? "#16a34a" : node.online ? "#d97706" : "#64748b";
+        graphNodes.push({
+          id: `turbine:${item.code}`,
+          name: item.code,
+          nodeKind: "turbine",
+          turbineCode: item.code,
+          x: item.x,
+          y: item.y,
+          symbol: "roundRect",
+          symbolSize: selected ? [78, 40] : [70, 36],
+          draggable: true,
+          fixed: true,
+          value: snapshot ? "有数据" : "无数据",
+          itemStyle: {
+            color: selected ? treePalette.turbineSelectedFill : treePalette.turbineFill,
+            borderColor: turbineColor,
+            borderWidth: selected ? 4 : 2,
+            shadowBlur: selected ? 12 : 3,
+            shadowColor: withAlpha(turbineColor, selected ? 0.32 : 0.14),
+          },
+          label: {
+            show: true,
+          formatter: `{code|${item.code}}\n{name|${snapshot ? "有数据" : "无数据"}}`,
+          rich: {
+              code: { color: treePalette.turbineText, fontSize: 11, fontWeight: 800, lineHeight: 15 },
+              name: { color: treePalette.turbineSubText, fontSize: 8, lineHeight: 11 },
+            },
+          },
+        });
+        graphLinks.push({
+          source: `group:${layout.group.groupId}`,
+          target: `turbine:${item.code}`,
+          lineStyle: { color: withAlpha(turbineColor, 0.52), width: 2.2, curveness: 0.14 },
+        });
       });
     });
 
-    dom.turbineTree.querySelectorAll("[data-turbine-code]").forEach((button) => {
-      button.addEventListener("click", () => {
-        selectTurbine(button.dataset.turbineCode || "").catch((error) =>
-          console.error("[dashboard] select turbine failed", error)
-        );
-      });
-    });
+    chart.setOption(
+      {
+        backgroundColor: "transparent",
+        animationDurationUpdate: 280,
+        tooltip: {
+          trigger: "item",
+          backgroundColor: treePalette.tooltipBg,
+          borderColor: treePalette.tooltipBorder,
+          textStyle: { color: treePalette.tooltipText },
+          formatter(params) {
+            const item = params.data || {};
+            if (item.nodeKind === "root") {
+              return `${node.displayName || node.nodeId}<br/>${node.zoneLabel || "--"}<br/>${item.value}`;
+            }
+            if (item.nodeKind === "group") {
+              return `${item.name}<br/>${item.value}`;
+            }
+            if (item.nodeKind === "turbine") {
+              return `发电机 ${item.turbineCode}<br/>${item.value}`;
+            }
+            return params.name || "";
+          },
+        },
+        graphic: [
+          {
+            type: "text",
+            left: 22,
+            top: 18,
+            style: {
+              text: rootCollapsed
+                ? "点击主节点展开分组。"
+                : "点击主节点收回分组；点击分组展开或收起。",
+              fill: treePalette.hintText,
+              font: "12px Microsoft YaHei, sans-serif",
+            },
+          },
+        ],
+        series: [
+          {
+            type: "graph",
+            layout: "none",
+            roam: true,
+            draggable: true,
+            edgeSymbol: ["none", "arrow"],
+            edgeSymbolSize: [0, 8],
+            emphasis: {
+              focus: "adjacency",
+              lineStyle: { width: 4 },
+            },
+            data: graphNodes,
+            links: graphLinks,
+            lineStyle: {
+              color: treePalette.link,
+              width: 2,
+              curveness: 0.16,
+            },
+            label: {
+              show: true,
+              color: treePalette.seriesLabel,
+            },
+          },
+        ],
+      },
+      true
+    );
+    chart.resize();
   }
 
   function renderMetricCards() {
@@ -1258,7 +1545,7 @@
     });
   }
 
-  function placeholderCopy(title, text, kicker = isMonitorPage ? "Realtime Drill" : "History Drill") {
+  function placeholderCopy(title, text, kicker = isMonitorPage ? "实时下钻" : "历史下钻") {
     return `
       <div class="detail-placeholder-copy">
         <div class="panel-kicker">${kicker}</div>
@@ -1468,8 +1755,13 @@
     chartStore.metrics.forEach((chart) => chart.clear());
   }
 
+  function resizeTopologyMap() {
+    // CSS-driven SVG/HTML topology does not require an imperative resize.
+  }
+
   function resizeCharts() {
-    chartStore.map?.resize();
+    resizeTopologyMap();
+    chartStore.turbineTree?.resize();
     chartStore.metrics.forEach((chart) => chart.resize());
   }
 
@@ -1504,32 +1796,6 @@
         chart.resize();
         chart.setOption(buildMetricOption(metric, index), true);
       });
-    });
-  }
-
-  function setView(mode) {
-    if (!usesDrilldownView) {
-      return;
-    }
-    state.view = mode;
-    const detailMode = mode === "detail";
-    if (dom.mapView) {
-      dom.mapView.classList.toggle("is-active", !detailMode);
-      dom.mapView.setAttribute("aria-hidden", String(detailMode));
-    }
-    if (dom.detailView) {
-      dom.detailView.classList.toggle("is-active", detailMode);
-      dom.detailView.setAttribute("aria-hidden", String(!detailMode));
-    }
-    if (dom.btnBackToMap) {
-      dom.btnBackToMap.classList.toggle("is-hidden", !detailMode);
-    }
-    requestAnimationFrame(() => {
-      if (detailMode) {
-        chartStore.metrics.forEach((chart) => chart.resize());
-      } else {
-        chartStore.map?.resize();
-      }
     });
   }
 
@@ -1659,35 +1925,6 @@
     }
   }
 
-  async function jumpToDetail(nodeId) {
-    const nextId = String(nodeId || "").trim();
-    const preserveSelection = nextId && nextId === state.selectedNodeId && !!state.selectedTurbineCode;
-    await selectNode(nextId, { clearTurbine: !preserveSelection, loadAfterSelect: isMonitorPage });
-    setView("detail");
-  }
-
-  function jumpToMap() {
-    setView("map");
-    requestAnimationFrame(() => chartStore.map?.resize());
-  }
-
-  async function selectTurbine(turbineCode) {
-    const nextCode = String(turbineCode || "").trim();
-    if (state.selectedTurbineCode !== nextCode) {
-      resetMetricZoom();
-    }
-    state.selectedTurbineCode = nextCode;
-    ensureExpandedGroupForTurbine(state.selectedTurbineCode);
-    persistSelection();
-    renderAll();
-    if (!state.selectedNodeId) {
-      return;
-    }
-    if (!isMonitorPage) {
-      await loadHistory();
-    }
-  }
-
   function appendRealtimeRow(row) {
     if (!row || row.node_id !== state.selectedNodeId) {
       return;
@@ -1739,93 +1976,6 @@
     const handler = (payload) => appendRealtimeRow(payload?.data || payload);
     socket.on("monitor_update", handler);
     socket.on("node_data_update", handler);
-  }
-
-  function bindEvents() {
-    dom.btnReload?.addEventListener("click", () => {
-      loadHistory().catch((error) => console.error("[dashboard] reload failed", error));
-    });
-
-    dom.historyLimit?.addEventListener("change", () => {
-      dom.historyLimit.value = String(currentLimit());
-      if (state.selectedNodeId && (!isMonitorPage ? state.selectedTurbineCode : true)) {
-        loadHistory().catch((error) => console.error("[dashboard] limit change failed", error));
-      }
-    });
-
-    dom.historyStart?.addEventListener("change", () => {
-      loadHistory().catch((error) => console.error("[dashboard] start change failed", error));
-    });
-
-    dom.historyEnd?.addEventListener("change", () => {
-      loadHistory().catch((error) => console.error("[dashboard] end change failed", error));
-    });
-
-    dom.btnClearRange?.addEventListener("click", () => {
-      if (dom.historyStart) dom.historyStart.value = "";
-      if (dom.historyEnd) dom.historyEnd.value = "";
-      loadHistory().catch((error) => console.error("[dashboard] clear range failed", error));
-    });
-
-    document.querySelectorAll("[data-range-min]").forEach((button) => {
-      button.addEventListener("click", () => applyQuickRange(button.dataset.rangeMin || "0"));
-    });
-
-    dom.btnBackToMap?.addEventListener("click", jumpToMap);
-    window.addEventListener("resize", resizeCharts);
-    window.addEventListener("windsight:themechange", () => {
-      renderAll();
-      requestAnimationFrame(resizeCharts);
-    });
-  }
-
-  async function loadNodes() {
-    const result = await fetchJson("/api/nodes");
-    state.nodes = sortNodes(Array.isArray(result.nodes) ? result.nodes : []);
-    state.nodeMap = new Map(
-      state.nodes.map((node) => [
-        node.node_id,
-        {
-          ...node,
-          turbines: normalizeTurbines(node.turbines || []),
-        },
-      ])
-    );
-
-    const fromQuery = new URLSearchParams(window.location.search).get("select");
-    const fromStorage = window.localStorage.getItem(storageNodeKey) || "";
-    const restoredNode = fromQuery || fromStorage;
-    const restoredTurbine = window.localStorage.getItem(storageTurbineKey) || "";
-
-    if (restoredNode && state.nodeMap.has(restoredNode)) {
-      state.selectedNodeId = restoredNode;
-      if (availableTurbines(restoredNode).includes(restoredTurbine)) {
-        state.selectedTurbineCode = restoredTurbine;
-      } else {
-        state.selectedTurbineCode = "";
-      }
-    } else {
-      state.selectedNodeId = "";
-      state.selectedTurbineCode = "";
-    }
-
-    persistSelection();
-    if (state.selectedNodeId && state.selectedTurbineCode) {
-      ensureExpandedGroupForTurbine(state.selectedTurbineCode, state.selectedNodeId);
-    }
-    renderAll();
-
-    if (usesDrilldownView) {
-      setView("map");
-    }
-
-    if (state.selectedNodeId) {
-      if (isMonitorPage) {
-        subscribeToNode(state.selectedNodeId);
-        startPolling();
-        await loadHistory();
-      }
-    }
   }
 
   function renderSelectionSummary() {
@@ -1888,7 +2038,10 @@
 
     requestAnimationFrame(() => {
       if (mapMode) {
-        chartStore.map?.resize();
+        resizeTopologyMap();
+      }
+      if (treeMode && chartStore.turbineTree) {
+        chartStore.turbineTree.resize();
       }
       if (chartMode) {
         chartStore.metrics.forEach((chart) => chart.resize());
@@ -1902,9 +2055,8 @@
       jumpToMap();
       return;
     }
-    const preserveSelection = nextId === state.selectedNodeId && !!state.selectedTurbineCode;
     setView("tree");
-    await selectNode(nextId, { clearTurbine: !preserveSelection, loadAfterSelect: isMonitorPage });
+    await selectNode(nextId, { clearTurbine: true, loadAfterSelect: isMonitorPage });
     setView("tree");
   }
 
@@ -1914,7 +2066,7 @@
 
   function jumpToMap() {
     setView("map");
-    requestAnimationFrame(() => chartStore.map?.resize());
+    requestAnimationFrame(resizeTopologyMap);
   }
 
   function jumpToTreeView() {
@@ -2038,10 +2190,6 @@
     } else {
       state.selectedNodeId = "";
       state.selectedTurbineCode = "";
-    }
-
-    if (state.selectedNodeId && state.selectedTurbineCode) {
-      ensureExpandedGroupForTurbine(state.selectedTurbineCode, state.selectedNodeId);
     }
 
     renderAll();

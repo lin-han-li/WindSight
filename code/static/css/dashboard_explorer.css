@@ -2573,3 +2573,826 @@ html[data-theme="dark"] body.windsight-shell .iot-map-frame {
     align-items: stretch !important;
   }
 }
+
+/* JS/SVG topology map */
+.topology-map-surface {
+  position: relative;
+  min-height: inherit;
+  width: 100%;
+  height: 100%;
+}
+
+.topology-map-svg,
+.topology-node-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.topology-map-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.topology-field-line {
+  fill: none;
+  stroke: rgba(47, 111, 237, 0.16);
+  stroke-width: 1.1;
+  stroke-dasharray: 3 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.topology-field-line.muted {
+  stroke: rgba(25, 184, 214, 0.12);
+}
+
+.topology-link {
+  stroke: rgba(47, 111, 237, 0.22);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.topology-node {
+  position: absolute;
+  left: var(--node-x);
+  top: var(--node-y);
+  z-index: 2;
+  transform: translate(-50%, -50%);
+  min-width: 142px;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  border: 0;
+  background: transparent;
+  color: var(--dash-text);
+}
+
+.topology-node-core {
+  position: relative;
+  width: 74px;
+  height: 74px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--node-color, var(--dash-accent));
+  box-shadow:
+    0 0 0 9px rgba(47, 111, 237, 0.12),
+    0 18px 36px rgba(47, 111, 237, 0.2);
+}
+
+.topology-node.is-offline .topology-node-core {
+  background: #94a3b8;
+  box-shadow: 0 0 0 9px rgba(148, 163, 184, 0.16), 0 16px 30px rgba(100, 116, 139, 0.18);
+}
+
+.topology-node.is-fault .topology-node-core {
+  background: #ef4444;
+  box-shadow: 0 0 0 9px rgba(239, 68, 68, 0.14), 0 16px 30px rgba(239, 68, 68, 0.22);
+}
+
+.topology-node.is-selected .topology-node-core {
+  outline: 4px solid rgba(255, 255, 255, 0.98);
+  box-shadow:
+    0 0 0 12px rgba(47, 111, 237, 0.16),
+    0 22px 40px rgba(47, 111, 237, 0.26);
+}
+
+.topology-node-code {
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.topology-node-count {
+  position: absolute;
+  right: -6px;
+  bottom: -4px;
+  min-width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.96);
+  background: #111827;
+  color: #fff;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.topology-node-label {
+  max-width: 170px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 0.55rem 0.72rem;
+  border-radius: 14px;
+  border: 1px solid rgba(146, 168, 198, 0.18);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 12px 26px rgba(116, 142, 172, 0.14);
+  text-align: left;
+}
+
+.topology-node-label strong,
+.topology-node-label small {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topology-node-label strong {
+  font-size: 0.88rem;
+}
+
+.topology-node-label small {
+  margin-top: 0.1rem;
+  color: var(--dash-muted);
+  font-size: 0.74rem;
+}
+
+.topology-node:hover .topology-node-core {
+  transform: translateY(-2px);
+}
+
+.topology-empty {
+  min-height: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dash-muted);
+  font-weight: 700;
+}
+
+.topology-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.topology-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid rgba(146, 168, 198, 0.18);
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--dash-muted);
+  font-size: 0.82rem;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+
+.legend-dot.is-online {
+  background: #2f6fed;
+}
+
+.legend-dot.is-fault {
+  background: #ef4444;
+}
+
+.legend-line {
+  width: 24px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(47, 111, 237, 0.32);
+}
+
+/* Horizontal turbine tree graph */
+.tree-graph-shell {
+  border-radius: 22px;
+  border: 1px solid var(--dash-border);
+  background: rgba(252, 254, 255, 0.96);
+  overflow: hidden;
+}
+
+.tree-graph-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  border-bottom: 1px solid rgba(146, 168, 198, 0.12);
+}
+
+.tree-graph-hint {
+  color: var(--dash-muted);
+  font-size: 0.82rem;
+  text-align: right;
+}
+
+.tree-graph-viewport {
+  overflow-x: auto;
+  padding: 1rem;
+}
+
+.tree-graph-canvas {
+  position: relative;
+  min-width: 760px;
+}
+
+.tree-graph-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.tree-graph-link {
+  fill: none;
+  stroke: rgba(47, 111, 237, 0.28);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.tree-graph-link.is-child {
+  stroke: rgba(25, 184, 214, 0.24);
+  stroke-width: 1.6;
+}
+
+.tree-circle {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 92px;
+  height: 92px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.18rem;
+  border-radius: 50%;
+  border: 2px solid rgba(47, 111, 237, 0.22);
+  background: #fff;
+  color: var(--dash-text);
+  box-shadow: 0 16px 28px rgba(116, 142, 172, 0.16);
+}
+
+.tree-circle-root {
+  width: 112px;
+  height: 112px;
+  border-color: rgba(47, 111, 237, 0.34);
+  background: var(--node-color, var(--dash-accent));
+  color: #fff;
+}
+
+.tree-circle-group {
+  border-color: rgba(47, 111, 237, 0.24);
+  background: linear-gradient(180deg, #fff, #eef5ff);
+}
+
+.tree-circle-group.is-expanded {
+  border-color: rgba(47, 111, 237, 0.48);
+  box-shadow: 0 0 0 5px rgba(47, 111, 237, 0.08), 0 16px 28px rgba(116, 142, 172, 0.16);
+}
+
+.tree-circle-turbine {
+  width: 76px;
+  height: 76px;
+  border-color: rgba(148, 163, 184, 0.34);
+}
+
+.tree-circle-turbine.is-online {
+  border-color: rgba(18, 184, 134, 0.45);
+  background: linear-gradient(180deg, #fff, #edfff8);
+}
+
+.tree-circle-turbine.is-warning {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: linear-gradient(180deg, #fff, #fff8e8);
+}
+
+.tree-circle-turbine.is-selected,
+.tree-circle-group.is-selected {
+  border-color: rgba(47, 111, 237, 0.62);
+  box-shadow: 0 0 0 6px rgba(47, 111, 237, 0.12), 0 18px 30px rgba(47, 111, 237, 0.16);
+}
+
+.tree-circle-main {
+  max-width: 78%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.96rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.tree-circle-caption {
+  max-width: 82%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.68rem;
+  color: currentColor;
+  opacity: 0.72;
+}
+
+@media (max-width: 767.98px) {
+  .topology-node {
+    min-width: 96px;
+  }
+
+  .topology-node-core {
+    width: 58px;
+    height: 58px;
+  }
+
+  .topology-node-label {
+    display: none;
+  }
+
+  .tree-graph-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tree-graph-hint {
+    text-align: left;
+  }
+}
+
+/* Refined topology map and interactive graph tree */
+body.windsight-shell .dashboard-page .monitor-back-button {
+  position: fixed;
+  left: 284px;
+  top: 112px;
+  bottom: auto;
+  z-index: 1300;
+  min-height: 46px;
+  padding: 0.72rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 243, 255, 0.28);
+  background: rgba(7, 14, 27, 0.92);
+  color: #eaffff;
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(47, 111, 237, 0.18) inset;
+  backdrop-filter: blur(14px);
+}
+
+body.windsight-shell .dashboard-page .monitor-back-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.34), 0 0 24px rgba(0, 243, 255, 0.16);
+}
+
+body.windsight-shell .dashboard-page .monitor-back-button.is-hidden {
+  display: none;
+}
+
+body.windsight-shell .dashboard-page .iot-map-frame {
+  overflow: hidden;
+  border-color: rgba(0, 243, 255, 0.18);
+  background: #07101f;
+}
+
+body.windsight-shell .dashboard-page .topology-map-surface {
+  min-height: 620px;
+  border-radius: 22px;
+  overflow: hidden;
+  background:
+    linear-gradient(rgba(0, 243, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 243, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(135deg, rgba(6, 18, 34, 0.96), rgba(9, 21, 41, 0.98) 58%, rgba(7, 14, 27, 0.98));
+  background-size: 34px 34px, 34px 34px, auto;
+}
+
+body.windsight-shell .dashboard-page .topology-map-surface::before {
+  content: "";
+  position: absolute;
+  inset: 28px;
+  border: 1px solid rgba(0, 243, 255, 0.12);
+  border-radius: 18px;
+  pointer-events: none;
+}
+
+body.windsight-shell .dashboard-page .topology-map-meta {
+  position: absolute;
+  left: 28px;
+  top: 24px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  padding: 0.45rem 0.68rem;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 243, 255, 0.18);
+  background: rgba(6, 16, 31, 0.72);
+  color: rgba(205, 229, 255, 0.68);
+  font-size: 0.76rem;
+  backdrop-filter: blur(10px);
+}
+
+body.windsight-shell .dashboard-page .topology-map-meta strong {
+  color: #eaffff;
+  font-size: 0.82rem;
+}
+
+body.windsight-shell .dashboard-page .topology-corridor {
+  fill: none;
+  stroke: rgba(0, 243, 255, 0.16);
+  stroke-width: 5.4;
+  stroke-linecap: round;
+  stroke-dasharray: 0;
+  vector-effect: non-scaling-stroke;
+}
+
+body.windsight-shell .dashboard-page .topology-corridor.muted {
+  stroke: rgba(47, 111, 237, 0.1);
+  stroke-width: 3.6;
+}
+
+body.windsight-shell .dashboard-page .topology-link {
+  fill: none;
+  stroke: url(#topologyLinkGradient);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+body.windsight-shell .dashboard-page .topology-node {
+  min-width: 118px;
+  flex-direction: column;
+  gap: 0.48rem;
+  color: #eaffff;
+}
+
+body.windsight-shell .dashboard-page .topology-node-core {
+  width: 70px;
+  height: 70px;
+  border: 2px solid var(--node-color, #00f3ff);
+  background: #0a1426;
+  color: #f7fbff;
+  box-shadow:
+    0 0 0 6px rgba(0, 243, 255, 0.05),
+    0 0 24px rgba(0, 243, 255, 0.16),
+    0 18px 32px rgba(0, 0, 0, 0.32);
+}
+
+body.windsight-shell .dashboard-page .topology-node.is-offline .topology-node-core {
+  border-color: #64748b;
+  background: #111827;
+  box-shadow: 0 0 0 6px rgba(100, 116, 139, 0.08), 0 14px 28px rgba(0, 0, 0, 0.26);
+}
+
+body.windsight-shell .dashboard-page .topology-node.is-fault .topology-node-core {
+  border-color: #ff3366;
+  background: #1c1020;
+  box-shadow: 0 0 0 6px rgba(255, 51, 102, 0.08), 0 0 24px rgba(255, 51, 102, 0.18);
+}
+
+body.windsight-shell .dashboard-page .topology-node-status {
+  position: absolute;
+  left: 7px;
+  top: 8px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--node-color, #00f3ff);
+  box-shadow: 0 0 12px currentColor;
+}
+
+body.windsight-shell .dashboard-page .topology-node.is-offline .topology-node-status {
+  background: #64748b;
+}
+
+body.windsight-shell .dashboard-page .topology-node.is-fault .topology-node-status {
+  background: #ff3366;
+}
+
+body.windsight-shell .dashboard-page .topology-node-count {
+  right: -8px;
+  bottom: -6px;
+  border-color: rgba(0, 243, 255, 0.38);
+  background: #050b16;
+}
+
+body.windsight-shell .dashboard-page .topology-node-label {
+  max-width: 136px;
+  align-items: center;
+  padding: 0.36rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 243, 255, 0.16);
+  background: rgba(5, 12, 24, 0.82);
+  color: #eaffff;
+  box-shadow: none;
+  text-align: center;
+  backdrop-filter: blur(10px);
+}
+
+body.windsight-shell .dashboard-page .topology-node-label strong {
+  color: #f7fbff;
+  font-size: 0.78rem;
+}
+
+body.windsight-shell .dashboard-page .topology-node-label small {
+  color: rgba(205, 229, 255, 0.64);
+  font-size: 0.64rem;
+}
+
+body.windsight-shell .dashboard-page .topology-node:hover .topology-node-core {
+  transform: translateY(-3px) scale(1.03);
+}
+
+body.windsight-shell .dashboard-page .topology-node.is-selected .topology-node-core {
+  outline: 0;
+  border-color: #ffffff;
+  box-shadow:
+    0 0 0 8px rgba(0, 243, 255, 0.12),
+    0 0 34px rgba(0, 243, 255, 0.3),
+    0 18px 32px rgba(0, 0, 0, 0.34);
+}
+
+body.windsight-shell .dashboard-page .topology-legend span {
+  border-color: rgba(0, 243, 255, 0.16);
+  background: rgba(6, 16, 31, 0.72);
+  color: rgba(205, 229, 255, 0.76);
+}
+
+body.windsight-shell .dashboard-page .legend-dot.is-online {
+  background: #00f3ff;
+}
+
+body.windsight-shell .dashboard-page .legend-line {
+  background: rgba(0, 243, 255, 0.45);
+}
+
+body.windsight-shell .dashboard-page .turbine-tree.is-graph-mode {
+  min-height: 420px;
+  border-radius: 22px;
+  border: 1px solid rgba(0, 243, 255, 0.16);
+  background:
+    linear-gradient(rgba(0, 243, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 243, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(135deg, rgba(6, 18, 34, 0.98), rgba(10, 22, 42, 0.98));
+  background-size: 32px 32px, 32px 32px, auto;
+  overflow: hidden;
+}
+
+body.windsight-shell .dashboard-page .tree-browser-card .card-body {
+  padding: 0.75rem;
+}
+
+@media (max-width: 991.98px) {
+  body.windsight-shell .dashboard-page .monitor-back-button {
+    left: 18px;
+    top: 86px;
+    bottom: auto;
+  }
+}
+
+/* Page-style drilldown refinement: keep one main work area, avoid stacked cards. */
+body.windsight-shell .dashboard-page .monitor-back-button {
+  position: static !important;
+  inset: auto !important;
+  min-height: 40px !important;
+  padding: 0.55rem 0.86rem !important;
+  border-radius: 10px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+body.windsight-shell .dashboard-page > .monitor-topbar .monitor-topbar-actions,
+body.windsight-shell .dashboard-page .chart-stage-toolbar {
+  justify-content: flex-start !important;
+}
+
+body.windsight-shell .dashboard-page > .monitor-topbar .monitor-back-button,
+body.windsight-shell .dashboard-page .chart-stage-toolbar .monitor-back-button {
+  order: -1;
+  margin-left: 0 !important;
+  margin-right: 0.35rem !important;
+}
+
+body.windsight-shell .dashboard-page > .monitor-topbar .topbar-chip-group,
+body.windsight-shell .dashboard-page .chart-stage-toolbar .topbar-chip-group {
+  flex: 1 1 auto;
+}
+
+body.windsight-shell .dashboard-page .monitor-back-button:hover {
+  transform: none !important;
+  background: var(--biz-surface-soft) !important;
+  box-shadow: none !important;
+}
+
+body.windsight-shell .dashboard-page .tree-stage {
+  gap: 0.85rem !important;
+}
+
+body.windsight-shell .dashboard-page .tree-summary-card {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+
+body.windsight-shell .dashboard-page .tree-summary-card .card-header {
+  display: none !important;
+}
+
+body.windsight-shell .dashboard-page .tree-summary-card .card-body {
+  padding: 0 !important;
+}
+
+body.windsight-shell .dashboard-page .tree-summary-body {
+  gap: 0.75rem !important;
+}
+
+body.windsight-shell .dashboard-page .selection-grid {
+  display: grid !important;
+  grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+  gap: 0 !important;
+  overflow: hidden;
+  border: 1px solid var(--biz-border);
+  border-radius: 14px;
+  background: var(--biz-surface-soft);
+}
+
+body.windsight-shell .dashboard-page .selection-kv,
+body.windsight-shell .dashboard-page .selection-kv:nth-child(1),
+body.windsight-shell .dashboard-page .selection-kv:nth-child(2),
+body.windsight-shell .dashboard-page .selection-kv:nth-child(3),
+body.windsight-shell .dashboard-page .selection-kv:nth-child(4),
+body.windsight-shell .dashboard-page .selection-kv:nth-child(5),
+body.windsight-shell .dashboard-page .selection-kv:nth-child(6) {
+  min-height: 72px !important;
+  padding: 0.72rem 0.85rem !important;
+  border: 0 !important;
+  border-right: 1px solid var(--biz-border) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.windsight-shell .dashboard-page .selection-kv:last-child {
+  border-right: 0 !important;
+}
+
+body.windsight-shell .dashboard-page .selection-label {
+  font-size: 0.78rem !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+body.windsight-shell .dashboard-page .selection-value {
+  margin-top: 0.38rem !important;
+  font-size: 0.96rem !important;
+  line-height: 1.35 !important;
+}
+
+body.windsight-shell .dashboard-page .tree-summary-card .control-group {
+  margin-top: 0 !important;
+  border-radius: 14px !important;
+  background: var(--biz-surface-soft) !important;
+  box-shadow: none !important;
+}
+
+body.windsight-shell .dashboard-page .tree-browser-card {
+  background: transparent !important;
+  border: 1px solid var(--biz-border) !important;
+  box-shadow: none !important;
+  border-radius: 14px !important;
+  overflow: hidden;
+}
+
+body.windsight-shell .dashboard-page .tree-browser-card .card-header {
+  min-height: 50px;
+  padding: 0.78rem 1rem !important;
+  background: var(--biz-surface-strong) !important;
+  border-bottom: 1px solid var(--biz-border) !important;
+}
+
+body.windsight-shell .dashboard-page .tree-browser-card .card-body {
+  padding: 0 !important;
+}
+
+body.windsight-shell .dashboard-page .turbine-tree.is-graph-mode {
+  border: 0 !important;
+  border-radius: 0 !important;
+  min-height: 520px;
+}
+
+@media (max-width: 1399.98px) {
+  body.windsight-shell .dashboard-page .selection-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  body.windsight-shell .dashboard-page .selection-kv:nth-child(3) {
+    border-right: 0 !important;
+  }
+
+  body.windsight-shell .dashboard-page .selection-kv:nth-child(-n + 3) {
+    border-bottom: 1px solid var(--biz-border) !important;
+  }
+}
+
+@media (max-width: 767.98px) {
+  body.windsight-shell .dashboard-page .monitor-back-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  body.windsight-shell .dashboard-page .selection-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  body.windsight-shell .dashboard-page .selection-kv {
+    border-bottom: 1px solid var(--biz-border) !important;
+  }
+
+  body.windsight-shell .dashboard-page .selection-kv:nth-child(2n) {
+    border-right: 0 !important;
+  }
+}
+
+/* Light-mode match for the topology map and graph tree. */
+html[data-theme="light"] body.windsight-shell .dashboard-page .iot-map-frame,
+body.windsight-shell[data-theme="light"] .dashboard-page .iot-map-frame {
+  background: #e7edf5 !important;
+  border-color: rgba(94, 121, 156, 0.2) !important;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .topology-map-surface,
+body.windsight-shell[data-theme="light"] .dashboard-page .topology-map-surface {
+  background:
+    linear-gradient(rgba(94, 121, 156, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(94, 121, 156, 0.12) 1px, transparent 1px),
+    linear-gradient(135deg, #edf3fa, #e3ebf5 58%, #f5f8fb) !important;
+  background-size: 34px 34px, 34px 34px, auto !important;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .topology-map-surface::before,
+body.windsight-shell[data-theme="light"] .dashboard-page .topology-map-surface::before {
+  border-color: rgba(94, 121, 156, 0.18) !important;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .topology-map-meta,
+body.windsight-shell[data-theme="light"] .dashboard-page .topology-map-meta,
+html[data-theme="light"] body.windsight-shell .dashboard-page .topology-legend span,
+body.windsight-shell[data-theme="light"] .dashboard-page .topology-legend span {
+  background: rgba(255, 255, 255, 0.78) !important;
+  border-color: rgba(94, 121, 156, 0.18) !important;
+  color: #5f748c !important;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .topology-map-meta strong,
+body.windsight-shell[data-theme="light"] .dashboard-page .topology-map-meta strong {
+  color: #22384d !important;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .topology-corridor,
+body.windsight-shell[data-theme="light"] .dashboard-page .topology-corridor {
+  stroke: rgba(47, 111, 237, 0.2) !important;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .topology-corridor.muted,
+body.windsight-shell[data-theme="light"] .dashboard-page .topology-corridor.muted {
+  stroke: rgba(94, 121, 156, 0.16) !important;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .topology-link,
+body.windsight-shell[data-theme="light"] .dashboard-page .topology-link {
+  stroke: rgba(47, 111, 237, 0.28) !important;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .topology-node-core,
+body.windsight-shell[data-theme="light"] .dashboard-page .topology-node-core {
+  background: #f7fbff !important;
+  color: #22384d !important;
+  box-shadow: 0 0 0 6px rgba(47, 111, 237, 0.06), 0 14px 28px rgba(94, 121, 156, 0.18) !important;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .topology-node-label,
+body.windsight-shell[data-theme="light"] .dashboard-page .topology-node-label {
+  background: rgba(255, 255, 255, 0.82) !important;
+  border-color: rgba(94, 121, 156, 0.18) !important;
+  color: #22384d !important;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .topology-node-label strong,
+body.windsight-shell[data-theme="light"] .dashboard-page .topology-node-label strong {
+  color: #22384d !important;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .topology-node-label small,
+body.windsight-shell[data-theme="light"] .dashboard-page .topology-node-label small {
+  color: #6f839d !important;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .turbine-tree.is-graph-mode,
+body.windsight-shell[data-theme="light"] .dashboard-page .turbine-tree.is-graph-mode {
+  background:
+    linear-gradient(rgba(94, 121, 156, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(94, 121, 156, 0.1) 1px, transparent 1px),
+    linear-gradient(135deg, #edf3fa, #e6eef7) !important;
+  background-size: 32px 32px, 32px 32px, auto !important;
+}

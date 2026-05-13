@@ -4,14 +4,14 @@
 {% block page_title %}实时监测{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_explorer.css') }}?v=20260509-units2">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_explorer.css') }}?v=20260513-page-drilldown3">
 {% endblock %}
 
 {% block content %}
 <div id="dashboardPage" class="dashboard-page page-monitor" data-page-kind="monitor">
     <div class="monitor-topbar glass-panel">
         <div class="monitor-topbar-copy">
-            <div class="panel-kicker">WindSight Monitor</div>
+            <div class="panel-kicker">实时监测</div>
             <div class="monitor-topbar-title">风场节点实时监测驾驶舱</div>
             <div class="dashboard-subtitle">先在全局拓扑地图中选择节点，再进入该节点的发电机树，最后下钻到单台发电机的四图波形详情。</div>
         </div>
@@ -33,7 +33,7 @@
             <div class="card dashboard-card monitor-map-card">
                 <div class="card-header">
                     <div>
-                        <div class="panel-kicker">Global Field Topology</div>
+                        <div class="panel-kicker">全局风场拓扑</div>
                         <div class="dashboard-title">全局拓扑地图</div>
                         <div class="dashboard-subtitle">点击地图节点后，先进入该节点的发电机树，再选择具体发电机查看实时四图波形。</div>
                     </div>
@@ -44,7 +44,7 @@
                         <div id="nodeMapChart" class="iot-map-chart"></div>
                     </div>
                     <div class="fallback-shell">
-                        <div class="panel-kicker">Unconfigured Nodes</div>
+                        <div class="panel-kicker">拓扑图例</div>
                         <div id="nodeMapFallback" class="fallback-node-list"></div>
                     </div>
                 </div>
@@ -56,7 +56,7 @@
                 <section class="card dashboard-card tree-summary-card">
                     <div class="card-header">
                         <div>
-                            <div class="panel-kicker">Node Snapshot</div>
+                            <div class="panel-kicker">节点快照</div>
                             <div class="dashboard-title">节点与缓存控制</div>
                             <div class="dashboard-subtitle">第二层只展示节点摘要与发电机树，不在此层显示波形图。</div>
                         </div>
@@ -102,7 +102,7 @@
                 <section class="card dashboard-card tree-browser-card">
                     <div class="card-header">
                         <div>
-                            <div class="panel-kicker">Turbine Tree</div>
+                            <div class="panel-kicker">发电机树</div>
                             <div class="dashboard-title">发电机树</div>
                             <div class="dashboard-subtitle">先展开分组，再点击具体发电机进入第三层波形页。</div>
                         </div>
@@ -119,7 +119,7 @@
                 <section class="card dashboard-card chart-stage-hero">
                     <div class="card-body chart-stage-hero-body">
                         <div class="chart-stage-copy">
-                            <div class="panel-kicker">Realtime Waveform Detail</div>
+                            <div class="panel-kicker">实时波形详情</div>
                             <div class="dashboard-title">发电机实时波形详情</div>
                             <div class="dashboard-subtitle">第三层只保留紧凑摘要、四张指标卡和四图联动波形，方便专注查看单台发电机细节。</div>
                         </div>
@@ -183,7 +183,7 @@
 
                 <div id="detailPlaceholder" class="detail-placeholder">
                     <div class="detail-placeholder-copy">
-                        <div class="panel-kicker">Realtime Drill</div>
+                        <div class="panel-kicker">实时下钻</div>
                         <div class="detail-placeholder-title">请先在上一层选择具体发电机</div>
                         <div class="detail-placeholder-text">只有点击发电机树中的叶子节点后，第三层才会显示电压、电流、转速、温度四图联动波形。</div>
                     </div>
@@ -226,6 +226,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/node_map_config.js') }}?v=4"></script>
-<script src="{{ url_for('static', filename='js/dashboard.js') }}?v=11"></script>
+<script src="{{ url_for('static', filename='js/node_map_config.js') }}?v=5"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}?v=21"></script>
 {% endblock %}
