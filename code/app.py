@@ -51,6 +51,8 @@ try:
         load_dotenv(str(BASE_DIR / "windsight.env"))
         # 再尝试默认 .env（如果存在）
         load_dotenv(str(BASE_DIR / ".env"))
+        # 最后加载本地私有覆盖配置；该文件应被 .gitignore 忽略
+        load_dotenv(str(BASE_DIR / ".env.local"), override=True)
 except ImportError:
     pass
 
@@ -240,6 +242,33 @@ login_manager.login_message_category = 'info'
 def load_user(user_id):
     """Flask-Login 需要的用户加载函数"""
     return User.query.get(int(user_id))
+
+
+def _config_float(value):
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed
+
+
+@app.context_processor
+def inject_runtime_config():
+    """向前端暴露非敏感运行时配置。"""
+    center_lng = _config_float(app.config.get("AMAP_DEFAULT_CENTER_LNG"))
+    center_lat = _config_float(app.config.get("AMAP_DEFAULT_CENTER_LAT"))
+    default_center = [center_lng, center_lat] if center_lng is not None and center_lat is not None else None
+    return {
+        "windsight_amap_config": {
+            "enabled": bool((app.config.get("AMAP_JS_KEY") or "").strip()),
+            "jsKey": (app.config.get("AMAP_JS_KEY") or "").strip(),
+            "securityCode": (app.config.get("AMAP_SECURITY_CODE") or "").strip(),
+            "securityServiceHost": (app.config.get("AMAP_SECURITY_SERVICE_HOST") or "").strip(),
+            "defaultCenter": default_center,
+            "defaultZoom": int(app.config.get("AMAP_DEFAULT_ZOOM") or 10),
+        }
+    }
+
 
 # ==================== 全局变量（节点管理） ====================
 active_nodes = {}

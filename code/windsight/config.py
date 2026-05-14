@@ -68,6 +68,17 @@ class Config:
     
     # ==================== 跨域配置 ====================
     ALLOWED_ORIGINS = os.environ.get('ALLOWED_ORIGINS', '*')
+
+    # ==================== 高德地图配置 ====================
+    AMAP_JS_KEY = os.environ.get('AMAP_JS_KEY', '').strip()
+    AMAP_SECURITY_CODE = (os.environ.get('AMAP_SECURITY_CODE') or os.environ.get('AMAP_SECURITY_JSCODE') or '').strip()
+    AMAP_SECURITY_SERVICE_HOST = os.environ.get('AMAP_SECURITY_SERVICE_HOST', '').strip()
+    AMAP_DEFAULT_CENTER_LNG = os.environ.get('AMAP_DEFAULT_CENTER_LNG', '').strip()
+    AMAP_DEFAULT_CENTER_LAT = os.environ.get('AMAP_DEFAULT_CENTER_LAT', '').strip()
+    try:
+        AMAP_DEFAULT_ZOOM = int(os.environ.get('AMAP_DEFAULT_ZOOM') or 10)
+    except ValueError:
+        AMAP_DEFAULT_ZOOM = 10
     
     # ==================== 数据保留配置 ====================
     DATA_RETENTION_DAYS = int(os.environ.get('DATA_RETENTION_DAYS', 30))

@@ -2980,7 +2980,7 @@ body.windsight-shell .dashboard-page .topology-map-meta {
   top: 24px;
   z-index: 3;
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.55rem;
   padding: 0.45rem 0.68rem;
   border-radius: 999px;
@@ -2994,6 +2994,41 @@ body.windsight-shell .dashboard-page .topology-map-meta {
 body.windsight-shell .dashboard-page .topology-map-meta strong {
   color: #eaffff;
   font-size: 0.82rem;
+}
+
+body.windsight-shell .dashboard-page .map-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.18rem;
+  padding: 0.12rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(2, 8, 23, 0.35);
+  pointer-events: auto;
+}
+
+body.windsight-shell .dashboard-page .map-mode-button {
+  min-height: 26px;
+  padding: 0 0.62rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(205, 229, 255, 0.72);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+
+body.windsight-shell .dashboard-page .map-mode-button:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+body.windsight-shell .dashboard-page .map-mode-button.is-active {
+  color: #06101f;
+  background: #00e5ff;
+  box-shadow: 0 6px 14px rgba(0, 229, 255, 0.24);
 }
 
 body.windsight-shell .dashboard-page .topology-corridor {
@@ -3025,7 +3060,23 @@ body.windsight-shell .dashboard-page .topology-node {
   color: #eaffff;
 }
 
+body.windsight-shell .dashboard-page .topology-node-visual,
+body.windsight-shell .dashboard-page .amap-node-visual {
+  position: relative;
+  display: block;
+  width: 86px;
+  height: 98px;
+}
+
+body.windsight-shell .dashboard-page .topology-node-visual {
+  animation: windSightMarkerFloat 3.8s ease-in-out infinite;
+  animation-delay: var(--marker-delay, 0s);
+}
+
 body.windsight-shell .dashboard-page .topology-node-core {
+  position: absolute;
+  left: 8px;
+  top: 0;
   width: 70px;
   height: 70px;
   border: 2px solid var(--node-color, #00f3ff);
@@ -3037,16 +3088,66 @@ body.windsight-shell .dashboard-page .topology-node-core {
     0 18px 32px rgba(0, 0, 0, 0.32);
 }
 
+body.windsight-shell .dashboard-page .topology-node-core::after,
+body.windsight-shell .dashboard-page .amap-node-pin::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -20px;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: 15px solid transparent;
+  border-right: 15px solid transparent;
+  border-top: 24px solid var(--node-color, #00f3ff);
+  filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.26));
+}
+
+body.windsight-shell .dashboard-page .topology-node-core::before,
+body.windsight-shell .dashboard-page .amap-node-pin::before {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.32), transparent 52%);
+  pointer-events: none;
+}
+
+body.windsight-shell .dashboard-page .topology-node-shadow,
+body.windsight-shell .dashboard-page .amap-node-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 46px;
+  height: 12px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: rgba(226, 232, 240, 0.9);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.28);
+  animation: windSightMarkerShadow 3.8s ease-in-out infinite;
+  animation-delay: var(--marker-delay, 0s);
+}
+
 body.windsight-shell .dashboard-page .topology-node.is-offline .topology-node-core {
   border-color: #64748b;
   background: #111827;
   box-shadow: 0 0 0 6px rgba(100, 116, 139, 0.08), 0 14px 28px rgba(0, 0, 0, 0.26);
 }
 
+body.windsight-shell .dashboard-page .topology-node.is-offline .topology-node-core::after,
+body.windsight-shell .dashboard-page .amap-node-marker.is-offline .amap-node-pin::after {
+  border-top-color: #64748b;
+}
+
 body.windsight-shell .dashboard-page .topology-node.is-fault .topology-node-core {
   border-color: #ff3366;
   background: #1c1020;
   box-shadow: 0 0 0 6px rgba(255, 51, 102, 0.08), 0 0 24px rgba(255, 51, 102, 0.18);
+}
+
+body.windsight-shell .dashboard-page .topology-node.is-fault .topology-node-core::after,
+body.windsight-shell .dashboard-page .amap-node-marker.is-fault .amap-node-pin::after {
+  border-top-color: #ff3366;
 }
 
 body.windsight-shell .dashboard-page .topology-node-status {
@@ -3098,8 +3199,9 @@ body.windsight-shell .dashboard-page .topology-node-label small {
   font-size: 0.64rem;
 }
 
-body.windsight-shell .dashboard-page .topology-node:hover .topology-node-core {
-  transform: translateY(-3px) scale(1.03);
+body.windsight-shell .dashboard-page .topology-node:hover .topology-node-visual {
+  animation-play-state: paused;
+  transform: translateY(-4px) scale(1.03);
 }
 
 body.windsight-shell .dashboard-page .topology-node.is-selected .topology-node-core {
@@ -3349,6 +3451,30 @@ body.windsight-shell[data-theme="light"] .dashboard-page .topology-map-meta stro
   color: #22384d !important;
 }
 
+html[data-theme="light"] body.windsight-shell .dashboard-page .map-mode-switch,
+body.windsight-shell[data-theme="light"] .dashboard-page .map-mode-switch {
+  border-color: rgba(94, 121, 156, 0.22);
+  background: rgba(226, 235, 245, 0.72);
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .map-mode-button,
+body.windsight-shell[data-theme="light"] .dashboard-page .map-mode-button {
+  color: #5f748c;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .map-mode-button:hover,
+body.windsight-shell[data-theme="light"] .dashboard-page .map-mode-button:hover {
+  color: #22384d;
+  background: rgba(47, 111, 237, 0.08);
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .map-mode-button.is-active,
+body.windsight-shell[data-theme="light"] .dashboard-page .map-mode-button.is-active {
+  color: #ffffff;
+  background: #1d6fe7;
+  box-shadow: 0 6px 14px rgba(29, 111, 231, 0.2);
+}
+
 html[data-theme="light"] body.windsight-shell .dashboard-page .topology-corridor,
 body.windsight-shell[data-theme="light"] .dashboard-page .topology-corridor {
   stroke: rgba(47, 111, 237, 0.2) !important;
@@ -3395,4 +3521,357 @@ body.windsight-shell[data-theme="light"] .dashboard-page .turbine-tree.is-graph-
     linear-gradient(90deg, rgba(94, 121, 156, 0.1) 1px, transparent 1px),
     linear-gradient(135deg, #edf3fa, #e6eef7) !important;
   background-size: 32px 32px, 32px 32px, auto !important;
+}
+
+/* AMap real map mode */
+body.windsight-shell .dashboard-page .iot-map-chart.is-amap-mode {
+  min-height: 620px;
+}
+
+body.windsight-shell .dashboard-page .amap-node-map-shell {
+  position: relative;
+  width: 100%;
+  min-height: inherit;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 22px;
+  background: #081326;
+}
+
+body.windsight-shell .dashboard-page .amap-node-map-canvas {
+  position: absolute;
+  inset: 0;
+  min-height: inherit;
+}
+
+body.windsight-shell .dashboard-page .amap-map-meta,
+body.windsight-shell .dashboard-page .topology-map-meta small {
+  color: rgba(205, 229, 255, 0.68);
+}
+
+body.windsight-shell .dashboard-page .amap-map-meta {
+  position: absolute;
+  left: 28px;
+  top: 24px;
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.68rem;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 243, 255, 0.22);
+  background: rgba(6, 16, 31, 0.82);
+  font-size: 0.76rem;
+  backdrop-filter: blur(10px);
+  pointer-events: auto;
+}
+
+body.windsight-shell .dashboard-page .amap-map-meta strong {
+  color: #eaffff;
+  font-size: 0.82rem;
+}
+
+body.windsight-shell .dashboard-page .amap-unavailable-shell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: inherit;
+  overflow: hidden;
+  border-radius: 22px;
+  background:
+    linear-gradient(rgba(0, 243, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 243, 255, 0.05) 1px, transparent 1px),
+    radial-gradient(circle at 45% 45%, rgba(0, 229, 255, 0.12), transparent 42%),
+    #081326;
+  background-size: 32px 32px, 32px 32px, auto, auto;
+}
+
+body.windsight-shell .dashboard-page .amap-unavailable-card {
+  max-width: min(520px, calc(100% - 48px));
+  padding: 1.35rem 1.45rem;
+  border-radius: 18px;
+  border: 1px solid rgba(0, 243, 255, 0.22);
+  background: rgba(6, 16, 31, 0.86);
+  color: rgba(205, 229, 255, 0.76);
+  text-align: center;
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.26);
+  backdrop-filter: blur(12px);
+}
+
+body.windsight-shell .dashboard-page .amap-unavailable-title {
+  color: #f8fbff;
+  font-size: 1.1rem;
+  font-weight: 900;
+}
+
+body.windsight-shell .dashboard-page .amap-unavailable-reason {
+  margin-top: 0.45rem;
+  color: rgba(205, 229, 255, 0.74);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+body.windsight-shell .dashboard-page .amap-unavailable-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+body.windsight-shell .dashboard-page .amap-unavailable-note {
+  margin-top: 0.78rem;
+  color: rgba(148, 163, 184, 0.74);
+  font-size: 0.74rem;
+  line-height: 1.6;
+}
+
+body.windsight-shell .dashboard-page .amap-unavailable-count {
+  position: absolute;
+  left: 28px;
+  top: 24px;
+  padding: 0.44rem 0.68rem;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 243, 255, 0.18);
+  background: rgba(6, 16, 31, 0.72);
+  color: rgba(205, 229, 255, 0.72);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+body.windsight-shell .dashboard-page .amap-node-marker {
+  position: relative;
+  display: inline-flex;
+  justify-content: center;
+  width: 92px;
+  height: 104px;
+  border: 0;
+  background: transparent;
+  color: #eaffff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+body.windsight-shell .dashboard-page .amap-node-visual {
+  width: 86px;
+  height: 98px;
+}
+
+body.windsight-shell .dashboard-page .amap-node-pin {
+  position: absolute;
+  left: 14px;
+  top: 0;
+  width: 58px;
+  height: 58px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.94);
+  background: var(--node-color, #00f3ff);
+  color: #ffffff;
+  box-shadow:
+    0 0 0 7px rgba(0, 243, 255, 0.14),
+    0 16px 30px rgba(0, 0, 0, 0.26);
+  animation: windSightMarkerFloat 3.8s ease-in-out infinite;
+  animation-delay: var(--marker-delay, 0s);
+}
+
+body.windsight-shell .dashboard-page .amap-node-pin strong {
+  font-size: 0.96rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+body.windsight-shell .dashboard-page .amap-node-pin em {
+  position: absolute;
+  right: -8px;
+  bottom: -6px;
+  min-width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.96);
+  background: #07101f;
+  color: #ffffff;
+  font-style: normal;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+body.windsight-shell .dashboard-page .amap-node-caption {
+  position: absolute;
+  left: 72px;
+  top: 16px;
+  max-width: 172px;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.06rem;
+  padding: 0.44rem 0.62rem;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 243, 255, 0.22);
+  background: rgba(5, 12, 24, 0.84);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(10px);
+}
+
+body.windsight-shell .dashboard-page .amap-node-caption strong,
+body.windsight-shell .dashboard-page .amap-node-caption small {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body.windsight-shell .dashboard-page .amap-node-caption strong {
+  color: #f7fbff;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+body.windsight-shell .dashboard-page .amap-node-caption small {
+  color: rgba(205, 229, 255, 0.68);
+  font-size: 0.66rem;
+}
+
+body.windsight-shell .dashboard-page .amap-node-marker.is-offline .amap-node-pin {
+  background: #64748b;
+  box-shadow: 0 0 0 7px rgba(100, 116, 139, 0.16), 0 14px 28px rgba(0, 0, 0, 0.22);
+}
+
+body.windsight-shell .dashboard-page .amap-node-marker.is-fault .amap-node-pin {
+  background: #ef4444;
+  box-shadow: 0 0 0 7px rgba(239, 68, 68, 0.16), 0 14px 28px rgba(0, 0, 0, 0.24);
+}
+
+body.windsight-shell .dashboard-page .amap-node-marker.is-fault .amap-node-pin::after {
+  border-top-color: #ef4444;
+}
+
+body.windsight-shell .dashboard-page .amap-node-marker.is-selected .amap-node-pin {
+  outline: 4px solid rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 0 0 10px rgba(0, 243, 255, 0.18),
+    0 0 34px rgba(0, 243, 255, 0.34),
+    0 18px 32px rgba(0, 0, 0, 0.28);
+}
+
+body.windsight-shell .dashboard-page .amap-node-marker:hover .amap-node-pin {
+  animation-play-state: paused;
+  transform: translateY(-6px) scale(1.04);
+}
+
+body.windsight-shell .dashboard-page .amap-node-marker:hover .amap-node-shadow {
+  animation-play-state: paused;
+  transform: translateX(-50%) scale(0.82);
+}
+
+@keyframes windSightMarkerFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes windSightMarkerShadow {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: translateX(-50%) scale(1);
+  }
+  50% {
+    opacity: 0.58;
+    transform: translateX(-50%) scale(0.86);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.windsight-shell .dashboard-page .topology-node-visual,
+  body.windsight-shell .dashboard-page .topology-node-shadow,
+  body.windsight-shell .dashboard-page .amap-node-pin,
+  body.windsight-shell .dashboard-page .amap-node-shadow {
+    animation: none;
+  }
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .amap-node-map-shell,
+body.windsight-shell[data-theme="light"] .dashboard-page .amap-node-map-shell {
+  background: #e7edf5;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .amap-unavailable-shell,
+body.windsight-shell[data-theme="light"] .dashboard-page .amap-unavailable-shell {
+  background:
+    linear-gradient(rgba(47, 111, 237, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(47, 111, 237, 0.06) 1px, transparent 1px),
+    radial-gradient(circle at 45% 45%, rgba(47, 111, 237, 0.12), transparent 42%),
+    #e7edf5;
+  background-size: 32px 32px, 32px 32px, auto, auto;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .amap-unavailable-card,
+body.windsight-shell[data-theme="light"] .dashboard-page .amap-unavailable-card {
+  border-color: rgba(94, 121, 156, 0.22);
+  background: rgba(255, 255, 255, 0.9);
+  color: #5f748c;
+  box-shadow: 0 22px 54px rgba(94, 121, 156, 0.18);
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .amap-unavailable-title,
+body.windsight-shell[data-theme="light"] .dashboard-page .amap-unavailable-title {
+  color: #22384d;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .amap-unavailable-reason,
+body.windsight-shell[data-theme="light"] .dashboard-page .amap-unavailable-reason {
+  color: #445c75;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .amap-unavailable-note,
+body.windsight-shell[data-theme="light"] .dashboard-page .amap-unavailable-note {
+  color: #6f839d;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .amap-unavailable-count,
+body.windsight-shell[data-theme="light"] .dashboard-page .amap-unavailable-count {
+  border-color: rgba(94, 121, 156, 0.18);
+  background: rgba(255, 255, 255, 0.78);
+  color: #5f748c;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .amap-map-meta,
+body.windsight-shell[data-theme="light"] .dashboard-page .amap-map-meta {
+  background: rgba(255, 255, 255, 0.84);
+  border-color: rgba(94, 121, 156, 0.2);
+  color: #5f748c;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .amap-map-meta strong,
+body.windsight-shell[data-theme="light"] .dashboard-page .amap-map-meta strong {
+  color: #22384d;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .topology-map-meta small,
+body.windsight-shell[data-theme="light"] .dashboard-page .topology-map-meta small {
+  color: #6f839d;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .amap-node-caption,
+body.windsight-shell[data-theme="light"] .dashboard-page .amap-node-caption {
+  background: rgba(255, 255, 255, 0.88);
+  border-color: rgba(94, 121, 156, 0.22);
+  box-shadow: 0 14px 28px rgba(94, 121, 156, 0.18);
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .amap-node-caption strong,
+body.windsight-shell[data-theme="light"] .dashboard-page .amap-node-caption strong {
+  color: #22384d;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .amap-node-caption small,
+body.windsight-shell[data-theme="light"] .dashboard-page .amap-node-caption small {
+  color: #6f839d;
 }

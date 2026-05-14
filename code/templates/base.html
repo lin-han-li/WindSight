@@ -1527,6 +1527,10 @@
         });
     </script>
     
+    <script>
+        window.WindSightAmapConfig = {{ windsight_amap_config | default({}) | tojson }};
+    </script>
+
     {% block extra_js %}{% endblock %}
 </body>
 </html>

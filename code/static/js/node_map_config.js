@@ -13,7 +13,7 @@
         mapY: 24,
         topologyX: 16,
         topologyY: 24,
-        geo: { lng: null, lat: null },
+        geo: { lng: 116.3928, lat: 39.9112 },
         accentColor: "#00f3ff", // Cyan
         description: "北线入口采集节点，负责上游阵列状态回传。",
       },
@@ -24,7 +24,7 @@
         mapY: 16,
         topologyX: 34,
         topologyY: 16,
-        geo: { lng: null, lat: null },
+        geo: { lng: 116.3966, lat: 39.913 },
         accentColor: "#b042ff", // Purple
         description: "北线中段节点，承担主风廊补盲监测。",
       },
@@ -35,7 +35,7 @@
         mapY: 28,
         topologyX: 58,
         topologyY: 28,
-        geo: { lng: null, lat: null },
+        geo: { lng: 116.4014, lat: 39.9107 },
         accentColor: "#ffe600", // Yellow
         description: "东线主阵列节点，覆盖高地风机群。",
       },
@@ -46,7 +46,7 @@
         mapY: 22,
         topologyX: 79,
         topologyY: 22,
-        geo: { lng: null, lat: null },
+        geo: { lng: 116.405, lat: 39.9088 },
         accentColor: "#00ff9d", // Green
         description: "东线前沿采集节点，适合观察突发波动。",
       },
@@ -57,7 +57,7 @@
         mapY: 73,
         topologyX: 27,
         topologyY: 73,
-        geo: { lng: null, lat: null },
+        geo: { lng: 116.3951, lat: 39.9057 },
         accentColor: "#ff5100", // Orange
         description: "南线回风区节点，重点关注温升和转速抖动。",
       },
@@ -68,7 +68,7 @@
         mapY: 77,
         topologyX: 63,
         topologyY: 77,
-        geo: { lng: null, lat: null },
+        geo: { lng: 116.4003, lat: 39.9046 },
         accentColor: "#ff2a6d", // Pink
         description: "南线末端节点，承担下游阵列状态补采。",
       },

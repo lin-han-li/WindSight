@@ -11,10 +11,12 @@
   const storageNodeKey = "selectedNodeId";
   const storageTurbineKey = "selectedTurbineCode";
   const storageViewKey = `windsightDrillView:${pageKind}`;
+  const mapModeStorageKey = "windsightNodeMapMode";
   const pollIntervalMs = 3000;
   const defaultLimit = 600;
   const maxLimit = 20000;
   const nodeMapConfig = window.WindSightNodeMapConfig || { defaults: {}, nodes: {} };
+  const amapConfig = window.WindSightAmapConfig || {};
   const socket = isMonitorPage && typeof io === "function" ? io() : null;
 
   const metrics = [
@@ -36,6 +38,7 @@
     uploadIds: new Set(),
     pollTimer: null,
     view: usesDrilldownView ? "map" : "chart",
+    mapMode: window.localStorage.getItem(mapModeStorageKey) === "topology" ? "topology" : "amap",
     metricZoom: null,
     syncingMetricZoom: false,
   };
@@ -70,6 +73,23 @@
     map: dom.nodeMapChart || null,
     turbineTree: null,
     metrics: new Map(),
+  };
+
+  const amapState = {
+    loaderPromise: null,
+    map: null,
+    mapStyle: "",
+    markers: [],
+    renderToken: 0,
+    nodeSignature: "",
+    fittedSignature: "",
+  };
+
+  const mapRenderState = {
+    legendMode: "",
+    summarySignature: "",
+    topologySignature: "",
+    unavailableSignature: "",
   };
 
   function byId(id) {
@@ -192,7 +212,10 @@
     if (!element) {
       return;
     }
-    element.textContent = value === undefined || value === null || value === "" ? fallback : String(value);
+    const nextText = value === undefined || value === null || value === "" ? fallback : String(value);
+    if (element.textContent !== nextText) {
+      element.textContent = nextText;
+    }
   }
 
   function escapeHtml(value) {
@@ -327,6 +350,243 @@
     if (status === "fault") return "故障";
     if (status === "online") return "在线";
     return "离线";
+  }
+
+  function toFiniteNumber(value) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function getValidGeo(node) {
+    const lng = toFiniteNumber(node?.geo?.lng);
+    const lat = toFiniteNumber(node?.geo?.lat);
+    if (lng === null || lat === null || lng < -180 || lng > 180 || lat < -90 || lat > 90) {
+      return null;
+    }
+    return [lng, lat];
+  }
+
+  function getAmapAvailability(nodes) {
+    const key = String(amapConfig.jsKey || "").trim();
+    if (!key || amapConfig.enabled === false) {
+      return { usable: false, reason: "未配置高德地图 Key" };
+    }
+    if (!Array.isArray(nodes) || !nodes.length) {
+      return { usable: false, reason: "暂无节点" };
+    }
+    const missingGeo = nodes.filter((node) => !getValidGeo(node));
+    if (missingGeo.length) {
+      return { usable: false, reason: `${missingGeo.length} 个节点未配置经纬度` };
+    }
+    return { usable: true, reason: "高德地图模式" };
+  }
+
+  function mapModeSwitchHtml(activeMode = state.mapMode) {
+    const current = activeMode === "topology" ? "topology" : "amap";
+    return `
+      <span class="map-mode-switch" role="group" aria-label="地图模式">
+        <button class="map-mode-button ${current === "amap" ? "is-active" : ""}" type="button" data-map-mode="amap">高德地图</button>
+        <button class="map-mode-button ${current === "topology" ? "is-active" : ""}" type="button" data-map-mode="topology">拓扑图</button>
+      </span>
+    `;
+  }
+
+  function persistMapMode() {
+    window.localStorage.setItem(mapModeStorageKey, state.mapMode);
+  }
+
+  function bindMapModeButtons(scope = dom.nodeMapChart) {
+    if (!scope) {
+      return;
+    }
+    scope.querySelectorAll("[data-map-mode]").forEach((button) => {
+      if (button.dataset.mapModeBound === "1") {
+        return;
+      }
+      button.dataset.mapModeBound = "1";
+      button.addEventListener("click", () => {
+        const nextMode = button.dataset.mapMode === "topology" ? "topology" : "amap";
+        if (state.mapMode === nextMode) {
+          return;
+        }
+        state.mapMode = nextMode;
+        persistMapMode();
+        renderMapChart();
+        requestAnimationFrame(resizeTopologyMap);
+      });
+    });
+  }
+
+  function normalizeAmapServiceHost(value) {
+    const host = String(value || "").trim();
+    if (!host) {
+      return "";
+    }
+    return host.endsWith("/") ? host : `${host}/`;
+  }
+
+  function applyAmapSecurityConfig() {
+    const serviceHost = normalizeAmapServiceHost(amapConfig.securityServiceHost);
+    if (serviceHost) {
+      window._AMapSecurityConfig = {
+        ...(window._AMapSecurityConfig || {}),
+        serviceHost,
+      };
+      return;
+    }
+    const securityJsCode = String(amapConfig.securityCode || "").trim();
+    if (securityJsCode) {
+      window._AMapSecurityConfig = {
+        ...(window._AMapSecurityConfig || {}),
+        securityJsCode,
+      };
+    }
+  }
+
+  function loadAmapLoaderScript() {
+    if (window.AMapLoader) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve, reject) => {
+      const existing = document.querySelector("script[data-windsight-amap-loader]");
+      if (existing) {
+        existing.addEventListener("load", () => resolve(), { once: true });
+        existing.addEventListener("error", () => reject(new Error("高德地图加载器加载失败")), { once: true });
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = "https://webapi.amap.com/loader.js";
+      script.async = true;
+      script.dataset.windsightAmapLoader = "1";
+      script.addEventListener("load", () => resolve(), { once: true });
+      script.addEventListener("error", () => reject(new Error("高德地图加载器加载失败")), { once: true });
+      document.head.appendChild(script);
+    });
+  }
+
+  function loadAmap() {
+    if (window.AMap?.Map) {
+      return Promise.resolve(window.AMap);
+    }
+    if (!amapState.loaderPromise) {
+      applyAmapSecurityConfig();
+      amapState.loaderPromise = loadAmapLoaderScript().then(() => {
+        if (!window.AMapLoader?.load) {
+          throw new Error("高德地图加载器不可用");
+        }
+        return window.AMapLoader.load({
+          key: String(amapConfig.jsKey || "").trim(),
+          version: "2.0",
+          plugins: ["AMap.Scale", "AMap.ToolBar"],
+        });
+      });
+    }
+    return amapState.loaderPromise;
+  }
+
+  function getAmapMapStyle() {
+    return getThemeMode() === "dark" ? "amap://styles/darkblue" : "amap://styles/whitesmoke";
+  }
+
+  function disposeAmapMap() {
+    try {
+      if (amapState.map && amapState.markers.length) {
+        amapState.map.remove(amapState.markers);
+      }
+      if (amapState.map) {
+        amapState.map.destroy();
+      }
+    } catch (error) {
+      console.warn("[dashboard] amap cleanup failed", error);
+    }
+    amapState.map = null;
+    amapState.mapStyle = "";
+    amapState.markers = [];
+    amapState.nodeSignature = "";
+    amapState.fittedSignature = "";
+  }
+
+  function removeAmapMarkers() {
+    try {
+      if (amapState.map && amapState.markers.length) {
+        amapState.map.remove(amapState.markers);
+      }
+    } catch (error) {
+      console.warn("[dashboard] amap marker cleanup failed", error);
+    }
+    amapState.markers = [];
+  }
+
+  function buildAmapNodeSignature(nodes) {
+    return nodes
+      .map((node) => {
+        const geo = getValidGeo(node) || [];
+        return [node.nodeId, geo[0], geo[1], node.status, node.turbineCount, node.accentColor].join(":");
+      })
+      .join("|");
+  }
+
+  function buildTopologyRenderSignature(nodes, options = {}) {
+    return [
+      "topology",
+      options.modeText || "",
+      options.detailText || "",
+      state.selectedNodeId || "",
+      nodes
+        .map((node) =>
+          [
+            node.nodeId,
+            node.displayName,
+            node.zoneLabel,
+            node.status,
+            node.turbineCount,
+            node.x,
+            node.y,
+            node.accentColor,
+          ].join(":")
+        )
+        .join("|"),
+    ].join("||");
+  }
+
+  function buildUnavailableRenderSignature(nodes, reason) {
+    return [
+      "amap-unavailable",
+      reason || "",
+      nodes
+        .map((node) => {
+          const geo = getValidGeo(node) || [];
+          return [node.nodeId, geo[0], geo[1], node.status, node.turbineCount].join(":");
+        })
+        .join("|"),
+    ].join("||");
+  }
+
+  function getAmapDefaultCenter(nodes) {
+    const configured = Array.isArray(amapConfig.defaultCenter) ? amapConfig.defaultCenter : [];
+    const cfgLng = toFiniteNumber(configured[0]);
+    const cfgLat = toFiniteNumber(configured[1]);
+    if (cfgLng !== null && cfgLat !== null) {
+      return [cfgLng, cfgLat];
+    }
+    const points = nodes.map(getValidGeo).filter(Boolean);
+    if (!points.length) {
+      return [116.397428, 39.90923];
+    }
+    const totals = points.reduce(
+      (acc, point) => {
+        acc.lng += point[0];
+        acc.lat += point[1];
+        return acc;
+      },
+      { lng: 0, lat: 0 }
+    );
+    return [totals.lng / points.length, totals.lat / points.length];
+  }
+
+  function getAmapDefaultZoom() {
+    const zoom = Number(amapConfig.defaultZoom);
+    return Number.isFinite(zoom) ? Math.max(3, Math.min(18, zoom)) : 10;
   }
 
   function getNodeRecord(nodeId) {
@@ -1021,9 +1281,14 @@
       { label: "故障", value: fault },
       { label: "已布图", value: configured },
     ];
+    const nextSignature = chips.map((chip) => `${chip.label}:${chip.value}`).join("|");
+    if (mapRenderState.summarySignature === nextSignature) {
+      return;
+    }
     dom.nodeMapSummary.innerHTML = chips
       .map((chip) => `<span class="map-summary-chip"><strong>${chip.value}</strong><span>${chip.label}</span></span>`)
       .join("");
+    mapRenderState.summarySignature = nextSignature;
   }
 
   function buildTopologyNodes() {
@@ -1066,32 +1331,52 @@
     return links;
   }
 
-  function renderTopologyLegend() {
+  function renderTopologyLegend(mode = "topology") {
     if (!dom.nodeMapFallback) {
       return;
     }
+    if (mapRenderState.legendMode === mode && dom.nodeMapFallback.dataset.legendMode === mode) {
+      return;
+    }
+    const relationLabel = mode === "amap" ? "真实地图" : "风场关联";
     dom.nodeMapFallback.innerHTML = `
       <div class="topology-legend">
         <span><i class="legend-dot is-online"></i>在线节点</span>
         <span><i class="legend-dot is-offline"></i>离线节点</span>
         <span><i class="legend-dot is-fault"></i>故障节点</span>
-        <span><i class="legend-line"></i>风场关联</span>
+        <span><i class="legend-line"></i>${relationLabel}</span>
       </div>
     `;
+    dom.nodeMapFallback.dataset.legendMode = mode;
+    mapRenderState.legendMode = mode;
   }
 
-  function renderTopologyMap() {
+  function renderTopologyMap(options = {}) {
     const element = dom.nodeMapChart;
     if (!element) {
       return;
     }
+    amapState.renderToken += 1;
+    const nodes = options.nodes || buildTopologyNodes();
+    const nextSignature = buildTopologyRenderSignature(nodes, options);
+    if (
+      mapRenderState.topologySignature === nextSignature &&
+      element.querySelector(".topology-map-surface") &&
+      !element.classList.contains("is-amap-mode")
+    ) {
+      bindMapModeButtons(element);
+      return;
+    }
 
-    const nodes = buildTopologyNodes();
+    disposeAmapMap();
+    mapRenderState.unavailableSignature = "";
+    element.classList.remove("is-amap-mode");
     const links = buildTopologyLinks(nodes);
-    renderTopologyLegend();
+    renderTopologyLegend("topology");
 
     if (!nodes.length) {
       element.innerHTML = '<div class="topology-empty">暂无节点</div>';
+      mapRenderState.topologySignature = nextSignature;
       return;
     }
 
@@ -1106,25 +1391,29 @@
       .join("");
 
     const nodeHtml = nodes
-      .map((node) => {
+      .map((node, index) => {
         const status = node.status || "offline";
         const selectedClass = node.nodeId === state.selectedNodeId ? "is-selected" : "";
         const statusClass = `is-${status}`;
         const color = node.accentColor || getNodeVisualColor(node);
         const count = Number(node.turbineCount) || 0;
         const statusText = getStatusLabel(status);
+        const markerDelay = `${(index % 6) * -0.55}s`;
         return `
           <button
             class="topology-node ${statusClass} ${selectedClass}"
             type="button"
             data-node-id="${escapeHtml(node.nodeId)}"
-            style="--node-x:${node.x}%;--node-y:${node.y}%;--node-color:${escapeHtml(color)};"
+            style="--node-x:${node.x}%;--node-y:${node.y}%;--node-color:${escapeHtml(color)};--marker-delay:${markerDelay};"
             aria-label="${escapeHtml(node.displayName)}"
           >
-            <span class="topology-node-core">
-              <span class="topology-node-code">${escapeHtml(formatNodeShortCode(node.nodeId))}</span>
-              <span class="topology-node-count">${count}</span>
-              <span class="topology-node-status" aria-hidden="true"></span>
+            <span class="topology-node-visual" aria-hidden="true">
+              <span class="topology-node-core">
+                <span class="topology-node-code">${escapeHtml(formatNodeShortCode(node.nodeId))}</span>
+                <span class="topology-node-count">${count}</span>
+                <span class="topology-node-status"></span>
+              </span>
+              <span class="topology-node-shadow"></span>
             </span>
             <span class="topology-node-label">
               <strong>${escapeHtml(node.displayName || node.nodeId)}</strong>
@@ -1151,8 +1440,10 @@
           ${linkSvg}
         </svg>
         <div class="topology-map-meta">
-          <span>风场拓扑</span>
+          <span>${escapeHtml(options.modeText || "拓扑图")}</span>
           <strong>${nodes.length} 个节点</strong>
+          <small>${escapeHtml(options.detailText || "手动选择")}</small>
+          ${mapModeSwitchHtml("topology")}
         </div>
         <div class="topology-node-layer">${nodeHtml}</div>
       </div>
@@ -1164,10 +1455,193 @@
         jumpToTree(nodeId).catch((error) => console.error("[dashboard] jump to tree failed", error));
       });
     });
+    bindMapModeButtons(element);
+    mapRenderState.topologySignature = nextSignature;
+  }
+
+  function buildAmapMarkerContent(node, index = 0) {
+    const status = node.status || "offline";
+    const selectedClass = node.nodeId === state.selectedNodeId ? "is-selected" : "";
+    const statusText = getStatusLabel(status);
+    const color = node.accentColor || getNodeVisualColor(node);
+    const count = Number(node.turbineCount) || 0;
+    const markerDelay = `${(index % 6) * -0.55}s`;
+    return `
+      <button
+        class="amap-node-marker is-${status} ${selectedClass}"
+        type="button"
+        style="--node-color:${escapeHtml(color)};--marker-delay:${markerDelay};"
+        aria-label="${escapeHtml(node.displayName)}"
+      >
+        <span class="amap-node-visual" aria-hidden="true">
+          <span class="amap-node-pin">
+            <strong>${escapeHtml(formatNodeShortCode(node.nodeId))}</strong>
+            <em>${count}</em>
+          </span>
+          <span class="amap-node-shadow"></span>
+        </span>
+        <span class="amap-node-caption">
+          <strong>${escapeHtml(node.displayName || node.nodeId)}</strong>
+          <small>${escapeHtml(node.zoneLabel || "--")} · ${escapeHtml(statusText)}</small>
+        </span>
+      </button>
+    `;
+  }
+
+  async function renderAmapNodeMap(nodes, token) {
+    const element = dom.nodeMapChart;
+    if (!element) {
+      return;
+    }
+
+    const nextSignature = buildAmapNodeSignature(nodes);
+    const needsShell = !amapState.map || !element.querySelector("[data-amap-canvas]");
+    renderTopologyLegend("amap");
+    mapRenderState.topologySignature = "";
+    mapRenderState.unavailableSignature = "";
+    element.classList.add("is-amap-mode");
+    if (needsShell) {
+      element.innerHTML = `
+        <div class="amap-node-map-shell">
+          <div class="amap-node-map-canvas" data-amap-canvas></div>
+          <div class="amap-map-meta">
+            <span>高德地图</span>
+            <strong data-amap-node-count>${nodes.length} 个节点</strong>
+            <small>真实坐标模式</small>
+            ${mapModeSwitchHtml("amap")}
+          </div>
+        </div>
+      `;
+      bindMapModeButtons(element);
+    } else {
+      const countElement = element.querySelector("[data-amap-node-count]");
+      if (countElement) {
+        countElement.textContent = `${nodes.length} 个节点`;
+      }
+    }
+
+    const canvas = element.querySelector("[data-amap-canvas]");
+    if (!canvas) {
+      return;
+    }
+
+    const AMap = await loadAmap();
+    if (token !== amapState.renderToken) {
+      return;
+    }
+
+    let map = amapState.map;
+    const nextMapStyle = getAmapMapStyle();
+    if (!map) {
+      map = new AMap.Map(canvas, {
+        center: getAmapDefaultCenter(nodes),
+        zoom: getAmapDefaultZoom(),
+        viewMode: "2D",
+        resizeEnable: true,
+        mapStyle: nextMapStyle,
+      });
+      amapState.map = map;
+      amapState.mapStyle = nextMapStyle;
+
+      if (AMap.Scale) {
+        map.addControl(new AMap.Scale());
+      }
+      if (AMap.ToolBar) {
+        map.addControl(new AMap.ToolBar({ position: { right: "18px", top: "18px" } }));
+      }
+    } else if (amapState.mapStyle !== nextMapStyle) {
+      map.setMapStyle(nextMapStyle);
+      amapState.mapStyle = nextMapStyle;
+    }
+
+    if (amapState.nodeSignature === nextSignature && amapState.markers.length) {
+      bindMapModeButtons(element);
+      return;
+    }
+
+    removeAmapMarkers();
+    const markers = nodes.map((node, index) => {
+      const marker = new AMap.Marker({
+        position: getValidGeo(node),
+        content: buildAmapMarkerContent(node, index),
+        anchor: "bottom-center",
+        zIndex: node.nodeId === state.selectedNodeId ? 120 : 100,
+      });
+      marker.on("click", () => {
+        jumpToTree(node.nodeId).catch((error) => console.error("[dashboard] jump to tree failed", error));
+      });
+      return marker;
+    });
+
+    amapState.markers = markers;
+    amapState.nodeSignature = nextSignature;
+    map.add(markers);
+    if (amapState.fittedSignature !== nextSignature && markers.length > 1) {
+      map.setFitView(markers, false, [96, 96, 96, 96], 16);
+      amapState.fittedSignature = nextSignature;
+    } else if (amapState.fittedSignature !== nextSignature && markers.length === 1) {
+      map.setZoomAndCenter(Math.max(getAmapDefaultZoom(), 12), getValidGeo(nodes[0]));
+      amapState.fittedSignature = nextSignature;
+    }
+    bindMapModeButtons(element);
+  }
+
+  function renderAmapUnavailable(nodes, reason) {
+    const element = dom.nodeMapChart;
+    if (!element) {
+      return;
+    }
+    const nextSignature = buildUnavailableRenderSignature(nodes, reason);
+    if (
+      mapRenderState.unavailableSignature === nextSignature &&
+      element.querySelector(".amap-unavailable-shell")
+    ) {
+      bindMapModeButtons(element);
+      return;
+    }
+    amapState.renderToken += 1;
+    disposeAmapMap();
+    mapRenderState.topologySignature = "";
+    renderTopologyLegend("topology");
+    element.classList.remove("is-amap-mode");
+    element.innerHTML = `
+      <div class="amap-unavailable-shell">
+        <div class="amap-unavailable-card">
+          <div class="amap-unavailable-title">高德地图不可用</div>
+          <div class="amap-unavailable-reason">${escapeHtml(reason || "请检查地图配置")}</div>
+          <div class="amap-unavailable-actions">
+            ${mapModeSwitchHtml("amap")}
+          </div>
+          <div class="amap-unavailable-note">需要节省额度时请选择“拓扑图”；需要查看真实地理位置时再切回“高德地图”。</div>
+        </div>
+        <div class="amap-unavailable-count">${nodes.length} 个节点</div>
+      </div>
+    `;
+    bindMapModeButtons(element);
+    mapRenderState.unavailableSignature = nextSignature;
   }
 
   function renderMapChart() {
-    renderTopologyMap();
+    const nodes = buildTopologyNodes();
+    if (state.mapMode === "topology") {
+      renderTopologyMap({ nodes, modeText: "拓扑图", detailText: "手动选择" });
+      return;
+    }
+
+    const availability = getAmapAvailability(nodes);
+    if (!availability.usable) {
+      renderAmapUnavailable(nodes, availability.reason);
+      return;
+    }
+
+    const token = amapState.renderToken + 1;
+    amapState.renderToken = token;
+    renderAmapNodeMap(nodes, token).catch((error) => {
+      console.warn("[dashboard] amap render failed", error);
+      if (token === amapState.renderToken) {
+        renderAmapUnavailable(nodes, "高德地图加载失败，请检查网络或 Key 配置");
+      }
+    });
   }
 
   function renderTurbineTree() {
@@ -1756,7 +2230,9 @@
   }
 
   function resizeTopologyMap() {
-    // CSS-driven SVG/HTML topology does not require an imperative resize.
+    if (amapState.map?.resize) {
+      amapState.map.resize();
+    }
   }
 
   function resizeCharts() {
