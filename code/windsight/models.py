@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import secrets
 import re
 from datetime import datetime
 
@@ -35,6 +36,22 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True, nullable=False)
     password_hash = db.Column(db.String(200))
+    role = db.Column(db.String(20), nullable=False, default="user")
+
+    registered_nodes = relationship(
+        "RegisteredNode",
+        back_populates="owner",
+        cascade="all, delete-orphan",
+        passive_deletes=False,
+        lazy="selectin",
+    )
+    settings = relationship(
+        "UserSetting",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=False,
+        lazy="selectin",
+    )
 
     def set_password(self, password, config):
         is_valid, message = validate_password(password, config)
@@ -45,6 +62,39 @@ class User(UserMixin, db.Model):
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
+    @property
+    def is_admin(self):
+        return self.role == "admin"
+
+
+class RegisteredNode(db.Model):
+    __tablename__ = "registered_nodes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    node_id = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    owner_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    node_key_hash = db.Column(db.String(255), nullable=False)
+    node_key_plain = db.Column(db.String(255))
+    display_name = db.Column(db.String(120))
+    geo_lng = db.Column(db.Float)
+    geo_lat = db.Column(db.Float)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    last_seen_at = db.Column(db.DateTime)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+
+    owner = relationship("User", back_populates="registered_nodes")
+
+    @staticmethod
+    def generate_node_key():
+        return secrets.token_urlsafe(24)
+
+    def set_node_key(self, node_key):
+        self.node_key_plain = node_key
+        self.node_key_hash = generate_password_hash(node_key)
+
+    def check_node_key(self, node_key):
+        return check_password_hash(self.node_key_hash, node_key)
+
 
 class SystemConfig(db.Model):
     __tablename__ = "system_config"
@@ -54,6 +104,60 @@ class SystemConfig(db.Model):
     value = db.Column(db.Text)
     description = db.Column(db.String(200))
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class UserSetting(db.Model):
+    __tablename__ = "user_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    key = db.Column(db.String(100), nullable=False, index=True)
+    value = db.Column(db.Text)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="settings")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "key", name="uq_user_settings_user_key"),
+    )
+
+
+class RegistrationInvite(db.Model):
+    __tablename__ = "registration_invites"
+
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(32), unique=True, nullable=False, index=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False, index=True)
+    used_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    used_at = db.Column(db.DateTime)
+    revoked_at = db.Column(db.DateTime)
+
+    created_by = relationship("User", foreign_keys=[created_by_user_id])
+    used_by = relationship("User", foreign_keys=[used_by_user_id])
+
+    @staticmethod
+    def normalize_code(code):
+        return str(code or "").strip().upper()
+
+    @staticmethod
+    def generate_code(length: int = 16):
+        alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+        return "".join(secrets.choice(alphabet) for _ in range(max(8, int(length or 16))))
+
+    def status(self, now: datetime | None = None):
+        now = now or datetime.utcnow()
+        if self.used_at:
+            return "used"
+        if self.revoked_at:
+            return "revoked"
+        if self.expires_at and self.expires_at < now:
+            return "expired"
+        return "available"
+
+    def is_available(self, now: datetime | None = None):
+        return self.status(now) == "available"
 
 
 class NodeData(db.Model):

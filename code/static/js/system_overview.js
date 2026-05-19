@@ -60,6 +60,59 @@
     return "离线";
   }
 
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function formatUploadTime(value) {
+    if (!value) {
+      return "--";
+    }
+    const raw = String(value);
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) {
+      return raw;
+    }
+    const pad = (number) => String(number).padStart(2, "0");
+    return [
+      `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}`,
+      `${pad(parsed.getHours())}:${pad(parsed.getMinutes())}:${pad(parsed.getSeconds())}`,
+    ].join(" ");
+  }
+
+  function renderNodeRow(node) {
+    const nodeId = node.node_id || "";
+    const meta = getNodeMeta(nodeId);
+    const status = getNodeStatus(node);
+    const statusText = statusLabel(status);
+    const turbineCount = Number.isFinite(Number(node.turbine_count)) ? Number(node.turbine_count) : 0;
+    const lastUpload = formatUploadTime(node.last_upload);
+    const ownerText = node.owner_username ? ` · ${node.owner_username}` : "";
+    const idLine = meta.displayName && meta.displayName !== nodeId ? `<small>${escapeHtml(nodeId)}</small>` : "";
+
+    return `
+      <button class="node-status-row status-${status}" type="button" data-node-id="${escapeHtml(nodeId)}">
+        <span class="node-status-main">
+          <strong>${escapeHtml(meta.displayName)}</strong>
+          ${idLine}
+        </span>
+        <span class="node-status-zone">${escapeHtml(meta.zoneLabel)}${escapeHtml(ownerText)}</span>
+        <span class="node-status-pill ${status}">
+          <span class="state-dot ${status === "online" ? "is-online" : status === "fault" ? "is-fault" : ""}"></span>
+          ${statusText}
+        </span>
+        <span class="node-status-number">${turbineCount}<small> 台</small></span>
+        <span class="node-status-time">${escapeHtml(lastUpload)}</span>
+        <span class="node-status-action">进入实时监测</span>
+      </button>
+    `;
+  }
+
   function renderNodes(nodes) {
     const list = Array.isArray(nodes) ? nodes : [];
     const onlyOnline = !!(elOnlyOnlineSwitch && elOnlyOnlineSwitch.checked);
@@ -67,49 +120,23 @@
 
     if (visibleNodes.length === 0) {
       elNodeStatusGrid.innerHTML = "";
+      elNodeStatusEmpty.textContent = onlyOnline ? "暂无在线节点" : "暂无可展示节点";
       elNodeStatusEmpty.classList.remove("d-none");
       return;
     }
 
     elNodeStatusEmpty.classList.add("d-none");
-    elNodeStatusGrid.innerHTML = visibleNodes
-      .map((node) => {
-        const meta = getNodeMeta(node.node_id);
-        const status = getNodeStatus(node);
-        return `
-          <button class="node-matrix-card status-${status}" type="button" data-node-id="${node.node_id}">
-            <div class="node-matrix-head">
-              <div>
-                <div class="node-matrix-title">${meta.displayName}</div>
-                <div class="node-matrix-zone">${meta.zoneLabel} · ${node.node_id}</div>
-              </div>
-              <span class="node-matrix-badge ${status}">
-                <span class="state-dot ${status === "online" ? "is-online" : status === "fault" ? "is-fault" : ""}"></span>
-                ${statusLabel(status)}
-              </span>
-            </div>
-            <div class="node-matrix-metrics">
-              <div class="node-matrix-metric">
-                <span class="node-metric-label">风机数量</span>
-                <span class="node-metric-value">${node.turbine_count || 0}</span>
-              </div>
-              <div class="node-matrix-metric">
-                <span class="node-metric-label">最近上报</span>
-                <span class="node-metric-value">${node.last_upload || "--"}</span>
-              </div>
-              <div class="node-matrix-metric">
-                <span class="node-metric-label">节点状态</span>
-                <span class="node-metric-value">${statusLabel(status)}</span>
-              </div>
-              <div class="node-matrix-metric">
-                <span class="node-metric-label">动作</span>
-                <span class="node-metric-value">进入实时监测</span>
-              </div>
-            </div>
-          </button>
-        `;
-      })
-      .join("");
+    elNodeStatusGrid.innerHTML = `
+      <div class="node-status-table-head" aria-hidden="true">
+        <span>节点</span>
+        <span>区域 / 归属</span>
+        <span>状态</span>
+        <span>风机</span>
+        <span>最近上报</span>
+        <span>操作</span>
+      </div>
+      ${visibleNodes.map(renderNodeRow).join("")}
+    `;
 
     elNodeStatusGrid.querySelectorAll("[data-node-id]").forEach((button) => {
       button.addEventListener("click", () => {
@@ -128,7 +155,7 @@
     setText(elStatOnline, stats.online_nodes ?? 0);
     setText(elStatTotal, stats.total_nodes ?? 0);
     setText(elStat24h, stats.records_24h ?? 0);
-    setText(elStatLatest, stats.latest_upload || "--");
+    setText(elStatLatest, stats.latest_upload ? formatUploadTime(stats.latest_upload) : "--");
     setText(elStatRecords, stats.total_records ?? 0);
     setText(elStatDb, typeof stats.database_size_mb === "number" ? stats.database_size_mb.toFixed(2) : "0.00");
     setText(elStatTimeout, stats.node_timeout_sec ?? "--");

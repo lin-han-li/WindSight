@@ -4,80 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>WindSight Mini Simulator</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
-    <style>
-      :root {
-        --sidebar-dark: #1e293b;
-        --sidebar-dark-hover: #334155;
-        --primary-blue: #2563eb;
-      }
-      body {
-        font-family: "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: #ffffff;
-        color: #1f2937;
-      }
-      .sidebar {
-        position: fixed;
-        left: 0;
-        top: 0;
-        width: 260px;
-        height: 100vh;
-        background: var(--sidebar-dark);
-        color: #fff;
-        display: flex;
-        flex-direction: column;
-      }
-      .sidebar-header {
-        padding: 24px 20px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      }
-      .sidebar-logo {
-        width: 40px;
-        height: 40px;
-        background: var(--primary-blue);
-        border-radius: 8px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 20px;
-        font-weight: 800;
-        margin-bottom: 12px;
-      }
-      .sidebar-footer {
-        margin-top: auto;
-        padding: 16px 20px;
-        border-top: 1px solid rgba(255, 255, 255, 0.1);
-        font-size: 12px;
-        color: rgba(255, 255, 255, 0.75);
-      }
-      .main-content {
-        margin-left: 260px;
-        min-height: 100vh;
-      }
-      .topbar {
-        background: #ffffff;
-        border-bottom: 1px solid #e5e7eb;
-        padding: 16px 32px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-      }
-      .content-wrap {
-        padding: 24px 32px;
-      }
-      pre.ws-pre {
-        background: #0f172a;
-        color: #e2e8f0;
-        padding: 12px;
-        border-radius: 8px;
-        overflow-x: auto;
-        min-height: 260px;
-        margin-bottom: 0;
-        white-space: pre-wrap;
-      }
-    </style>
+    <link rel="stylesheet" href="/static/sim_ui.css" />
   </head>
   <body
     data-default-node-id="{{ default_node_id }}"
@@ -87,110 +14,126 @@
     data-sim-ui-host="{{ sim_ui_host }}"
     data-sim-ui-port="{{ sim_ui_port }}"
   >
-    <aside class="sidebar">
-      <div class="sidebar-header">
-        <div class="sidebar-logo">W</div>
-        <div class="fw-bold">WindSight Mini</div>
-        <div class="small text-white-50 mt-1">手动上报模拟器</div>
-      </div>
-      <div class="sidebar-footer">
-        新协议模板:
-        <div class="mt-2"><code>{"node_id","sub","001"...}</code></div>
-      </div>
-    </aside>
-
-    <main class="main-content">
-      <div class="topbar">
-        <div>
-          <div class="fw-bold fs-5">手动上报模拟器</div>
-          <div class="text-muted small">默认地址: http://{{ sim_ui_host }}:{{ sim_ui_port }}</div>
-        </div>
-        <span class="badge text-bg-secondary" id="uiStatus">就绪</span>
-      </div>
-
-      <div class="content-wrap">
-        <div class="row g-4">
-          <div class="col-lg-5">
-            <div class="card mb-4">
-              <div class="card-header d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-gear me-2"></i>目标配置</span>
-                <button class="btn btn-outline-secondary btn-sm" id="btnSaveTarget" type="button">保存到本机</button>
-              </div>
-              <div class="card-body">
-                <div class="row g-2">
-                  <div class="col-4">
-                    <label class="form-label small text-muted fw-bold" for="scheme">协议</label>
-                    <select class="form-select" id="scheme">
-                      <option value="http">http</option>
-                      <option value="https">https</option>
-                    </select>
-                  </div>
-                  <div class="col-8">
-                    <label class="form-label small text-muted fw-bold" for="host">目标 IP / 域名</label>
-                    <input class="form-control" id="host" />
-                  </div>
-                  <div class="col-4">
-                    <label class="form-label small text-muted fw-bold" for="port">端口</label>
-                    <input class="form-control" id="port" type="number" min="1" max="65535" />
-                  </div>
-                  <div class="col-8">
-                    <label class="form-label small text-muted fw-bold" for="path">路径</label>
-                    <input class="form-control" id="path" placeholder="/api/upload" />
-                  </div>
-                </div>
-                <div class="mt-3">
-                  <div class="text-muted small fw-bold mb-1">最终 URL</div>
-                  <div class="p-2 border rounded-3 bg-light">
-                    <code id="targetUrlPreview">-</code>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="card">
-              <div class="card-header d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-braces me-2"></i>请求 JSON</span>
-                <div class="d-flex gap-2">
-                  <button class="btn btn-outline-primary btn-sm" id="btnFillNodeOnly" type="button">填充头部</button>
-                  <button class="btn btn-outline-primary btn-sm" id="btnFill32" type="button">填充示例包</button>
-                </div>
-              </div>
-              <div class="card-body">
-                <div class="row g-2 mb-3">
-                  <div class="col-8">
-                    <label class="form-label small text-muted fw-bold" for="nodeId">node_id</label>
-                    <input class="form-control" id="nodeId" placeholder="例如 WIN_001" />
-                  </div>
-                  <div class="col-4">
-                    <label class="form-label small text-muted fw-bold" for="subCount">sub</label>
-                    <input class="form-control" id="subCount" type="number" min="1" max="64" value="4" />
-                  </div>
-                </div>
-                <label class="form-label small text-muted fw-bold" for="payloadJson">JSON</label>
-                <textarea class="form-control" id="payloadJson" rows="14" spellcheck="false"></textarea>
-                <div class="d-flex justify-content-between align-items-center mt-3">
-                  <div class="text-muted small">保留自由编辑，但快捷填充会按新协议生成 `001..sub` 四指标数组。</div>
-                  <button class="btn btn-danger" id="btnSend" type="button">
-                    <i class="bi bi-send-fill me-1"></i>发送
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="col-lg-7">
-            <div class="card h-100">
-              <div class="card-header d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-terminal me-2"></i>发送结果</span>
-                <button class="btn btn-outline-danger btn-sm" id="btnClearLog" type="button">清空</button>
-              </div>
-              <div class="card-body">
-                <pre class="ws-pre" id="resultLog">等待操作...</pre>
-              </div>
-            </div>
+    <main class="sim-shell">
+      <aside class="sim-rail" aria-label="模拟器状态">
+        <div class="brand-block">
+          <div class="brand-mark">W</div>
+          <div>
+            <strong>WindSight</strong>
+            <span>手动上报模拟器</span>
           </div>
         </div>
-      </div>
+        <div class="rail-section">
+          <span class="rail-label">模拟器地址</span>
+          <strong>http://{{ sim_ui_host }}:{{ sim_ui_port }}</strong>
+        </div>
+        <div class="rail-section">
+          <span class="rail-label">协议模板</span>
+          <code>{"node_id","sub","001"...}</code>
+        </div>
+        <div class="rail-section">
+          <span class="rail-label">发送状态</span>
+          <strong id="uiStatus" class="status-pill" data-level="idle">就绪</strong>
+        </div>
+      </aside>
+
+      <section class="sim-workbench">
+        <header class="sim-header">
+          <div>
+            <p class="eyebrow">Manual Upload Console</p>
+            <h1>上报检查工作台</h1>
+          </div>
+          <div class="header-actions">
+            <button class="ghost-button" id="btnSaveTarget" type="button">保存配置</button>
+            <button class="primary-button" id="btnSend" type="button">发送</button>
+            <button class="ghost-button" id="btnResend" type="button" disabled>重发上一条</button>
+          </div>
+        </header>
+
+        <section class="target-strip" aria-label="目标配置">
+          <div class="field compact">
+            <label for="scheme">协议</label>
+            <select id="scheme">
+              <option value="http">http</option>
+              <option value="https">https</option>
+            </select>
+          </div>
+          <div class="field grow">
+            <label for="host">目标 IP / 域名</label>
+            <input id="host" autocomplete="off" />
+          </div>
+          <div class="field compact">
+            <label for="port">端口</label>
+            <input id="port" type="number" min="1" max="65535" />
+          </div>
+          <div class="field grow">
+            <label for="path">路径</label>
+            <input id="path" placeholder="/api/upload" autocomplete="off" />
+          </div>
+          <div class="field wide">
+            <label for="nodeKey">节点密钥 Header</label>
+            <input id="nodeKey" placeholder="注册节点后生成的 X-WindSight-Node-Key" autocomplete="off" />
+          </div>
+          <div class="target-preview">
+            <span>最终 URL</span>
+            <code id="targetUrlPreview">-</code>
+          </div>
+        </section>
+
+        <section class="sim-grid">
+          <section class="panel payload-panel">
+            <div class="panel-head">
+              <div>
+                <h2>请求 JSON</h2>
+                <p id="payloadSummary">等待生成 payload</p>
+              </div>
+              <span id="jsonState" class="state-pill" data-level="idle">未校验</span>
+            </div>
+
+            <div class="generator-row">
+              <div class="field">
+                <label for="nodeId">node_id</label>
+                <input id="nodeId" placeholder="例如 WIN_001" autocomplete="off" />
+              </div>
+              <div class="field">
+                <label for="subCount">sub</label>
+                <input id="subCount" type="number" min="1" max="64" value="4" />
+              </div>
+              <button class="secondary-button" id="btnFillNodeOnly" type="button">填充头部</button>
+              <button class="secondary-button" id="btnFill32" type="button">生成示例包</button>
+            </div>
+
+            <div class="editor-toolbar">
+              <button id="btnFormatJson" type="button">格式化</button>
+              <button id="btnMinifyJson" type="button">压缩</button>
+              <button id="btnCopyJson" type="button">复制 JSON</button>
+            </div>
+            <textarea id="payloadJson" spellcheck="false" aria-label="请求 JSON"></textarea>
+          </section>
+
+          <section class="panel result-panel">
+            <div class="panel-head">
+              <div>
+                <h2>发送结果</h2>
+                <p id="responseMeta">等待操作</p>
+              </div>
+              <button class="danger-link" id="btnClearLog" type="button">清空记录</button>
+            </div>
+            <div class="response-box">
+              <pre id="responseBody">等待操作...</pre>
+            </div>
+            <div class="response-json-box">
+              <span>响应 JSON</span>
+              <pre id="responseJson">无</pre>
+            </div>
+            <div class="history-head">
+              <span>最近发送</span>
+              <small>点击记录可恢复 payload 和目标配置</small>
+            </div>
+            <div id="historyList" class="history-list"></div>
+          </section>
+        </section>
+      </section>
     </main>
 
     <script src="/static/sim_ui.js"></script>

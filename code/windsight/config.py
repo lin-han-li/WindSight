@@ -88,6 +88,11 @@ class Config:
     PASSWORD_REQUIRE_UPPERCASE = os.environ.get('PASSWORD_REQUIRE_UPPERCASE', 'True').lower() == 'true'
     PASSWORD_REQUIRE_DIGITS = os.environ.get('PASSWORD_REQUIRE_DIGITS', 'True').lower() == 'true'
     PASSWORD_REQUIRE_SPECIAL = os.environ.get('PASSWORD_REQUIRE_SPECIAL', 'False').lower() == 'true'
+
+    # ==================== 普通用户注册配置（旧版共享邀请码已废弃）====================
+    # 保留该读取仅为了兼容旧配置文件；实际注册使用管理员生成的一次性邀请码表。
+    USER_INVITE_CODE = os.environ.get('WINDSIGHT_USER_INVITE_CODE', '').strip()
+    DEFAULT_ADMIN_USERNAME = (os.environ.get('WINDSIGHT_DEFAULT_ADMIN_USERNAME', 'WindSight') or 'WindSight').strip()
     
     # ==================== 日志配置 ====================
     LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')

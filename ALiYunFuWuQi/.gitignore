@@ -2,5 +2,6 @@
 *.key
 *.ppk
 id_*
+ssh_config
 known_hosts*
 *.log

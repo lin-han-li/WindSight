@@ -71,6 +71,152 @@
   color: var(--dash-muted);
 }
 
+.device-context-bar {
+  display: grid;
+  grid-template-columns: minmax(150px, 230px) minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 0;
+  margin-bottom: 1rem;
+  padding: 8px 10px;
+  border: 1px solid var(--biz-border, var(--dash-border));
+  border-radius: 14px;
+  background: var(--biz-surface, rgba(255, 255, 255, 0.82));
+  box-shadow: var(--biz-shadow, var(--dash-shadow));
+}
+
+.device-context-head,
+.device-context-meta,
+.device-context-field,
+.device-context-turbines {
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.device-context-head {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 14px 6px 2px;
+  border-right: 1px solid var(--biz-border, var(--dash-border));
+}
+
+.device-context-head span,
+.device-context-field span,
+.device-context-turbines > span,
+.device-context-meta span {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--biz-muted, var(--dash-muted));
+}
+
+.device-context-head strong {
+  color: var(--biz-text, var(--dash-text));
+  font-size: 15px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-context-head small {
+  color: var(--biz-muted, var(--dash-muted));
+  font-size: 12px;
+}
+
+.device-context-fields {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.35fr) minmax(300px, 1fr) minmax(340px, 0.9fr);
+  gap: 0;
+  min-width: 0;
+}
+
+.device-context-bar[data-allow-turbine="false"] .device-context-fields {
+  grid-template-columns: minmax(160px, 0.45fr) minmax(360px, 1fr);
+}
+
+.device-context-field,
+.device-context-turbines {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-right: 1px solid var(--biz-border, var(--dash-border));
+}
+
+.device-context-field select {
+  width: 100%;
+  height: 30px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--biz-text, var(--dash-text));
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.device-context-field select option {
+  color: #102033;
+}
+
+.device-context-turbine-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+  min-height: 30px;
+}
+
+.device-context-turbine {
+  min-width: 38px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--biz-border, var(--dash-border));
+  border-radius: 7px;
+  background: transparent;
+  color: var(--biz-text, var(--dash-text));
+  font-family: "Roboto Mono", "Microsoft YaHei", monospace;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.device-context-turbine:hover,
+.device-context-turbine.is-active {
+  border-color: var(--biz-border-strong, var(--dash-border-strong));
+  background: var(--biz-selected, rgba(47, 111, 237, 0.12));
+  color: var(--biz-blue-fg, var(--dash-accent));
+}
+
+.device-context-empty {
+  color: var(--biz-muted, var(--dash-muted));
+  font-size: 12px;
+}
+
+.device-context-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 188px;
+  padding: 6px 2px 6px 14px;
+  border-left: 1px solid var(--biz-border, var(--dash-border));
+}
+
+.device-context-meta strong {
+  color: var(--biz-text, var(--dash-text));
+  font-size: 12px;
+}
+
+.device-context-bar.is-user-scope .device-context-user-field {
+  display: none;
+}
+
+.device-context-bar.is-user-scope .device-context-fields {
+  grid-template-columns: minmax(220px, 0.65fr) minmax(280px, 1.35fr);
+}
+
 .page-hero,
 .monitor-topbar,
 .system-hero {
@@ -225,6 +371,66 @@
   visibility: visible;
   pointer-events: auto;
   transform: translateY(0);
+}
+
+.dashboard-page.is-wave-only .monitor-shell,
+.dashboard-page.is-wave-only.page-overview .monitor-shell {
+  min-height: auto;
+}
+
+.dashboard-page.is-wave-only #map-view,
+.dashboard-page.is-wave-only #tree-view,
+.dashboard-page.is-wave-only #btnBackToMap,
+.dashboard-page.is-wave-only #btnBackToTree {
+  display: none !important;
+}
+
+.dashboard-page.is-wave-only #chart-view {
+  position: relative;
+  inset: auto;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: none;
+}
+
+.dashboard-page.is-wave-only .monitor-topbar {
+  min-height: auto;
+  margin-bottom: 0.75rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 16px;
+}
+
+.dashboard-page.is-wave-only .monitor-topbar-copy,
+.dashboard-page.is-wave-only .chart-stage-hero {
+  display: none !important;
+}
+
+.dashboard-page.is-wave-only .monitor-topbar-actions {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.dashboard-page.is-wave-only .topbar-chip-group {
+  gap: 0.48rem;
+}
+
+.dashboard-page.is-wave-only .topbar-chip {
+  min-height: 32px;
+  padding: 0.42rem 0.72rem;
+  font-size: 0.82rem;
+}
+
+.dashboard-page.is-wave-only .chart-stage {
+  gap: 0.85rem;
+}
+
+.dashboard-page.is-wave-only .metric-summary-grid {
+  gap: 0.75rem;
+}
+
+.dashboard-page.is-wave-only .metric-summary-card {
+  min-height: 132px;
 }
 
 .overview-detail-stack {
@@ -469,6 +675,30 @@
   flex-wrap: wrap;
   gap: 0.65rem;
   margin-top: 1rem;
+}
+
+.history-link-hint {
+  min-height: 1.2rem;
+  margin-top: 0.75rem;
+  color: var(--dash-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.history-link-hint[hidden] {
+  display: none;
+}
+
+.history-link-hint[data-tone="success"] {
+  color: var(--dash-accent);
+}
+
+.history-link-hint[data-tone="warning"] {
+  color: #b97705;
+}
+
+.history-link-hint[data-tone="error"] {
+  color: #dc2626;
 }
 
 .detail-content {
@@ -1513,6 +1743,20 @@
 }
 
 @media (max-width: 991.98px) {
+  .device-context-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .device-context-fields,
+  .device-context-bar[data-allow-turbine="false"] .device-context-fields,
+  .device-context-bar.is-user-scope .device-context-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .device-context-meta {
+    justify-content: flex-start;
+  }
+
   .monitor-topbar,
   .page-hero,
   .system-hero {
@@ -3571,6 +3815,69 @@ body.windsight-shell .dashboard-page .amap-map-meta strong {
   font-size: 0.82rem;
 }
 
+body.windsight-shell .dashboard-page .amap-location-panel {
+  position: absolute;
+  left: 28px;
+  right: 28px;
+  bottom: 24px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  padding: 0.68rem 0.78rem;
+  border-radius: 16px;
+  border: 1px solid rgba(0, 243, 255, 0.18);
+  background: rgba(6, 16, 31, 0.78);
+  color: rgba(205, 229, 255, 0.78);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(12px);
+  pointer-events: none;
+}
+
+body.windsight-shell .dashboard-page .amap-location-status {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  white-space: nowrap;
+}
+
+body.windsight-shell .dashboard-page .amap-location-status strong {
+  color: #eaffff;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+body.windsight-shell .dashboard-page .amap-location-status span {
+  color: rgba(205, 229, 255, 0.62);
+  font-size: 0.72rem;
+}
+
+body.windsight-shell .dashboard-page .amap-location-alert {
+  padding: 0.34rem 0.52rem;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.16);
+  color: #fde68a;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+body.windsight-shell .dashboard-page .amap-location-missing {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.36rem;
+  flex-wrap: wrap;
+}
+
+body.windsight-shell .dashboard-page .amap-location-missing span {
+  padding: 0.22rem 0.44rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  color: rgba(205, 229, 255, 0.7);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
 body.windsight-shell .dashboard-page .amap-unavailable-shell {
   position: relative;
   display: grid;
@@ -3854,6 +4161,36 @@ body.windsight-shell[data-theme="light"] .dashboard-page .amap-map-meta strong {
   color: #22384d;
 }
 
+html[data-theme="light"] body.windsight-shell .dashboard-page .amap-location-panel,
+body.windsight-shell[data-theme="light"] .dashboard-page .amap-location-panel {
+  border-color: rgba(94, 121, 156, 0.2);
+  background: rgba(255, 255, 255, 0.86);
+  color: #5f748c;
+  box-shadow: 0 18px 42px rgba(94, 121, 156, 0.16);
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .amap-location-status strong,
+body.windsight-shell[data-theme="light"] .dashboard-page .amap-location-status strong {
+  color: #22384d;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .amap-location-status span,
+body.windsight-shell[data-theme="light"] .dashboard-page .amap-location-status span {
+  color: #6f839d;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .amap-location-alert,
+body.windsight-shell[data-theme="light"] .dashboard-page .amap-location-alert {
+  background: rgba(245, 158, 11, 0.16);
+  color: #9a6408;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page .amap-location-missing span,
+body.windsight-shell[data-theme="light"] .dashboard-page .amap-location-missing span {
+  border-color: rgba(94, 121, 156, 0.18);
+  color: #5f748c;
+}
+
 html[data-theme="light"] body.windsight-shell .dashboard-page .topology-map-meta small,
 body.windsight-shell[data-theme="light"] .dashboard-page .topology-map-meta small {
   color: #6f839d;
@@ -3874,4 +4211,944 @@ body.windsight-shell[data-theme="light"] .dashboard-page .amap-node-caption stro
 html[data-theme="light"] body.windsight-shell .dashboard-page .amap-node-caption small,
 body.windsight-shell[data-theme="light"] .dashboard-page .amap-node-caption small {
   color: #6f839d;
+}
+
+/* System overview console layout */
+body.windsight-shell .system-overview-console {
+  width: 100%;
+  max-width: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0.35rem 0.6rem 1.5rem;
+  color: var(--shell-text);
+}
+
+body.windsight-shell .system-overview-command {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.05rem 1.25rem;
+  border: 1px solid var(--shell-topbar-border);
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgba(0, 243, 255, 0.08), transparent 44%),
+    var(--shell-surface-soft);
+}
+
+body.windsight-shell .system-command-copy {
+  min-width: 0;
+}
+
+body.windsight-shell .system-command-eyebrow {
+  margin-bottom: 0.28rem;
+  color: var(--shell-accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+body.windsight-shell .system-command-copy h2 {
+  margin: 0;
+  color: var(--shell-text);
+  font-size: 1.38rem;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+body.windsight-shell .system-command-copy p {
+  margin: 0.25rem 0 0;
+  color: var(--shell-muted);
+  font-size: 0.88rem;
+}
+
+body.windsight-shell .system-command-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+body.windsight-shell .system-command-button,
+body.windsight-shell .system-refresh-button {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.9rem;
+  border: 1px solid var(--shell-control-border);
+  border-radius: 8px;
+  background: var(--shell-control-bg);
+  color: var(--shell-text);
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+body.windsight-shell .system-command-button:hover,
+body.windsight-shell .system-refresh-button:hover {
+  border-color: var(--shell-nav-active-border);
+  color: var(--shell-accent);
+}
+
+body.windsight-shell .system-command-button.primary {
+  border-color: var(--shell-accent);
+  background: rgba(0, 243, 255, 0.12);
+  color: var(--shell-text);
+}
+
+body.windsight-shell .system-health-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--shell-topbar-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--shell-surface-soft);
+}
+
+body.windsight-shell .system-health-item {
+  position: relative;
+  min-width: 0;
+  min-height: 104px;
+  padding: 1rem 1.15rem 0.9rem 1.25rem;
+  display: grid;
+  align-content: center;
+  gap: 0.32rem;
+  border: 0;
+  border-right: 1px solid var(--shell-topbar-border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--shell-text);
+  text-align: left;
+}
+
+body.windsight-shell .system-health-item:last-child {
+  border-right: 0;
+}
+
+body.windsight-shell .system-health-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--health-accent, var(--shell-accent));
+}
+
+body.windsight-shell .system-health-item:hover {
+  background: var(--shell-nav-hover-bg);
+}
+
+body.windsight-shell .system-health-item.accent-blue {
+  --health-accent: #3b82f6;
+}
+
+body.windsight-shell .system-health-item.accent-cyan {
+  --health-accent: #06b6d4;
+}
+
+body.windsight-shell .system-health-item.accent-amber {
+  --health-accent: #f59e0b;
+}
+
+body.windsight-shell .system-health-item.accent-green {
+  --health-accent: #10b981;
+}
+
+body.windsight-shell .system-health-label {
+  color: var(--shell-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+body.windsight-shell .system-health-item strong {
+  min-width: 0;
+  color: var(--health-accent, var(--shell-accent));
+  font-size: 1.7rem;
+  font-weight: 900;
+  line-height: 1.15;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+body.windsight-shell .system-health-item strong em {
+  color: var(--shell-muted);
+  font-size: 0.82rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
+body.windsight-shell .system-health-item .system-health-time {
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+body.windsight-shell .system-health-item small {
+  color: var(--shell-muted);
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+body.windsight-shell .system-node-workbench {
+  min-height: 360px;
+  border: 1px solid var(--shell-topbar-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--shell-surface-soft);
+}
+
+body.windsight-shell .system-node-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--shell-topbar-border);
+  background: var(--shell-surface-strong);
+  background: color-mix(in srgb, var(--shell-surface-strong) 72%, transparent);
+}
+
+body.windsight-shell .system-node-head h3 {
+  margin: 0;
+  color: var(--shell-text);
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+body.windsight-shell .system-node-head p {
+  margin: 0.18rem 0 0;
+  color: var(--shell-muted);
+  font-size: 0.78rem;
+}
+
+body.windsight-shell .system-wall-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+body.windsight-shell .system-toggle {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.34rem 0.7rem;
+  border: 1px solid var(--shell-control-border);
+  border-radius: 8px;
+  background: var(--shell-control-bg);
+  color: var(--shell-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+body.windsight-shell .system-toggle input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--shell-accent);
+}
+
+body.windsight-shell .system-node-body {
+  padding: 0;
+}
+
+body.windsight-shell .node-status-list {
+  width: 100%;
+  overflow-x: auto;
+}
+
+body.windsight-shell .node-status-table-head,
+body.windsight-shell .node-status-row {
+  min-width: 940px;
+  display: grid;
+  grid-template-columns: minmax(180px, 1.25fr) minmax(170px, 1fr) 116px 90px minmax(180px, 1fr) 132px;
+  align-items: center;
+  column-gap: 1rem;
+}
+
+body.windsight-shell .node-status-table-head {
+  padding: 0.72rem 1.25rem;
+  border-bottom: 1px solid var(--shell-topbar-border);
+  color: var(--shell-muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+body.windsight-shell .node-status-row {
+  width: 100%;
+  padding: 0.86rem 1.25rem;
+  border: 0;
+  border-bottom: 1px solid rgba(130, 160, 188, 0.14);
+  background: transparent;
+  color: var(--shell-text);
+  text-align: left;
+}
+
+body.windsight-shell .node-status-row:last-child {
+  border-bottom: 0;
+}
+
+body.windsight-shell .node-status-row:hover {
+  background: var(--shell-nav-hover-bg);
+}
+
+body.windsight-shell .node-status-row.status-fault {
+  box-shadow: inset 4px 0 0 var(--shell-danger);
+}
+
+body.windsight-shell .node-status-row.status-online {
+  box-shadow: inset 4px 0 0 var(--shell-success);
+}
+
+body.windsight-shell .node-status-row.status-offline {
+  box-shadow: inset 4px 0 0 rgba(130, 160, 188, 0.42);
+}
+
+body.windsight-shell .node-status-main,
+body.windsight-shell .node-status-zone,
+body.windsight-shell .node-status-time,
+body.windsight-shell .node-status-action {
+  min-width: 0;
+}
+
+body.windsight-shell .node-status-main {
+  display: grid;
+  gap: 0.18rem;
+}
+
+body.windsight-shell .node-status-main strong {
+  color: var(--shell-text);
+  font-size: 0.9rem;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.windsight-shell .node-status-main small,
+body.windsight-shell .node-status-zone,
+body.windsight-shell .node-status-time {
+  color: var(--shell-muted);
+  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.windsight-shell .node-status-pill {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  padding: 0.3rem 0.62rem;
+  border-radius: 999px;
+  border: 1px solid var(--shell-control-border);
+  background: var(--shell-control-bg);
+  color: var(--shell-muted);
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+body.windsight-shell .node-status-pill.online {
+  border-color: rgba(16, 185, 129, 0.38);
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--shell-success);
+}
+
+body.windsight-shell .node-status-pill.fault {
+  border-color: rgba(239, 68, 68, 0.38);
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--shell-danger);
+}
+
+body.windsight-shell .node-status-number {
+  color: var(--shell-text);
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+body.windsight-shell .node-status-number small {
+  color: var(--shell-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+body.windsight-shell .node-status-action {
+  justify-self: start;
+  color: var(--shell-accent);
+  font-size: 0.78rem;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.windsight-shell .node-wall-empty,
+body.windsight-shell .node-matrix-skeleton {
+  min-height: 260px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--shell-muted);
+  font-size: 0.9rem;
+}
+
+html[data-theme="light"] body.windsight-shell .system-overview-command,
+body.windsight-shell[data-theme="light"] .system-overview-command,
+html[data-theme="light"] body.windsight-shell .system-health-strip,
+body.windsight-shell[data-theme="light"] .system-health-strip,
+html[data-theme="light"] body.windsight-shell .system-node-workbench,
+body.windsight-shell[data-theme="light"] .system-node-workbench {
+  background: rgba(255, 255, 255, 0.78);
+}
+
+html[data-theme="light"] body.windsight-shell .system-node-head,
+body.windsight-shell[data-theme="light"] .system-node-head {
+  background: rgba(241, 245, 249, 0.76);
+}
+
+@media (max-width: 1100px) {
+  body.windsight-shell .system-health-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  body.windsight-shell .system-health-item:nth-child(2) {
+    border-right: 0;
+  }
+
+  body.windsight-shell .system-health-item:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--shell-topbar-border);
+  }
+}
+
+@media (max-width: 760px) {
+  body.windsight-shell .system-overview-console {
+    padding: 0 0 1rem;
+  }
+
+  body.windsight-shell .system-overview-command,
+  body.windsight-shell .system-node-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  body.windsight-shell .system-command-actions,
+  body.windsight-shell .system-wall-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  body.windsight-shell .system-health-strip {
+    grid-template-columns: 1fr;
+  }
+
+  body.windsight-shell .system-health-item,
+  body.windsight-shell .system-health-item:nth-child(2) {
+    border-right: 0;
+    border-bottom: 1px solid var(--shell-topbar-border);
+  }
+
+  body.windsight-shell .system-health-item:last-child {
+    border-bottom: 0;
+  }
+}
+
+/* 2026-05-17 chart-first operations workbench for monitor and overview. */
+body.windsight-shell .dashboard-page.page-monitor,
+body.windsight-shell .dashboard-page.page-overview {
+  --ops-surface: color-mix(in srgb, var(--shell-surface, #ffffff) 88%, transparent);
+  --ops-surface-strong: color-mix(in srgb, var(--shell-surface-strong, #f1f5f9) 92%, transparent);
+  --ops-border: var(--shell-topbar-border, var(--dash-border));
+  --ops-text: var(--shell-text, var(--dash-text));
+  --ops-muted: var(--shell-muted, var(--dash-muted));
+  --ops-accent: var(--shell-accent, var(--dash-accent));
+}
+
+body.windsight-shell .dashboard-page.page-monitor.is-wave-only .monitor-shell,
+body.windsight-shell .dashboard-page.page-overview.is-wave-only .monitor-shell {
+  min-height: auto !important;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .chart-stage,
+body.windsight-shell .dashboard-page.page-overview .chart-stage {
+  gap: 0.55rem !important;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .ops-context-bar,
+body.windsight-shell .dashboard-page.page-overview .ops-context-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  min-height: 50px;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--ops-border);
+  border-radius: 8px;
+  background: var(--ops-surface);
+  box-shadow: none;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .ops-context-main,
+body.windsight-shell .dashboard-page.page-overview .ops-context-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .ops-context-label,
+body.windsight-shell .dashboard-page.page-overview .ops-context-label {
+  flex: 0 0 auto;
+  padding: 0.26rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ops-accent) 28%, transparent);
+  color: var(--ops-accent);
+  background: color-mix(in srgb, var(--ops-accent) 9%, transparent);
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .ops-context-title-row,
+body.windsight-shell .dashboard-page.page-overview .ops-context-title-row {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .ops-context-title-row strong,
+body.windsight-shell .dashboard-page.page-overview .ops-context-title-row strong {
+  min-width: 0;
+  color: var(--ops-text);
+  font-size: 1rem;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .ops-context-title-row span,
+body.windsight-shell .dashboard-page.page-overview .ops-context-title-row span {
+  min-width: 0;
+  color: var(--ops-muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .ops-context-meta,
+body.windsight-shell .dashboard-page.page-overview .ops-context-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .ops-status-chip,
+body.windsight-shell .dashboard-page.page-overview .ops-status-chip,
+body.windsight-shell .dashboard-page.page-monitor .ops-last-time,
+body.windsight-shell .dashboard-page.page-overview .ops-last-time {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid var(--ops-border);
+  color: var(--ops-muted);
+  background: var(--ops-surface-strong);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .ops-last-time strong,
+body.windsight-shell .dashboard-page.page-overview .ops-last-time strong {
+  color: var(--ops-text);
+  font-weight: 900;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .ops-control-bar,
+body.windsight-shell .dashboard-page.page-overview .ops-control-bar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.55rem 0.75rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--ops-border);
+  border-radius: 8px;
+  background: var(--ops-surface);
+  box-shadow: none;
+}
+
+body.windsight-shell .dashboard-page.page-overview .ops-control-primary {
+  flex: 1 1 760px;
+  display: grid;
+  grid-template-columns: minmax(190px, 240px) minmax(220px, 1fr) minmax(220px, 1fr);
+  align-items: end;
+  gap: 0.55rem;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .ops-control-primary {
+  flex: 0 1 330px;
+  display: grid;
+  grid-template-columns: minmax(230px, 1fr);
+  align-items: end;
+  gap: 0.55rem;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .ops-control-group,
+body.windsight-shell .dashboard-page.page-overview .ops-control-group {
+  min-width: 0;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .ops-control-group .form-label,
+body.windsight-shell .dashboard-page.page-overview .ops-control-group .form-label {
+  margin-bottom: 0.25rem;
+  color: var(--ops-muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .ops-control-group .input-group,
+body.windsight-shell .dashboard-page.page-overview .ops-control-group .input-group {
+  flex-wrap: nowrap;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .ops-control-group .form-control,
+body.windsight-shell .dashboard-page.page-overview .ops-control-group .form-control {
+  min-height: 36px;
+  border-color: var(--ops-border);
+  border-radius: 7px;
+  background: var(--ops-surface-strong);
+  color: var(--ops-text);
+  font-size: 0.86rem;
+  box-shadow: none;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .ops-control-group .input-group .form-control,
+body.windsight-shell .dashboard-page.page-overview .ops-control-group .input-group .form-control {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .ops-control-group .btn,
+body.windsight-shell .dashboard-page.page-overview .ops-control-group .btn {
+  min-height: 36px;
+  padding: 0.35rem 0.75rem;
+  border-radius: 7px;
+  font-size: 0.84rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .ops-control-group .input-group .btn,
+body.windsight-shell .dashboard-page.page-overview .ops-control-group .input-group .btn {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+body.windsight-shell .dashboard-page.page-overview .ops-control-secondary {
+  flex: 1 1 400px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+body.windsight-shell .dashboard-page.page-overview .history-link-hint {
+  min-height: 0;
+  margin: 0;
+  color: var(--ops-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+body.windsight-shell .dashboard-page.page-overview .history-link-hint:empty {
+  display: none;
+}
+
+body.windsight-shell .dashboard-page.page-overview .ops-range-actions {
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-top: 0 !important;
+}
+
+body.windsight-shell .dashboard-page.page-overview .ops-range-actions .btn {
+  min-height: 32px;
+  padding: 0.28rem 0.55rem;
+  border-radius: 7px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .metric-summary-grid,
+body.windsight-shell .dashboard-page.page-overview .metric-summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 0.55rem !important;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .metric-summary-card,
+body.windsight-shell .dashboard-page.page-overview .metric-summary-card {
+  min-height: 72px !important;
+  border-radius: 8px !important;
+  border-color: var(--ops-border) !important;
+  background: var(--ops-surface) !important;
+  box-shadow: none !important;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .metric-summary-card::before,
+body.windsight-shell .dashboard-page.page-overview .metric-summary-card::before {
+  inset: 0 auto 0 0;
+  width: 3px;
+  height: auto;
+  border-radius: 8px 0 0 8px;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .metric-summary-card .card-body,
+body.windsight-shell .dashboard-page.page-overview .metric-summary-card .card-body {
+  min-height: 72px;
+  display: grid;
+  grid-template-columns: minmax(56px, auto) minmax(0, 1fr);
+  grid-template-areas:
+    "meta value"
+    "hint hint";
+  align-items: center;
+  gap: 0.1rem 0.55rem;
+  padding: 0.48rem 0.68rem 0.48rem 0.8rem !important;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .metric-meta,
+body.windsight-shell .dashboard-page.page-overview .metric-meta {
+  grid-area: meta;
+  gap: 0.42rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .metric-dot,
+body.windsight-shell .dashboard-page.page-overview .metric-dot,
+body.windsight-shell .dashboard-page.page-monitor .chart-badge,
+body.windsight-shell .dashboard-page.page-overview .chart-badge {
+  width: 9px;
+  height: 9px;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .metric-value,
+body.windsight-shell .dashboard-page.page-overview .metric-value {
+  grid-area: value;
+  justify-self: end;
+  margin-top: 0 !important;
+  max-width: 100%;
+  font-size: clamp(1.05rem, 1.3vw, 1.45rem);
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .metric-hint,
+body.windsight-shell .dashboard-page.page-overview .metric-hint {
+  grid-area: hint;
+  margin-top: 0 !important;
+  color: var(--ops-muted);
+  font-size: 0.72rem;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .detail-chart-grid,
+body.windsight-shell .dashboard-page.page-overview .detail-chart-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 0.6rem !important;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .detail-chart-card,
+body.windsight-shell .dashboard-page.page-overview .detail-chart-card {
+  min-height: 0 !important;
+  border-radius: 8px !important;
+  border-color: var(--ops-border) !important;
+  background: var(--ops-surface) !important;
+  box-shadow: none !important;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .detail-chart-card::before,
+body.windsight-shell .dashboard-page.page-overview .detail-chart-card::before {
+  height: 3px;
+  border-radius: 8px 8px 0 0;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .chart-card-head,
+body.windsight-shell .dashboard-page.page-overview .chart-card-head {
+  min-height: 34px;
+  padding: 0.56rem 0.72rem 0.32rem !important;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .chart-canvas,
+body.windsight-shell .dashboard-page.page-overview .chart-canvas {
+  height: clamp(245px, 30vh, 360px) !important;
+}
+
+body.windsight-shell .dashboard-page.page-monitor .detail-placeholder,
+body.windsight-shell .dashboard-page.page-overview .detail-placeholder {
+  min-height: 260px !important;
+  border-radius: 8px !important;
+  background: var(--ops-surface) !important;
+}
+
+html[data-theme="dark"] body.windsight-shell .dashboard-page.page-monitor .ops-context-bar,
+html[data-theme="dark"] body.windsight-shell .dashboard-page.page-overview .ops-context-bar,
+html[data-theme="dark"] body.windsight-shell .dashboard-page.page-monitor .ops-control-bar,
+html[data-theme="dark"] body.windsight-shell .dashboard-page.page-overview .ops-control-bar,
+html[data-theme="dark"] body.windsight-shell .dashboard-page.page-monitor .metric-summary-card,
+html[data-theme="dark"] body.windsight-shell .dashboard-page.page-overview .metric-summary-card,
+html[data-theme="dark"] body.windsight-shell .dashboard-page.page-monitor .detail-chart-card,
+html[data-theme="dark"] body.windsight-shell .dashboard-page.page-overview .detail-chart-card,
+body.windsight-shell[data-theme="dark"] .dashboard-page.page-monitor .ops-context-bar,
+body.windsight-shell[data-theme="dark"] .dashboard-page.page-overview .ops-context-bar,
+body.windsight-shell[data-theme="dark"] .dashboard-page.page-monitor .ops-control-bar,
+body.windsight-shell[data-theme="dark"] .dashboard-page.page-overview .ops-control-bar,
+body.windsight-shell[data-theme="dark"] .dashboard-page.page-monitor .metric-summary-card,
+body.windsight-shell[data-theme="dark"] .dashboard-page.page-overview .metric-summary-card,
+body.windsight-shell[data-theme="dark"] .dashboard-page.page-monitor .detail-chart-card,
+body.windsight-shell[data-theme="dark"] .dashboard-page.page-overview .detail-chart-card {
+  background: color-mix(in srgb, var(--shell-surface, #101828) 88%, transparent) !important;
+}
+
+html[data-theme="light"] body.windsight-shell .dashboard-page.page-monitor .ops-context-bar,
+html[data-theme="light"] body.windsight-shell .dashboard-page.page-overview .ops-context-bar,
+html[data-theme="light"] body.windsight-shell .dashboard-page.page-monitor .ops-control-bar,
+html[data-theme="light"] body.windsight-shell .dashboard-page.page-overview .ops-control-bar,
+html[data-theme="light"] body.windsight-shell .dashboard-page.page-monitor .metric-summary-card,
+html[data-theme="light"] body.windsight-shell .dashboard-page.page-overview .metric-summary-card,
+html[data-theme="light"] body.windsight-shell .dashboard-page.page-monitor .detail-chart-card,
+html[data-theme="light"] body.windsight-shell .dashboard-page.page-overview .detail-chart-card,
+body.windsight-shell[data-theme="light"] .dashboard-page.page-monitor .ops-context-bar,
+body.windsight-shell[data-theme="light"] .dashboard-page.page-overview .ops-context-bar,
+body.windsight-shell[data-theme="light"] .dashboard-page.page-monitor .ops-control-bar,
+body.windsight-shell[data-theme="light"] .dashboard-page.page-overview .ops-control-bar,
+body.windsight-shell[data-theme="light"] .dashboard-page.page-monitor .metric-summary-card,
+body.windsight-shell[data-theme="light"] .dashboard-page.page-overview .metric-summary-card,
+body.windsight-shell[data-theme="light"] .dashboard-page.page-monitor .detail-chart-card,
+body.windsight-shell[data-theme="light"] .dashboard-page.page-overview .detail-chart-card {
+  background: rgba(255, 255, 255, 0.82) !important;
+}
+
+@media (max-width: 1200px) {
+  body.windsight-shell .dashboard-page.page-monitor .metric-summary-grid,
+  body.windsight-shell .dashboard-page.page-overview .metric-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 992px) {
+  body.windsight-shell .dashboard-page.page-monitor .ops-context-bar,
+  body.windsight-shell .dashboard-page.page-overview .ops-context-bar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  body.windsight-shell .dashboard-page.page-monitor .ops-context-meta,
+  body.windsight-shell .dashboard-page.page-overview .ops-context-meta,
+  body.windsight-shell .dashboard-page.page-overview .ops-control-secondary {
+    justify-content: flex-start;
+  }
+
+  body.windsight-shell .dashboard-page.page-overview .ops-control-primary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  body.windsight-shell .dashboard-page.page-overview .ops-control-frame {
+    grid-column: 1 / -1;
+  }
+
+  body.windsight-shell .dashboard-page.page-monitor .detail-chart-grid,
+  body.windsight-shell .dashboard-page.page-overview .detail-chart-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 680px) {
+  body.windsight-shell .topbar-right {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    gap: 0.5rem !important;
+    justify-content: space-between;
+    overflow: hidden;
+  }
+
+  body.windsight-shell .user-profile.dropdown,
+  body.windsight-shell #userDropdown {
+    min-width: 0;
+    max-width: 140px;
+  }
+
+  body.windsight-shell #userDropdown {
+    gap: 0.5rem !important;
+  }
+
+  body.windsight-shell .user-info,
+  body.windsight-shell .user-name,
+  body.windsight-shell .user-role {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.windsight-shell .dashboard-page.page-monitor .ops-context-title-row,
+  body.windsight-shell .dashboard-page.page-overview .ops-context-title-row,
+  body.windsight-shell .dashboard-page.page-monitor .ops-control-bar,
+  body.windsight-shell .dashboard-page.page-overview .ops-control-bar,
+  body.windsight-shell .dashboard-page.page-overview .ops-control-secondary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  body.windsight-shell .dashboard-page.page-overview .ops-control-primary {
+    grid-template-columns: 1fr;
+  }
+
+  body.windsight-shell .dashboard-page.page-monitor .ops-control-primary,
+  body.windsight-shell .dashboard-page.page-overview .ops-control-primary,
+  body.windsight-shell .dashboard-page.page-overview .ops-control-secondary {
+    width: 100%;
+    flex: 0 0 auto !important;
+  }
+
+  body.windsight-shell .dashboard-page.page-monitor .metric-summary-grid,
+  body.windsight-shell .dashboard-page.page-overview .metric-summary-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  body.windsight-shell .dashboard-page.page-monitor .chart-canvas,
+  body.windsight-shell .dashboard-page.page-overview .chart-canvas {
+    height: 240px !important;
+  }
 }

@@ -1,2 +1,20 @@
 output/
 mini_simulator.zip
+
+# Local secrets and machine-specific config
+.env
+.env.local
+.env.*.local
+code/.env
+code/.env.local
+code/windsight.env
+ALiYunFuWuQi/ssh_config
+
+# Python/generated files
+__pycache__/
+*.py[cod]
+venv/
+venv311/
+mini_one_node/venv/
+mini_server/venv/
+mini_simulator/venv/

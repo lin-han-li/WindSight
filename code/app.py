@@ -58,7 +58,7 @@ except ImportError:
 
 # ==================== 导入配置和模型 ====================
 from windsight.config import Config
-from windsight.models import NodeUpload, TurbineMeasurement, User, db
+from windsight.models import NodeUpload, RegisteredNode, TurbineMeasurement, User, db
 
 # ==================== Flask应用初始化 ====================
 app = Flask(__name__)
@@ -241,7 +241,7 @@ login_manager.login_message_category = 'info'
 @login_manager.user_loader
 def load_user(user_id):
     """Flask-Login 需要的用户加载函数"""
-    return User.query.get(int(user_id))
+    return db.session.get(User, int(user_id))
 
 
 def _config_float(value):
@@ -297,9 +297,59 @@ from windsight.socket_events import init_socket_events
 init_socket_events(socketio, active_nodes)
 app.logger.info("WebSocket事件处理器已初始化")
 
+
+def migrate_user_role_column() -> bool:
+    """Add the users.role column for databases created before role support."""
+    user_columns = {row[1] for row in db.session.execute(text("PRAGMA table_info(users)")).fetchall()}
+    if "role" in user_columns:
+        return False
+    db.session.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user'"))
+    db.session.commit()
+    return True
+
+
+def migrate_registered_node_columns() -> bool:
+    """Add registered node columns for existing installations."""
+    registered_node_columns = {
+        row[1] for row in db.session.execute(text("PRAGMA table_info(registered_nodes)")).fetchall()
+    }
+    migrated = False
+    if "node_key_plain" not in registered_node_columns:
+        db.session.execute(text("ALTER TABLE registered_nodes ADD COLUMN node_key_plain VARCHAR(255)"))
+        migrated = True
+    if "geo_lng" not in registered_node_columns:
+        db.session.execute(text("ALTER TABLE registered_nodes ADD COLUMN geo_lng FLOAT"))
+        migrated = True
+    if "geo_lat" not in registered_node_columns:
+        db.session.execute(text("ALTER TABLE registered_nodes ADD COLUMN geo_lat FLOAT"))
+        migrated = True
+    if migrated:
+        db.session.commit()
+    return migrated
+
+
 # ==================== 数据库初始化 ====================
+def migrate_registered_node_geo_columns() -> bool:
+    """Backward-compatible wrapper for tests and older imports."""
+    return migrate_registered_node_columns()
+
+
 with app.app_context():
     db.create_all()
+
+    try:
+        if migrate_user_role_column():
+            app.logger.info("用户表迁移完成：已添加 role 字段")
+    except Exception as e:
+        db.session.rollback()
+        app.logger.warning(f"用户表角色字段迁移失败：{e}")
+
+    try:
+        if migrate_registered_node_columns():
+            app.logger.info("Registered node table migration complete")
+    except Exception as e:
+        db.session.rollback()
+        app.logger.warning(f"Registered node field migration failed: {e}")
 
     # Keep legacy node_data as backup. Startup cleanup only removes unrelated tables
     # and optionally clears the new protocol tables.
@@ -355,6 +405,7 @@ with app.app_context():
     if default_admin_enabled and (not admin) and legacy_admin:
         try:
             legacy_admin.username = default_admin_username
+            legacy_admin.role = "admin"
             db.session.commit()
             app.logger.info(f"默认管理员账户已迁移（用户名已改为 {default_admin_username}，密码保持不变）")
         except Exception as e:
@@ -362,8 +413,17 @@ with app.app_context():
             app.logger.warning(f"迁移默认管理员失败: {e}")
 
     admin = User.query.filter_by(username=default_admin_username).first()
+    if default_admin_enabled and admin and admin.role != "admin":
+        try:
+            admin.role = "admin"
+            db.session.commit()
+            app.logger.info(f"默认管理员角色已更新为 admin：{default_admin_username}")
+        except Exception as e:
+            db.session.rollback()
+            app.logger.warning(f"更新默认管理员角色失败：{e}")
+
     if default_admin_enabled and (not admin):
-        admin = User(username=default_admin_username)
+        admin = User(username=default_admin_username, role="admin")
         try:
             # 若未指定默认密码，则生成随机密码（更适合公开仓库/生产部署）
             if not default_admin_password:

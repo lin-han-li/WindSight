@@ -38,6 +38,14 @@ def _get_env_server_url() -> str:
     return "http://127.0.0.1:8080"
 
 
+def _get_env_node_key() -> str:
+    for name in ("WINDSIGHT_NODE_KEY", "EDGEWIND_NODE_KEY", "NODE_KEY"):
+        value = os.environ.get(name)
+        if value:
+            return value.strip()
+    return ""
+
+
 def _clamp_turbine_count(value: int) -> int:
     return max(1, min(MAX_TURBINE_COUNT, int(value)))
 
@@ -134,10 +142,17 @@ def build_payload(node: NodeSimState, t: float) -> dict:
     return payload
 
 
-def upload_once(session: requests.Session, server_url: str, payload: dict, timeout: float = 3.0) -> tuple[bool, str]:
+def upload_once(
+    session: requests.Session,
+    server_url: str,
+    payload: dict,
+    timeout: float = 3.0,
+    node_key: str = "",
+) -> tuple[bool, str]:
     url = f"{server_url.rstrip('/')}/api/upload"
+    headers = {"X-WindSight-Node-Key": node_key} if node_key else {}
     try:
-        response = session.post(url, json=payload, timeout=timeout)
+        response = session.post(url, json=payload, headers=headers, timeout=timeout)
         if response.status_code == 200:
             try:
                 data = response.json()
@@ -152,11 +167,12 @@ def upload_once(session: requests.Session, server_url: str, payload: dict, timeo
 
 
 class NodeWorker(threading.Thread):
-    def __init__(self, node: NodeSimState, server_url: str, interval_ms: int, timeout_s: float):
+    def __init__(self, node: NodeSimState, server_url: str, interval_ms: int, timeout_s: float, node_key: str = ""):
         super().__init__(daemon=True, name=f"NodeWorker-{node.node_id}")
         self.node = node
         self.server_url = server_url.rstrip("/")
         self.timeout_s = float(timeout_s)
+        self.node_key = node_key.strip()
         self._interval_s = max(0.05, float(interval_ms) / 1000.0)
         self._interval_lock = threading.Lock()
         self._stop_evt = threading.Event()
@@ -177,7 +193,7 @@ class NodeWorker(threading.Thread):
     def run(self):
         while not self._stop_evt.is_set():
             payload = build_payload(self.node, time.time())
-            ok, msg = upload_once(self._session, self.server_url, payload, timeout=self.timeout_s)
+            ok, msg = upload_once(self._session, self.server_url, payload, timeout=self.timeout_s, node_key=self.node_key)
             with self._stats_lock:
                 if ok:
                     self._ok_count += 1
@@ -205,9 +221,10 @@ class NodeWorker(threading.Thread):
 
 
 class NodeManager:
-    def __init__(self, server_url: str, interval_ms: int, timeout_s: float, turbine_count: int):
+    def __init__(self, server_url: str, interval_ms: int, timeout_s: float, turbine_count: int, node_key: str = ""):
         self.server_url = server_url.rstrip("/")
         self.timeout_s = float(timeout_s)
+        self.node_key = node_key.strip()
         self._interval_ms = max(50, int(interval_ms))
         self._turbine_count = _clamp_turbine_count(turbine_count)
         self._lock = threading.Lock()
@@ -234,7 +251,13 @@ class NodeManager:
         with self._lock:
             if nid in self._workers:
                 return False, f"node already exists: {nid}"
-            worker = NodeWorker(self._make_state(nid), self.server_url, self._interval_ms, self.timeout_s)
+            worker = NodeWorker(
+                self._make_state(nid),
+                self.server_url,
+                self._interval_ms,
+                self.timeout_s,
+                node_key=self.node_key,
+            )
             self._workers[nid] = worker
             worker.start()
         return True, f"node started: {nid}"
@@ -324,12 +347,14 @@ def main():
     parser.add_argument("--nodes", type=int, default=0, help="number of nodes to start immediately")
     parser.add_argument("--sub", type=int, default=DEFAULT_TURBINE_COUNT, help="turbine count per upload frame")
     parser.add_argument("--interval-ms", type=int, default=500, help="upload interval in ms")
+    parser.add_argument("--node-key", type=str, default=None, help="registered node key for X-WindSight-Node-Key")
     parser.add_argument("--once", action="store_true", help="send one frame and exit")
     parser.add_argument("--timeout", type=float, default=3.0, help="HTTP timeout in seconds")
     parser.add_argument("--no-console", action="store_true", help="disable interactive console")
     args = parser.parse_args()
 
     server_url = (args.server or _get_env_server_url()).rstrip("/")
+    node_key = (args.node_key if args.node_key is not None else _get_env_node_key()).strip()
     node_count = max(0, int(args.nodes))
     interval_ms = max(50, int(args.interval_ms))
     turbine_count = _clamp_turbine_count(args.sub)
@@ -340,6 +365,7 @@ def main():
     print(f"nodes: {node_count}")
     print(f"sub: {turbine_count}")
     print(f"interval: {interval_ms} ms")
+    print(f"node_key: {'configured' if node_key else 'missing'}")
     print("=" * 72)
 
     if args.once:
@@ -357,7 +383,7 @@ def main():
                 ),
                 time.time(),
             )
-            ok, msg = upload_once(session, server_url, payload, timeout=float(args.timeout))
+            ok, msg = upload_once(session, server_url, payload, timeout=float(args.timeout), node_key=node_key)
             if ok:
                 ok_count += 1
             else:
@@ -370,6 +396,7 @@ def main():
         interval_ms=interval_ms,
         timeout_s=float(args.timeout),
         turbine_count=turbine_count,
+        node_key=node_key,
     )
 
     if node_count <= 0:

@@ -4,30 +4,11 @@
 {% block page_title %}实时监测{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_explorer.css') }}?v=20260514-map-pin2">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_explorer.css') }}?v=20260517-workbench3">
 {% endblock %}
 
 {% block content %}
 <div id="dashboardPage" class="dashboard-page page-monitor" data-page-kind="monitor">
-    <div class="monitor-topbar glass-panel">
-        <div class="monitor-topbar-copy">
-            <div class="panel-kicker">实时监测</div>
-            <div class="monitor-topbar-title">风场节点实时监测驾驶舱</div>
-            <div class="dashboard-subtitle">先在全局拓扑地图中选择节点，再进入该节点的发电机树，最后下钻到单台发电机的四图波形详情。</div>
-        </div>
-        <div class="monitor-topbar-actions">
-            <div class="topbar-chip-group">
-                <span class="topbar-chip" id="topbarNodeChip">未选择节点</span>
-                <span class="topbar-chip" id="topbarStatusChip">等待接入</span>
-                <span class="topbar-chip">最近数据 <strong id="lastDataTime">--</strong></span>
-            </div>
-            <button id="btnBackToMap" class="monitor-back-button is-hidden" type="button">
-                <i class="bi bi-arrow-left"></i>
-                <span>返回风场地图</span>
-            </button>
-        </div>
-    </div>
-
     <div class="monitor-shell">
         <section id="map-view" class="monitor-view is-active" aria-hidden="false">
             <div class="card dashboard-card monitor-map-card">
@@ -89,13 +70,6 @@
                             </div>
                         </div>
 
-                        <div class="control-group">
-                            <label class="form-label" for="historyLimit">实时缓存帧数</label>
-                            <div class="input-group">
-                                <input type="number" class="form-control" id="historyLimit" value="600" min="1" max="20000" step="1">
-                                <button class="btn btn-primary" id="btnReload" type="button">刷新缓存</button>
-                            </div>
-                        </div>
                     </div>
                 </section>
 
@@ -116,24 +90,32 @@
 
         <section id="chart-view" class="monitor-view" aria-hidden="true">
             <div class="chart-stage">
-                <section class="card dashboard-card chart-stage-hero">
-                    <div class="card-body chart-stage-hero-body">
-                        <div class="chart-stage-copy">
-                            <div class="panel-kicker">实时波形详情</div>
-                            <div class="dashboard-title">发电机实时波形详情</div>
-                            <div class="dashboard-subtitle">第三层只保留紧凑摘要、四张指标卡和四图联动波形，方便专注查看单台发电机细节。</div>
+                <section class="ops-context-bar" aria-label="当前实时监测对象">
+                    <div class="ops-context-main">
+                        <span class="ops-context-label">实时监测</span>
+                        <div class="ops-context-title-row">
+                            <strong id="chartNodeChip">未选择节点</strong>
+                            <span id="chartTurbineChip">未选择发电机</span>
                         </div>
-                        <div class="chart-stage-toolbar">
-                            <div class="topbar-chip-group">
-                                <span class="topbar-chip" id="chartNodeChip">未选择节点</span>
-                                <span class="topbar-chip" id="chartTurbineChip">未选择发电机</span>
-                                <span class="topbar-chip" id="chartStatusChip">等待接入</span>
-                                <span class="topbar-chip">最近数据 <strong id="chartLastDataTime">--</strong></span>
+                    </div>
+                    <div class="ops-context-meta">
+                        <span class="ops-status-chip" id="chartStatusChip">等待接入</span>
+                        <span class="ops-last-time">最近数据 <strong id="chartLastDataTime">--</strong></span>
+                        <button id="btnBackToTree" class="monitor-back-button" type="button">
+                            <i class="bi bi-arrow-left"></i>
+                            <span>返回发电机树</span>
+                        </button>
+                    </div>
+                </section>
+
+                <section class="ops-control-bar monitor-cache-bar" aria-label="实时缓存控制">
+                    <div class="ops-control-primary">
+                        <div class="ops-control-group ops-control-frame">
+                            <label class="form-label" for="historyLimit">实时缓存帧数</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="historyLimit" value="600" min="1" max="20000" step="1">
+                                <button class="btn btn-primary" id="btnReload" type="button">刷新缓存</button>
                             </div>
-                            <button id="btnBackToTree" class="monitor-back-button" type="button">
-                                <i class="bi bi-arrow-left"></i>
-                                <span>返回发电机树</span>
-                            </button>
                         </div>
                     </div>
                 </section>
@@ -184,8 +166,8 @@
                 <div id="detailPlaceholder" class="detail-placeholder">
                     <div class="detail-placeholder-copy">
                         <div class="panel-kicker">实时下钻</div>
-                        <div class="detail-placeholder-title">请先在上一层选择具体发电机</div>
-                        <div class="detail-placeholder-text">只有点击发电机树中的叶子节点后，第三层才会显示电压、电流、转速、温度四图联动波形。</div>
+                        <div class="detail-placeholder-title">请先在左侧选择节点和发电机</div>
+                        <div class="detail-placeholder-text">左侧按用户、节点、发电机展开；选中发电机后，再选择实时监测，本页会显示电压、电流、转速、温度四图联动波形。</div>
                     </div>
                 </div>
 
@@ -227,5 +209,5 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/node_map_config.js') }}?v=6"></script>
-<script src="{{ url_for('static', filename='js/dashboard.js') }}?v=25"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}?v=29"></script>
 {% endblock %}

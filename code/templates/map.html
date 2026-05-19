@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}地图概览 - WindSight{% endblock %}
+{% block page_title %}地图概览{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_explorer.css') }}?v=20260516-amap1">
+{% endblock %}
+
+{% block content %}
+<div id="dashboardPage" class="dashboard-page page-map" data-page-kind="map">
+    <div class="monitor-shell">
+        <section id="map-view" class="monitor-view is-active" aria-hidden="false">
+            <div class="card dashboard-card monitor-map-card">
+                <div class="card-header">
+                    <div>
+                        <div class="panel-kicker">用户节点地图</div>
+                        <div class="dashboard-title">注册节点分布</div>
+                        <div class="dashboard-subtitle">管理员按左侧用户与节点筛选地图；普通用户只显示自己注册的节点。</div>
+                    </div>
+                    <div class="map-summary" id="nodeMapSummary"></div>
+                </div>
+                <div class="card-body">
+                    <div class="iot-map-frame">
+                        <div id="nodeMapChart" class="iot-map-chart"></div>
+                    </div>
+                    <div class="fallback-shell">
+                        <div class="panel-kicker">节点列表</div>
+                        <div id="nodeMapFallback" class="fallback-node-list"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/node_map_config.js') }}?v=6"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}?v=28"></script>
+{% endblock %}

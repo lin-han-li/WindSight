@@ -4,29 +4,11 @@
 {% block page_title %}数据概览{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_explorer.css') }}?v=20260514-map-pin2">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_explorer.css') }}?v=20260517-workbench3">
 {% endblock %}
 
 {% block content %}
 <div id="dashboardPage" class="dashboard-page page-overview" data-page-kind="overview">
-    <div class="monitor-topbar glass-panel">
-        <div class="monitor-topbar-copy">
-            <div class="panel-kicker">历史回放</div>
-            <div class="monitor-topbar-title">历史数据概览与回放分析</div>
-            <div class="dashboard-subtitle">先在地图中选择节点，再进入发电机树，最后对单台发电机执行历史筛选与四图回放。</div>
-        </div>
-        <div class="monitor-topbar-actions">
-            <div class="topbar-chip-group">
-                <span class="topbar-chip" id="topbarNodeChip">未选择节点</span>
-                <span class="topbar-chip">最近数据 <strong id="lastDataTime">--</strong></span>
-            </div>
-            <button id="btnBackToMap" class="monitor-back-button is-hidden" type="button">
-                <i class="bi bi-arrow-left"></i>
-                <span>返回节点地图</span>
-            </button>
-        </div>
-    </div>
-
     <div class="monitor-shell">
         <section id="map-view" class="monitor-view is-active" aria-hidden="false">
             <div class="card dashboard-card monitor-map-card">
@@ -107,55 +89,45 @@
 
         <section id="chart-view" class="monitor-view" aria-hidden="true">
             <div class="chart-stage chart-stage-overview">
-                <section class="card dashboard-card chart-stage-hero">
-                    <div class="card-body chart-stage-hero-body">
-                        <div class="chart-stage-copy">
-                            <div class="panel-kicker">历史波形详情</div>
-                            <div class="dashboard-title">发电机历史波形详情</div>
-                            <div class="dashboard-subtitle">第三层用于设置时间范围并查看单台发电机的历史四图联动波形。</div>
+                <section class="ops-context-bar" aria-label="当前历史分析对象">
+                    <div class="ops-context-main">
+                        <span class="ops-context-label">数据概览</span>
+                        <div class="ops-context-title-row">
+                            <strong id="chartNodeChip">未选择节点</strong>
+                            <span id="chartTurbineChip">未选择发电机</span>
                         </div>
-                        <div class="chart-stage-toolbar">
-                            <div class="topbar-chip-group">
-                                <span class="topbar-chip" id="chartNodeChip">未选择节点</span>
-                                <span class="topbar-chip" id="chartTurbineChip">未选择发电机</span>
-                                <span class="topbar-chip" id="chartStatusChip">等待接入</span>
-                                <span class="topbar-chip">最近数据 <strong id="chartLastDataTime">--</strong></span>
-                            </div>
-                            <button id="btnBackToTree" class="monitor-back-button" type="button">
-                                <i class="bi bi-arrow-left"></i>
-                                <span>返回发电机树</span>
-                            </button>
-                        </div>
+                    </div>
+                    <div class="ops-context-meta">
+                        <span class="ops-status-chip" id="chartStatusChip">等待接入</span>
+                        <span class="ops-last-time">最近数据 <strong id="chartLastDataTime">--</strong></span>
+                        <button id="btnBackToTree" class="monitor-back-button" type="button">
+                            <i class="bi bi-arrow-left"></i>
+                            <span>返回发电机树</span>
+                        </button>
                     </div>
                 </section>
 
-                <section class="card dashboard-card overview-history-panel">
-                    <div class="card-header">
-                        <div>
-                            <div class="panel-kicker">Time Filter</div>
-                            <div class="dashboard-title">历史筛选条件</div>
-                            <div class="dashboard-subtitle">只有进入第三层后，才在此处筛选开始时间、结束时间和回放帧数。</div>
+                <section class="ops-control-bar overview-history-panel" aria-label="历史筛选条件">
+                    <div class="ops-control-primary">
+                        <div class="ops-control-group ops-control-frame">
+                            <label class="form-label" for="historyLimit">回放帧数</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="historyLimit" value="600" min="1" max="20000" step="1">
+                                <button class="btn btn-primary" id="btnReload" type="button">确认</button>
+                            </div>
+                        </div>
+                        <div class="ops-control-group">
+                            <label class="form-label" for="historyStart">开始时间</label>
+                            <input class="form-control" id="historyStart" type="datetime-local" step="1">
+                        </div>
+                        <div class="ops-control-group">
+                            <label class="form-label" for="historyEnd">结束时间</label>
+                            <input class="form-control" id="historyEnd" type="datetime-local" step="1">
                         </div>
                     </div>
-                    <div class="card-body">
-                        <div class="history-filter-grid">
-                            <div class="control-group compact">
-                                <label class="form-label" for="historyLimit">回放帧数</label>
-                                <div class="input-group">
-                                    <input type="number" class="form-control" id="historyLimit" value="600" min="1" max="20000" step="1">
-                                    <button class="btn btn-primary" id="btnReload" type="button">加载历史</button>
-                                </div>
-                            </div>
-                            <div class="control-group compact">
-                                <label class="form-label" for="historyStart">开始时间</label>
-                                <input class="form-control" id="historyStart" type="datetime-local">
-                            </div>
-                            <div class="control-group compact">
-                                <label class="form-label" for="historyEnd">结束时间</label>
-                                <input class="form-control" id="historyEnd" type="datetime-local">
-                            </div>
-                        </div>
-                        <div class="range-actions">
+                    <div class="ops-control-secondary">
+                        <div class="history-link-hint" id="historyLinkHint" role="status" aria-live="polite"></div>
+                        <div class="range-actions ops-range-actions">
                             <button class="btn btn-outline-secondary btn-sm" type="button" data-range-min="5">近 5 分钟</button>
                             <button class="btn btn-outline-secondary btn-sm" type="button" data-range-min="30">近 30 分钟</button>
                             <button class="btn btn-outline-secondary btn-sm" type="button" data-range-min="120">近 2 小时</button>
@@ -211,8 +183,8 @@
                 <div id="detailPlaceholder" class="detail-placeholder light-placeholder">
                     <div class="detail-placeholder-copy">
                         <div class="panel-kicker">历史下钻</div>
-                        <div class="detail-placeholder-title">请先在上一层选择具体发电机</div>
-                        <div class="detail-placeholder-text">历史分析会在选定发电机后，结合开始时间、结束时间和回放帧数加载对应的四张联动波形图。</div>
+                        <div class="detail-placeholder-title">请先在左侧选择节点和发电机</div>
+                        <div class="detail-placeholder-text">左侧按用户、节点、发电机展开；选中发电机后，再选择数据概览，历史分析会结合时间范围加载对应的四张联动波形图。</div>
                     </div>
                 </div>
 
@@ -254,5 +226,5 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/node_map_config.js') }}?v=6"></script>
-<script src="{{ url_for('static', filename='js/dashboard.js') }}?v=25"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}?v=29"></script>
 {% endblock %}

@@ -3,17 +3,28 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import sys
 import time
 from datetime import datetime, timedelta
+from functools import wraps
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request
-from flask_login import login_required
+from flask_login import current_user, login_required
 from sqlalchemy import text
 from sqlalchemy.orm import selectinload
 
-from windsight.models import NodeUpload, SystemConfig, TurbineMeasurement, db
+from windsight.models import (
+    NodeUpload,
+    RegisteredNode,
+    RegistrationInvite,
+    SystemConfig,
+    TurbineMeasurement,
+    User,
+    UserSetting,
+    db,
+)
 from windsight.protocol import ProtocolValidationError, parse_turbine_upload
 from windsight.time_utils import iso_beijing, parse_client_datetime_to_utc
 
@@ -21,8 +32,17 @@ api_bp = Blueprint("api", __name__, url_prefix="/api")
 logger = logging.getLogger(__name__)
 
 MAX_HISTORY_LIMIT = 20000
+NODE_ID_RE = re.compile(r"^[A-Z0-9_-]{3,64}$")
 active_nodes = {}
 DEFAULT_NODE_TIMEOUT = int(os.environ.get("NODE_TIMEOUT_SECONDS", os.environ.get("NODE_TIMEOUT", 10)))
+DEFAULT_INVITE_EXPIRES_DAYS = 7
+MAX_INVITE_BATCH_COUNT = 50
+USER_CONFIG_DEFAULTS = {
+    "poll_interval": 3000,
+    "auto_refresh": True,
+    "show_debug_log": False,
+    "log_retention": 30,
+}
 db_executor = None
 socketio_instance = None
 app_instance = None
@@ -34,6 +54,265 @@ def init_api_blueprint(app, socketio, executor, nodes, commands):
     db_executor = executor
     socketio_instance = socketio
     app_instance = app
+
+
+def _normalize_node_id(value) -> str:
+    return str(value or "").strip().upper()
+
+
+def _validate_node_id(value: str) -> tuple[bool, str]:
+    node_id = _normalize_node_id(value)
+    if not node_id:
+        return False, "node_id is required"
+    if not NODE_ID_RE.match(node_id):
+        return False, "node_id must be 3-64 chars: A-Z, 0-9, _ or -"
+    return True, node_id
+
+
+def _is_admin_user(user=None) -> bool:
+    user = user or current_user
+    return bool(getattr(user, "is_authenticated", False) and getattr(user, "role", "") == "admin")
+
+
+def admin_required(view_func):
+    @wraps(view_func)
+    @login_required
+    def wrapper(*args, **kwargs):
+        if not _is_admin_user():
+            return jsonify({"success": False, "error": "admin required"}), 403
+        return view_func(*args, **kwargs)
+
+    return wrapper
+
+
+def _registered_node_query_for_current_user():
+    query = RegisteredNode.query.filter_by(is_active=True)
+    if _is_admin_user():
+        return query
+    return query.filter_by(owner_user_id=current_user.id)
+
+
+def _accessible_node_ids_for_current_user() -> set[str]:
+    if not getattr(current_user, "is_authenticated", False):
+        return set()
+    rows = _registered_node_query_for_current_user().with_entities(RegisteredNode.node_id).all()
+    return {_normalize_node_id(row[0]) for row in rows}
+
+
+def _can_access_node(node_id: str) -> bool:
+    if _is_admin_user():
+        return True
+    normalized = _normalize_node_id(node_id)
+    return bool(
+        RegisteredNode.query.filter_by(
+            node_id=normalized,
+            owner_user_id=current_user.id,
+            is_active=True,
+        ).first()
+    )
+
+
+def _owned_node_ids(user_id: int | None = None) -> list[str]:
+    owner_id = int(user_id or current_user.id)
+    rows = (
+        RegisteredNode.query.filter_by(owner_user_id=owner_id, is_active=True)
+        .with_entities(RegisteredNode.node_id)
+        .all()
+    )
+    return [_normalize_node_id(row[0]) for row in rows]
+
+
+def _delete_uploads_for_node_ids(node_ids: list[str], cutoff: datetime | None = None) -> tuple[int, int]:
+    ids = [_normalize_node_id(node_id) for node_id in node_ids if _normalize_node_id(node_id)]
+    if not ids:
+        return 0, 0
+    measurement_query = TurbineMeasurement.query.filter(TurbineMeasurement.node_id.in_(ids))
+    upload_query = NodeUpload.query.filter(NodeUpload.node_id.in_(ids))
+    if cutoff is not None:
+        measurement_query = measurement_query.filter(TurbineMeasurement.timestamp < cutoff)
+        upload_query = upload_query.filter(NodeUpload.timestamp < cutoff)
+    measurement_deleted = measurement_query.delete(synchronize_session=False)
+    upload_deleted = upload_query.delete(synchronize_session=False)
+    return int(upload_deleted or 0), int(measurement_deleted or 0)
+
+
+def _load_user_config(user_id: int) -> dict:
+    data = dict(USER_CONFIG_DEFAULTS)
+    rows = UserSetting.query.filter_by(user_id=user_id).all()
+    for row in rows:
+        if row.key not in USER_CONFIG_DEFAULTS:
+            continue
+        try:
+            data[row.key] = json.loads(row.value)
+        except Exception:
+            data[row.key] = row.value
+    return _normalize_user_config(data)
+
+
+def _normalize_user_config(data: dict) -> dict:
+    normalized = dict(USER_CONFIG_DEFAULTS)
+    if "poll_interval" in data:
+        try:
+            poll_interval = int(data.get("poll_interval"))
+            normalized["poll_interval"] = min(30000, max(500, poll_interval))
+        except Exception:
+            normalized["poll_interval"] = USER_CONFIG_DEFAULTS["poll_interval"]
+    if "auto_refresh" in data:
+        normalized["auto_refresh"] = bool(data.get("auto_refresh"))
+    if "show_debug_log" in data:
+        normalized["show_debug_log"] = bool(data.get("show_debug_log"))
+    if "log_retention" in data:
+        try:
+            log_retention = int(data.get("log_retention"))
+            normalized["log_retention"] = log_retention if log_retention in {7, 30, 90, 180, 365, -1} else 30
+        except Exception:
+            normalized["log_retention"] = USER_CONFIG_DEFAULTS["log_retention"]
+    return normalized
+
+
+def _save_user_config(user_id: int, payload: dict) -> dict:
+    data = _normalize_user_config(payload)
+    existing = {
+        row.key: row
+        for row in UserSetting.query.filter_by(user_id=user_id).filter(UserSetting.key.in_(list(USER_CONFIG_DEFAULTS.keys())))
+    }
+    for key, value in data.items():
+        row = existing.get(key)
+        encoded = json.dumps(value, ensure_ascii=False)
+        if row:
+            row.value = encoded
+            row.updated_at = _utcnow()
+        else:
+            db.session.add(UserSetting(user_id=user_id, key=key, value=encoded))
+    return data
+
+
+def _node_owner_display(registered_node: RegisteredNode | None) -> str:
+    if not registered_node or not registered_node.owner:
+        return ""
+    return registered_node.owner.username
+
+
+def _registered_node_geo(registered_node: RegisteredNode) -> dict | None:
+    try:
+        lng = float(registered_node.geo_lng)
+        lat = float(registered_node.geo_lat)
+    except (TypeError, ValueError):
+        return None
+    if lng < -180 or lng > 180 or lat < -90 or lat > 90:
+        return None
+    return {"lng": lng, "lat": lat}
+
+
+def _registered_node_to_dict(
+    registered_node: RegisteredNode,
+    include_owner: bool = False,
+    include_key: bool = False,
+):
+    latest_upload = _load_latest_upload(registered_node.node_id)
+    item = _build_node_item(registered_node.node_id, latest_upload, _now_ts())
+    geo = _registered_node_geo(registered_node)
+    item.update(
+        {
+            "id": registered_node.id,
+            "display_name": registered_node.display_name or registered_node.node_id,
+            "owner_user_id": registered_node.owner_user_id,
+            "registered_at": iso_beijing(registered_node.created_at) if registered_node.created_at else None,
+            "last_seen_at": iso_beijing(registered_node.last_seen_at) if registered_node.last_seen_at else None,
+            "is_registered": True,
+            "geo": geo,
+            "geo_configured": bool(geo),
+        }
+    )
+    if include_owner:
+        item["owner_username"] = _node_owner_display(registered_node)
+    if include_key:
+        item["node_key"] = registered_node.node_key_plain or ""
+        item["node_key_available"] = bool(registered_node.node_key_plain)
+    return item
+
+
+def _clean_geo_value(value):
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = value.strip()
+        if value == "":
+            return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        raise ValueError("经纬度必须是数字")
+    return parsed
+
+
+def _parse_geo_payload(payload: dict) -> tuple[float | None, float | None]:
+    if not isinstance(payload, dict):
+        raise ValueError("请求数据格式错误")
+    source = payload.get("geo") if isinstance(payload.get("geo"), dict) else payload
+    lng = _clean_geo_value(source.get("lng"))
+    lat = _clean_geo_value(source.get("lat"))
+    if lng is None and lat is None:
+        return None, None
+    if lng is None or lat is None:
+        raise ValueError("经度和纬度必须同时填写")
+    if lng < -180 or lng > 180:
+        raise ValueError("经度范围必须在 -180 到 180 之间")
+    if lat < -90 or lat > 90:
+        raise ValueError("纬度范围必须在 -90 到 90 之间")
+    return lng, lat
+
+
+def _save_registered_node_location(registered_node: RegisteredNode, payload: dict):
+    lng, lat = _parse_geo_payload(payload)
+    registered_node.geo_lng = lng
+    registered_node.geo_lat = lat
+    db.session.commit()
+
+
+def _user_to_admin_dict(user: User) -> dict:
+    nodes = list(getattr(user, "registered_nodes", []) or [])
+    active_count = len([node for node in nodes if node.is_active])
+    latest_seen = None
+    for node in nodes:
+        if node.last_seen_at and (latest_seen is None or node.last_seen_at > latest_seen):
+            latest_seen = node.last_seen_at
+    created_at = getattr(user, "created_at", None)
+    return {
+        "id": user.id,
+        "username": user.username,
+        "role": user.role or "user",
+        "is_active": bool(user.is_active),
+        "created_at": iso_beijing(created_at) if created_at else None,
+        "node_count": active_count,
+        "last_seen_at": iso_beijing(latest_seen) if latest_seen else None,
+    }
+
+
+INVITE_STATUS_LABELS = {
+    "available": "可用",
+    "used": "已使用",
+    "expired": "已过期",
+    "revoked": "已吊销",
+}
+
+
+def _invite_to_admin_dict(invite: RegistrationInvite, now: datetime | None = None) -> dict:
+    status = invite.status(now or _utcnow())
+    return {
+        "id": invite.id,
+        "code": invite.code,
+        "status": status,
+        "status_label": INVITE_STATUS_LABELS.get(status, status),
+        "created_by_user_id": invite.created_by_user_id,
+        "created_by_username": invite.created_by.username if invite.created_by else "",
+        "created_at": iso_beijing(invite.created_at) if invite.created_at else None,
+        "expires_at": iso_beijing(invite.expires_at) if invite.expires_at else None,
+        "used_by_user_id": invite.used_by_user_id,
+        "used_by_username": invite.used_by.username if invite.used_by else "",
+        "used_at": iso_beijing(invite.used_at) if invite.used_at else None,
+        "revoked_at": iso_beijing(invite.revoked_at) if invite.revoked_at else None,
+    }
 
 
 def _utcnow() -> datetime:
@@ -205,10 +484,16 @@ def upload_node_data():
     except ProtocolValidationError as exc:
         return jsonify({"status": "error", "error": str(exc)}), 400
 
+    node_id = _normalize_node_id(parsed.node_id)
+    registered_node = RegisteredNode.query.filter_by(node_id=node_id, is_active=True).first()
+    node_key = (request.headers.get("X-WindSight-Node-Key") or "").strip()
+    if not registered_node or not node_key or not registered_node.check_node_key(node_key):
+        return jsonify({"status": "error", "error": "节点未注册或密钥错误"}), 403
+
     timestamp = _utcnow()
     try:
         row = NodeUpload(
-            node_id=parsed.node_id,
+            node_id=node_id,
             turbine_count=parsed.turbine_count,
             timestamp=timestamp,
             raw_payload=json.dumps(payload, ensure_ascii=False),
@@ -217,7 +502,7 @@ def upload_node_data():
             sample = parsed.turbines[code]
             row.measurements.append(
                 TurbineMeasurement(
-                    node_id=parsed.node_id,
+                    node_id=node_id,
                     turbine_code=code,
                     turbine_index=index,
                     timestamp=timestamp,
@@ -229,10 +514,11 @@ def upload_node_data():
             )
 
         db.session.add(row)
+        registered_node.last_seen_at = timestamp
         db.session.commit()
 
-        _update_active_node_cache(parsed.node_id, row)
-        _emit_upload_events(parsed.node_id, row)
+        _update_active_node_cache(node_id, row)
+        _emit_upload_events(node_id, row)
         return jsonify({"status": "success", "upload_id": row.id}), 200
     except Exception as exc:
         db.session.rollback()
@@ -241,19 +527,498 @@ def upload_node_data():
 
 
 @api_bp.route("/nodes", methods=["GET"])
+@login_required
 def list_nodes():
     try:
-        now_ts = _now_ts()
-        db_node_ids = [row[0] for row in db.session.query(NodeUpload.node_id).distinct().all()]
-        all_ids = sorted(set(db_node_ids) | set(active_nodes.keys()))
-        items = []
-        for node_id in all_ids:
-            latest_upload = _load_latest_upload(node_id)
-            items.append(_build_node_item(node_id, latest_upload, now_ts))
+        nodes = _registered_node_query_for_current_user().order_by(RegisteredNode.node_id.asc()).all()
+        items = [_registered_node_to_dict(node, include_owner=_is_admin_user()) for node in nodes]
         return jsonify({"success": True, "nodes": items}), 200
     except Exception as exc:
         logger.exception("[/api/nodes] failed: %s", exc)
         return jsonify({"success": False, "nodes": [], "error": str(exc)}), 500
+
+
+@api_bp.route("/my/registered_nodes", methods=["GET"])
+@login_required
+def my_registered_nodes():
+    try:
+        nodes = (
+            RegisteredNode.query.filter_by(owner_user_id=current_user.id, is_active=True)
+            .order_by(RegisteredNode.node_id.asc())
+            .all()
+        )
+        return jsonify({"success": True, "nodes": [_registered_node_to_dict(node, include_key=True) for node in nodes]}), 200
+    except Exception as exc:
+        logger.exception("[/api/my/registered_nodes] failed: %s", exc)
+        return jsonify({"success": False, "nodes": [], "error": str(exc)}), 500
+
+
+@api_bp.route("/my/config", methods=["GET", "POST"])
+@login_required
+def my_config():
+    try:
+        if request.method == "GET":
+            return jsonify({"success": True, "data": _load_user_config(current_user.id)}), 200
+
+        payload = request.get_json(silent=True) or {}
+        data = _save_user_config(current_user.id, payload)
+        db.session.commit()
+        return jsonify({"success": True, "data": data, "message": "saved"}), 200
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception("[/api/my/config] failed: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@api_bp.route("/my/system_info", methods=["GET"])
+@login_required
+def my_system_info():
+    try:
+        node_ids = _owned_node_ids(current_user.id)
+        online_count = sum(
+            1
+            for node_id in node_ids
+            if node_id in active_nodes and _is_online(active_nodes.get(node_id) or {}, _now_ts())
+        )
+        upload_query = NodeUpload.query.filter(NodeUpload.node_id.in_(node_ids)) if node_ids else NodeUpload.query.filter(text("0=1"))
+        measurement_query = (
+            TurbineMeasurement.query.filter(TurbineMeasurement.node_id.in_(node_ids))
+            if node_ids
+            else TurbineMeasurement.query.filter(text("0=1"))
+        )
+        latest_upload = upload_query.with_entities(db.func.max(NodeUpload.timestamp)).scalar() if node_ids else None
+        return jsonify(
+            {
+                "success": True,
+                "data": {
+                    "total_nodes": len(node_ids),
+                    "active_nodes": int(online_count),
+                    "node_uploads": int(upload_query.with_entities(db.func.count(NodeUpload.id)).scalar() or 0) if node_ids else 0,
+                    "turbine_measurements": int(
+                        measurement_query.with_entities(db.func.count(TurbineMeasurement.id)).scalar() or 0
+                    ) if node_ids else 0,
+                    "latest_upload": iso_beijing(latest_upload, with_seconds=True) if latest_upload else None,
+                },
+            }
+        ), 200
+    except Exception as exc:
+        logger.exception("[/api/my/system_info] failed: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@api_bp.route("/my/cleanup_old_data", methods=["POST"])
+@login_required
+def my_cleanup_old_data():
+    try:
+        payload = request.get_json(silent=True) or {}
+        retention_days = int(payload.get("retention_days", _load_user_config(current_user.id).get("log_retention", 30)))
+        if retention_days <= 0:
+            return jsonify({"success": False, "error": "retention_days must be > 0"}), 400
+        cutoff = _utcnow() - timedelta(days=retention_days)
+        node_ids = _owned_node_ids(current_user.id)
+        upload_deleted, measurement_deleted = _delete_uploads_for_node_ids(node_ids, cutoff=cutoff)
+        db.session.commit()
+        for node_id in node_ids:
+            info = active_nodes.get(node_id)
+            if not info:
+                continue
+            last_upload_utc = info.get("last_upload_utc")
+            if last_upload_utc and last_upload_utc < cutoff and not _is_online(info, _now_ts()):
+                active_nodes.pop(node_id, None)
+        return jsonify(
+            {
+                "success": True,
+                "details": {
+                    "node_uploads_deleted": upload_deleted,
+                    "turbine_measurements_deleted": measurement_deleted,
+                    "node_data_deleted": upload_deleted,
+                },
+            }
+        ), 200
+    except ValueError:
+        db.session.rollback()
+        return jsonify({"success": False, "error": "retention_days must be an integer"}), 400
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception("[/api/my/cleanup_old_data] failed: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@api_bp.route("/my/clear_data", methods=["POST"])
+@login_required
+def my_clear_data():
+    try:
+        payload = request.get_json(silent=True) or {}
+        requested_node_id = _normalize_node_id(payload.get("node_id"))
+        owned_ids = set(_owned_node_ids(current_user.id))
+        if requested_node_id:
+            if requested_node_id not in owned_ids:
+                return jsonify({"success": False, "error": "registered node not found"}), 404
+            node_ids = [requested_node_id]
+        else:
+            node_ids = sorted(owned_ids)
+        upload_deleted, measurement_deleted = _delete_uploads_for_node_ids(node_ids)
+        db.session.commit()
+        for node_id in node_ids:
+            active_nodes.pop(node_id, None)
+        return jsonify(
+            {
+                "success": True,
+                "details": {
+                    "node_id": requested_node_id or "",
+                    "node_uploads_deleted": upload_deleted,
+                    "turbine_measurements_deleted": measurement_deleted,
+                    "node_data_deleted": upload_deleted,
+                },
+            }
+        ), 200
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception("[/api/my/clear_data] failed: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@api_bp.route("/my/registered_nodes", methods=["POST"])
+@login_required
+def create_my_registered_node():
+    try:
+        payload = request.get_json(silent=True) or {}
+        ok, node_id_or_error = _validate_node_id(payload.get("node_id"))
+        if not ok:
+            return jsonify({"success": False, "error": node_id_or_error}), 400
+        node_id = node_id_or_error
+
+        if RegisteredNode.query.filter_by(node_id=node_id).first():
+            return jsonify({"success": False, "error": "node_id already registered"}), 409
+
+        display_name = str(payload.get("display_name") or "").strip()[:120] or node_id
+        node_key = RegisteredNode.generate_node_key()
+        registered_node = RegisteredNode(
+            node_id=node_id,
+            owner_user_id=current_user.id,
+            display_name=display_name,
+            is_active=True,
+        )
+        registered_node.set_node_key(node_key)
+        db.session.add(registered_node)
+        db.session.commit()
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "message": "registered",
+                    "node": _registered_node_to_dict(registered_node, include_key=True),
+                    "node_key": node_key,
+                    "warning": "node_key is visible on the registered node detail page",
+                }
+            ),
+            201,
+        )
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception("[POST /api/my/registered_nodes] failed: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@api_bp.route("/my/registered_nodes/<node_id>/rotate_key", methods=["POST"])
+@login_required
+def rotate_my_registered_node_key(node_id):
+    try:
+        normalized = _normalize_node_id(node_id)
+        query = RegisteredNode.query.filter_by(node_id=normalized, is_active=True)
+        if not _is_admin_user():
+            query = query.filter_by(owner_user_id=current_user.id)
+        registered_node = query.first()
+        if not registered_node:
+            return jsonify({"success": False, "error": "registered node not found"}), 404
+
+        node_key = RegisteredNode.generate_node_key()
+        registered_node.set_node_key(node_key)
+        db.session.commit()
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "message": "node key rotated",
+                    "node": _registered_node_to_dict(
+                        registered_node,
+                        include_owner=_is_admin_user(),
+                        include_key=True,
+                    ),
+                    "node_key": node_key,
+                    "warning": "node_key is visible on the registered node detail page",
+                }
+            ),
+            200,
+        )
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception("[/api/my/registered_nodes/%s/rotate_key] failed: %s", node_id, exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@api_bp.route("/my/registered_nodes/<node_id>/location", methods=["PATCH"])
+@login_required
+def update_my_registered_node_location(node_id):
+    try:
+        ok, normalized_or_error = _validate_node_id(node_id)
+        if not ok:
+            return jsonify({"success": False, "error": normalized_or_error}), 400
+        registered_node = RegisteredNode.query.filter_by(
+            node_id=normalized_or_error,
+            owner_user_id=current_user.id,
+            is_active=True,
+        ).first()
+        if not registered_node:
+            return jsonify({"success": False, "error": "registered node not found"}), 404
+
+        _save_registered_node_location(registered_node, request.get_json(silent=True) or {})
+        return jsonify({"success": True, "node": _registered_node_to_dict(registered_node)}), 200
+    except ValueError as exc:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(exc)}), 400
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception("[PATCH /api/my/registered_nodes/%s/location] failed: %s", node_id, exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@api_bp.route("/my/registered_nodes/<node_id>", methods=["DELETE"])
+@login_required
+def delete_my_registered_node(node_id):
+    try:
+        ok, normalized_or_error = _validate_node_id(node_id)
+        if not ok:
+            return jsonify({"success": False, "error": normalized_or_error}), 400
+        registered_node = RegisteredNode.query.filter_by(
+            node_id=normalized_or_error,
+            owner_user_id=current_user.id,
+            is_active=True,
+        ).first()
+        if not registered_node:
+            return jsonify({"success": False, "error": "registered node not found"}), 404
+
+        upload_deleted, measurement_deleted = _delete_uploads_for_node_ids([registered_node.node_id])
+        deleted_node_id = registered_node.node_id
+        db.session.delete(registered_node)
+        db.session.commit()
+        active_nodes.pop(deleted_node_id, None)
+        return jsonify(
+            {
+                "success": True,
+                "deleted_node_id": deleted_node_id,
+                "details": {
+                    "node_uploads_deleted": upload_deleted,
+                    "turbine_measurements_deleted": measurement_deleted,
+                    "node_data_deleted": upload_deleted,
+                },
+            }
+        ), 200
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception("[DELETE /api/my/registered_nodes/%s] failed: %s", node_id, exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@api_bp.route("/admin/users", methods=["GET"])
+@admin_required
+def admin_users():
+    try:
+        users = User.query.options(selectinload(User.registered_nodes)).order_by(User.id.asc()).all()
+        return jsonify({"success": True, "users": [_user_to_admin_dict(user) for user in users]}), 200
+    except Exception as exc:
+        logger.exception("[/api/admin/users] failed: %s", exc)
+        return jsonify({"success": False, "users": [], "error": str(exc)}), 500
+
+
+@api_bp.route("/admin/users/<int:user_id>", methods=["DELETE"])
+@admin_required
+def admin_delete_user(user_id: int):
+    try:
+        user = db.session.get(User, user_id)
+        if not user:
+            return jsonify({"success": False, "error": "user not found"}), 404
+        if user.id == current_user.id:
+            return jsonify({"success": False, "error": "current admin cannot be deleted"}), 400
+        if (user.role or "user") == "admin":
+            return jsonify({"success": False, "error": "admin user cannot be deleted"}), 400
+
+        deleted_username = user.username
+        RegistrationInvite.query.filter(RegistrationInvite.created_by_user_id == user.id).update(
+            {RegistrationInvite.created_by_user_id: None},
+            synchronize_session=False,
+        )
+        RegistrationInvite.query.filter(RegistrationInvite.used_by_user_id == user.id).update(
+            {RegistrationInvite.used_by_user_id: None},
+            synchronize_session=False,
+        )
+        deleted_nodes = RegisteredNode.query.filter_by(owner_user_id=user.id).count()
+        db.session.delete(user)
+        db.session.commit()
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "deleted_user_id": user_id,
+                    "deleted_username": deleted_username,
+                    "deleted_nodes": int(deleted_nodes or 0),
+                }
+            ),
+            200,
+        )
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception("[DELETE /api/admin/users/%s] failed: %s", user_id, exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@api_bp.route("/admin/invitations", methods=["GET", "POST"])
+@admin_required
+def admin_invitations():
+    try:
+        if request.method == "GET":
+            now = _utcnow()
+            rows = (
+                RegistrationInvite.query.options(
+                    selectinload(RegistrationInvite.created_by),
+                    selectinload(RegistrationInvite.used_by),
+                )
+                .filter(RegistrationInvite.revoked_at.is_(None))
+                .order_by(RegistrationInvite.created_at.desc(), RegistrationInvite.id.desc())
+                .limit(200)
+                .all()
+            )
+            return jsonify({"success": True, "invitations": [_invite_to_admin_dict(row, now) for row in rows]}), 200
+
+        payload = request.get_json(silent=True) or {}
+        try:
+            count = int(payload.get("count", 1))
+        except Exception:
+            return jsonify({"success": False, "error": "count must be an integer"}), 400
+        if count < 1 or count > MAX_INVITE_BATCH_COUNT:
+            return jsonify({"success": False, "error": f"count must be between 1 and {MAX_INVITE_BATCH_COUNT}"}), 400
+
+        try:
+            expires_days = int(payload.get("expires_days", DEFAULT_INVITE_EXPIRES_DAYS))
+        except Exception:
+            return jsonify({"success": False, "error": "expires_days must be an integer"}), 400
+        if expires_days < 1 or expires_days > 365:
+            return jsonify({"success": False, "error": "expires_days must be between 1 and 365"}), 400
+
+        now = _utcnow()
+        expires_at = now + timedelta(days=expires_days)
+        generated_codes = set()
+        invitations = []
+        for _ in range(count):
+            code = ""
+            for _attempt in range(30):
+                candidate = RegistrationInvite.generate_code()
+                if candidate in generated_codes:
+                    continue
+                if not RegistrationInvite.query.filter_by(code=candidate).first():
+                    code = candidate
+                    break
+            if not code:
+                raise RuntimeError("failed to generate unique invitation code")
+            generated_codes.add(code)
+            invite = RegistrationInvite(
+                code=code,
+                created_by_user_id=current_user.id,
+                created_at=now,
+                expires_at=expires_at,
+            )
+            db.session.add(invite)
+            invitations.append(invite)
+
+        db.session.commit()
+        return jsonify({"success": True, "invitations": [_invite_to_admin_dict(row, now) for row in invitations]}), 201
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception("[/api/admin/invitations] failed: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@api_bp.route("/admin/invitations/<int:invite_id>/revoke", methods=["POST"])
+@admin_required
+def admin_revoke_invitation(invite_id: int):
+    try:
+        invite = db.session.get(RegistrationInvite, invite_id)
+        if not invite:
+            return jsonify({"success": False, "error": "invitation not found"}), 404
+        if invite.used_at:
+            return jsonify({"success": False, "error": "used invitation cannot be deleted"}), 400
+        deleted_id = invite.id
+        db.session.delete(invite)
+        db.session.commit()
+        return jsonify({"success": True, "deleted_id": deleted_id}), 200
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception("[/api/admin/invitations/%s/revoke] failed: %s", invite_id, exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@api_bp.route("/admin/users/<int:user_id>/registered_nodes", methods=["GET"])
+@admin_required
+def admin_user_registered_nodes(user_id: int):
+    try:
+        user = db.session.get(User, user_id, options=[selectinload(User.registered_nodes)])
+        if not user:
+            return jsonify({"success": False, "error": "user not found"}), 404
+        nodes = (
+            RegisteredNode.query.filter_by(owner_user_id=user.id, is_active=True)
+            .order_by(RegisteredNode.node_id.asc())
+            .all()
+        )
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "user": _user_to_admin_dict(user),
+                    "nodes": [_registered_node_to_dict(node, include_key=True) for node in nodes],
+                }
+            ),
+            200,
+        )
+    except Exception as exc:
+        logger.exception("[/api/admin/users/%s/registered_nodes] failed: %s", user_id, exc)
+        return jsonify({"success": False, "nodes": [], "error": str(exc)}), 500
+
+
+@api_bp.route("/admin/users/<int:user_id>/registered_nodes/<node_id>/location", methods=["PATCH"])
+@admin_required
+def admin_update_registered_node_location(user_id: int, node_id):
+    try:
+        user = db.session.get(User, user_id)
+        if not user:
+            return jsonify({"success": False, "error": "user not found"}), 404
+        ok, normalized_or_error = _validate_node_id(node_id)
+        if not ok:
+            return jsonify({"success": False, "error": normalized_or_error}), 400
+        registered_node = RegisteredNode.query.filter_by(
+            node_id=normalized_or_error,
+            owner_user_id=user.id,
+            is_active=True,
+        ).first()
+        if not registered_node:
+            return jsonify({"success": False, "error": "registered node not found"}), 404
+
+        _save_registered_node_location(registered_node, request.get_json(silent=True) or {})
+        return (
+            jsonify({"success": True, "node": _registered_node_to_dict(registered_node, include_owner=True)}),
+            200,
+        )
+    except ValueError as exc:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(exc)}), 400
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception(
+            "[PATCH /api/admin/users/%s/registered_nodes/%s/location] failed: %s",
+            user_id,
+            node_id,
+            exc,
+        )
+        return jsonify({"success": False, "error": str(exc)}), 500
 
 
 @api_bp.route("/node_data", methods=["GET"])
@@ -263,6 +1028,9 @@ def get_node_data():
         node_id = (request.args.get("node_id") or "").strip()
         if not node_id:
             return jsonify({"success": False, "error": "missing node_id"}), 400
+        node_id = _normalize_node_id(node_id)
+        if not _can_access_node(node_id):
+            return jsonify({"success": False, "error": "node access denied"}), 403
 
         limit = max(1, min(int(request.args.get("limit", 600)), MAX_HISTORY_LIMIT))
         start_utc = parse_client_datetime_to_utc(request.args.get("start") or request.args.get("start_time"))
@@ -284,6 +1052,9 @@ def get_data():
         node_id = (request.args.get("node_id") or "").strip()
         if not node_id:
             return jsonify({"status": "error", "error": "missing node_id"}), 400
+        node_id = _normalize_node_id(node_id)
+        if not _can_access_node(node_id):
+            return jsonify({"status": "error", "error": "node access denied"}), 403
 
         limit = max(1, min(int(request.args.get("limit", 600)), MAX_HISTORY_LIMIT))
         start_utc = parse_client_datetime_to_utc(request.args.get("start") or request.args.get("start_time"))
@@ -305,10 +1076,13 @@ def data_meta():
         node_id = (request.args.get("node_id") or "").strip()
         if not node_id:
             return jsonify({"status": "error", "error": "missing node_id"}), 400
+        node_id = _normalize_node_id(node_id)
+        if not _can_access_node(node_id):
+            return jsonify({"status": "error", "error": "node access denied"}), 403
 
         mode = (request.args.get("mode") or "").strip().lower()
-        if mode not in ("nth", "count"):
-            return jsonify({"status": "error", "error": "mode must be nth or count"}), 400
+        if mode not in ("nth", "nth_before", "count"):
+            return jsonify({"status": "error", "error": "mode must be nth, nth_before or count"}), 400
 
         start_utc = parse_client_datetime_to_utc(request.args.get("start") or request.args.get("start_time"))
         end_utc = parse_client_datetime_to_utc(request.args.get("end") or request.args.get("end_time"))
@@ -332,11 +1106,32 @@ def data_meta():
                 }
             ), 200
 
+        requested = max(1, min(int(request.args.get("limit", 0) or 0), MAX_HISTORY_LIMIT))
+
+        if mode == "nth_before":
+            if not end_utc:
+                return jsonify({"status": "error", "error": "nth_before mode requires end"}), 400
+            nth_row = query.order_by(NodeUpload.timestamp.desc(), NodeUpload.id.desc()).offset(requested - 1).limit(1).first()
+            first_row = query.order_by(NodeUpload.timestamp.asc(), NodeUpload.id.asc()).first() if total_count > 0 else None
+            last_row = query.order_by(NodeUpload.timestamp.desc(), NodeUpload.id.desc()).first() if total_count > 0 else None
+            return jsonify(
+                {
+                    "status": "success",
+                    "node_id": node_id,
+                    "mode": "nth_before",
+                    "requested": requested,
+                    "count": total_count,
+                    "nth_ts": iso_beijing(nth_row.timestamp, with_seconds=True, with_ms=True) if nth_row else None,
+                    "first_ts": iso_beijing(first_row.timestamp, with_seconds=True, with_ms=True) if first_row else None,
+                    "last_ts": iso_beijing(last_row.timestamp, with_seconds=True, with_ms=True) if last_row else None,
+                }
+            ), 200
+
         if not start_utc:
             return jsonify({"status": "error", "error": "nth mode requires start"}), 400
 
-        requested = max(1, min(int(request.args.get("limit", 0) or 0), MAX_HISTORY_LIMIT))
         nth_row = query.order_by(NodeUpload.timestamp.asc(), NodeUpload.id.asc()).offset(requested - 1).limit(1).first()
+        first_row = query.order_by(NodeUpload.timestamp.asc(), NodeUpload.id.asc()).first() if total_count > 0 else None
         last_row = query.order_by(NodeUpload.timestamp.desc(), NodeUpload.id.desc()).first() if total_count > 0 else None
         return jsonify(
             {
@@ -346,6 +1141,7 @@ def data_meta():
                 "requested": requested,
                 "count": total_count,
                 "nth_ts": iso_beijing(nth_row.timestamp, with_seconds=True, with_ms=True) if nth_row else None,
+                "first_ts": iso_beijing(first_row.timestamp, with_seconds=True, with_ms=True) if first_row else None,
                 "last_ts": iso_beijing(last_row.timestamp, with_seconds=True, with_ms=True) if last_row else None,
             }
         ), 200
@@ -359,17 +1155,18 @@ def data_meta():
 def dashboard_stats():
     try:
         now_ts = _now_ts()
-        online_ids = [node_id for node_id, info in list(active_nodes.items()) if _is_online(info, now_ts)]
-        db_ids = {row[0] for row in db.session.query(NodeUpload.node_id).distinct().all()}
-        all_ids = db_ids | set(active_nodes.keys())
-        latest_ts = db.session.query(db.func.max(NodeUpload.timestamp)).scalar()
-        total_records = db.session.query(db.func.count(NodeUpload.id)).scalar() or 0
-        records_24h = (
-            db.session.query(db.func.count(NodeUpload.id))
-            .filter(NodeUpload.timestamp >= (_utcnow() - timedelta(hours=24)))
-            .scalar()
-            or 0
-        )
+        all_ids = _accessible_node_ids_for_current_user()
+        online_ids = [node_id for node_id in all_ids if _is_online(active_nodes.get(node_id) or {}, now_ts)]
+        upload_query = NodeUpload.query
+        if all_ids:
+            upload_query = upload_query.filter(NodeUpload.node_id.in_(all_ids))
+        else:
+            upload_query = upload_query.filter(text("1=0"))
+        latest_ts = upload_query.with_entities(db.func.max(NodeUpload.timestamp)).scalar()
+        total_records = upload_query.with_entities(db.func.count(NodeUpload.id)).scalar() or 0
+        records_24h = upload_query.filter(NodeUpload.timestamp >= (_utcnow() - timedelta(hours=24))).with_entities(
+            db.func.count(NodeUpload.id)
+        ).scalar() or 0
 
         db_uri = (app_instance.config.get("SQLALCHEMY_DATABASE_URI") if app_instance else "") or ""
         db_size_mb = 0.0
@@ -398,8 +1195,11 @@ def dashboard_stats():
 def get_active_nodes():
     try:
         now_ts = _now_ts()
+        allowed_ids = _accessible_node_ids_for_current_user()
         nodes = []
         for node_id, info in list(active_nodes.items()):
+            if _normalize_node_id(node_id) not in allowed_ids:
+                continue
             if not _is_online(info, now_ts):
                 continue
             nodes.append(
@@ -421,21 +1221,24 @@ def get_active_nodes():
 def devices_compat():
     try:
         now_ts = _now_ts()
-        rows = (
-            db.session.query(NodeUpload.node_id, db.func.max(NodeUpload.timestamp))
-            .group_by(NodeUpload.node_id)
-            .all()
-        )
+        registered_nodes = _registered_node_query_for_current_user().order_by(RegisteredNode.node_id.asc()).all()
         devices = []
-        for node_id, last_ts in rows:
+        for registered_node in registered_nodes:
+            node_id = registered_node.node_id
             info = active_nodes.get(node_id) or {}
+            latest_upload = _load_latest_upload(node_id)
+            last_ts = registered_node.last_seen_at or (latest_upload.timestamp if latest_upload else None)
             devices.append(
                 {
                     "device_id": node_id,
-                    "location": node_id,
+                    "location": registered_node.display_name or node_id,
                     "status": "online" if _is_online(info, now_ts) else "offline",
                     "last_heartbeat": iso_beijing(last_ts) if last_ts else None,
-                    "turbine_count": int(info.get("turbine_count") or 0),
+                    "turbine_count": int(
+                        info.get("turbine_count")
+                        or (latest_upload.turbine_count if latest_upload else 0)
+                        or 0
+                    ),
                 }
             )
         return jsonify({"success": True, "devices": devices}), 200
@@ -445,7 +1248,7 @@ def devices_compat():
 
 
 @api_bp.route("/admin/system_info", methods=["GET"])
-@login_required
+@admin_required
 def admin_system_info():
     try:
         version = os.environ.get("WINDSIGHT_VERSION", "v1.0.0")
@@ -456,8 +1259,18 @@ def admin_system_info():
         sizes = _sqlite_file_sizes_mb(sqlite_path)
 
         now_ts = _now_ts()
-        online_count = len([node_id for node_id, info in list(active_nodes.items()) if _is_online(info, now_ts)])
-        total_nodes = db.session.query(db.func.count(db.distinct(NodeUpload.node_id))).scalar() or 0
+        registered_ids = {
+            _normalize_node_id(row[0])
+            for row in RegisteredNode.query.filter_by(is_active=True).with_entities(RegisteredNode.node_id).all()
+        }
+        online_count = len(
+            [
+                node_id
+                for node_id, info in list(active_nodes.items())
+                if _normalize_node_id(node_id) in registered_ids and _is_online(info, now_ts)
+            ]
+        )
+        total_nodes = len(registered_ids)
         total_rows = db.session.query(db.func.count(NodeUpload.id)).scalar() or 0
 
         return jsonify(
@@ -483,7 +1296,7 @@ def admin_system_info():
 
 
 @api_bp.route("/admin/config", methods=["GET", "POST"])
-@login_required
+@admin_required
 def admin_config():
     keys = ["poll_interval", "auto_refresh", "show_debug_log", "log_retention", "node_timeout_seconds"]
     try:
@@ -532,7 +1345,7 @@ def admin_config():
 
 
 @api_bp.route("/admin/cleanup_old_data", methods=["POST"])
-@login_required
+@admin_required
 def admin_cleanup_old_data():
     try:
         payload = request.get_json(silent=True) or {}
@@ -569,7 +1382,7 @@ def admin_cleanup_old_data():
 
 
 @api_bp.route("/admin/clear_all_data", methods=["POST"])
-@login_required
+@admin_required
 def admin_clear_all_data():
     try:
         measurement_deleted = TurbineMeasurement.query.delete(synchronize_session=False)
@@ -593,11 +1406,11 @@ def admin_clear_all_data():
 
 
 @api_bp.route("/admin/delete_node_data", methods=["POST"])
-@login_required
+@admin_required
 def admin_delete_node_data():
     try:
         payload = request.get_json(silent=True) or {}
-        node_id = (payload.get("node_id") or "").strip()
+        node_id = _normalize_node_id(payload.get("node_id"))
         if not node_id:
             return jsonify({"success": False, "error": "missing node_id"}), 400
 
@@ -626,13 +1439,13 @@ def admin_delete_node_data():
 
 
 @api_bp.route("/admin/reset_data", methods=["POST"])
-@login_required
+@admin_required
 def admin_reset_data_alias():
     return admin_clear_all_data()
 
 
 @api_bp.route("/admin/vacuum", methods=["POST"])
-@login_required
+@admin_required
 def admin_vacuum():
     try:
         db_uri = (app_instance.config.get("SQLALCHEMY_DATABASE_URI") if app_instance else "") or ""

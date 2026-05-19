@@ -3,81 +3,130 @@
   const defaults = {
     nodeId: root.dataset.defaultNodeId || "WIN_001",
     host: root.dataset.defaultTargetHost || "127.0.0.1",
-    port: root.dataset.defaultTargetPort || "5000",
+    port: root.dataset.defaultTargetPort || "8080",
     path: root.dataset.defaultTargetPath || "/api/upload",
   };
 
-  const elScheme = document.getElementById("scheme");
-  const elHost = document.getElementById("host");
-  const elPort = document.getElementById("port");
-  const elPath = document.getElementById("path");
-  const elPreview = document.getElementById("targetUrlPreview");
-  const elNodeId = document.getElementById("nodeId");
-  const elSubCount = document.getElementById("subCount");
-  const elPayload = document.getElementById("payloadJson");
-  const elLog = document.getElementById("resultLog");
-  const elStatus = document.getElementById("uiStatus");
-  const elBtnSaveTarget = document.getElementById("btnSaveTarget");
-  const elBtnFillNodeOnly = document.getElementById("btnFillNodeOnly");
-  const elBtnFill32 = document.getElementById("btnFill32");
-  const elBtnSend = document.getElementById("btnSend");
-  const elBtnClearLog = document.getElementById("btnClearLog");
+  const STORAGE_TARGET = "mini_sim_target_v2";
+  const STORAGE_HISTORY = "mini_sim_history_v2";
+  const MAX_HISTORY = 8;
 
-  function setStatus(text, level) {
-    elStatus.textContent = text;
-    elStatus.classList.remove("text-bg-secondary", "text-bg-success", "text-bg-danger", "text-bg-warning");
-    if (level === "ok") elStatus.classList.add("text-bg-success");
-    else if (level === "err") elStatus.classList.add("text-bg-danger");
-    else if (level === "warn") elStatus.classList.add("text-bg-warning");
-    else elStatus.classList.add("text-bg-secondary");
+  const els = {
+    scheme: document.getElementById("scheme"),
+    host: document.getElementById("host"),
+    port: document.getElementById("port"),
+    path: document.getElementById("path"),
+    nodeKey: document.getElementById("nodeKey"),
+    preview: document.getElementById("targetUrlPreview"),
+    nodeId: document.getElementById("nodeId"),
+    subCount: document.getElementById("subCount"),
+    payload: document.getElementById("payloadJson"),
+    jsonState: document.getElementById("jsonState"),
+    payloadSummary: document.getElementById("payloadSummary"),
+    status: document.getElementById("uiStatus"),
+    responseMeta: document.getElementById("responseMeta"),
+    responseBody: document.getElementById("responseBody"),
+    responseJson: document.getElementById("responseJson"),
+    historyList: document.getElementById("historyList"),
+    btnSaveTarget: document.getElementById("btnSaveTarget"),
+    btnFillNodeOnly: document.getElementById("btnFillNodeOnly"),
+    btnFill32: document.getElementById("btnFill32"),
+    btnFormatJson: document.getElementById("btnFormatJson"),
+    btnMinifyJson: document.getElementById("btnMinifyJson"),
+    btnCopyJson: document.getElementById("btnCopyJson"),
+    btnSend: document.getElementById("btnSend"),
+    btnResend: document.getElementById("btnResend"),
+    btnClearLog: document.getElementById("btnClearLog"),
+  };
+
+  let recentHistory = [];
+  let lastRequest = null;
+
+  function setPill(el, text, level = "idle") {
+    if (!el) return;
+    el.textContent = text;
+    el.dataset.level = level;
   }
 
-  function buildUrlPreview() {
-    const scheme = elScheme.value || "http";
-    const host = elHost.value.trim();
-    const port = String(elPort.value || "").trim() || "80";
-    let path = elPath.value.trim() || "/api/upload";
-    if (!path.startsWith("/")) path = `/${path}`;
-    const url = host ? `${scheme}://${host}:${port}${path}` : "-";
-    elPreview.textContent = url;
-    return url;
+  function normalizePath(path) {
+    const value = String(path || "/api/upload").trim() || "/api/upload";
+    return value.startsWith("/") ? value : `/${value}`;
   }
 
-  function appendLog(text) {
-    const current = elLog.textContent === "等待操作..." ? "" : `${elLog.textContent}\n`;
-    elLog.textContent = `${text}\n${current}`.trimEnd();
-  }
-
-  function loadLocal() {
-    try {
-      return JSON.parse(window.localStorage.getItem("mini_sim_target") || "null");
-    } catch (error) {
-      return null;
-    }
-  }
-
-  function saveLocal() {
-    try {
-      window.localStorage.setItem(
-        "mini_sim_target",
-        JSON.stringify({
-          scheme: elScheme.value,
-          host: elHost.value.trim(),
-          port: String(elPort.value).trim(),
-          path: elPath.value.trim(),
-          nodeId: elNodeId.value.trim(),
-          subCount: String(elSubCount.value).trim(),
-        })
-      );
-      setStatus("已保存", "ok");
-    } catch (error) {
-      setStatus("保存失败", "err");
-    }
+  function safePort(raw) {
+    const parsed = parseInt(String(raw || ""), 10);
+    if (!Number.isFinite(parsed)) return 8080;
+    return Math.max(1, Math.min(65535, parsed));
   }
 
   function safeSubCount() {
-    const parsed = parseInt(String(elSubCount.value || "4"), 10);
-    return Math.max(1, Math.min(64, Number.isFinite(parsed) ? parsed : 4));
+    const parsed = parseInt(String(els.subCount.value || "4"), 10);
+    const value = Math.max(1, Math.min(64, Number.isFinite(parsed) ? parsed : 4));
+    els.subCount.value = String(value);
+    return value;
+  }
+
+  function buildUrlPreview() {
+    const scheme = els.scheme.value === "https" ? "https" : "http";
+    const host = els.host.value.trim();
+    const port = safePort(els.port.value);
+    const path = normalizePath(els.path.value);
+    els.path.value = path;
+    els.port.value = String(port);
+    const url = host ? `${scheme}://${host}:${port}${path}` : "-";
+    els.preview.textContent = url;
+    return url;
+  }
+
+  function parsePayload() {
+    const raw = els.payload.value;
+    if (!raw.trim()) {
+      return { ok: false, error: "JSON 不能为空" };
+    }
+    try {
+      const value = JSON.parse(raw);
+      if (!value || typeof value !== "object" || Array.isArray(value)) {
+        return { ok: false, error: "顶层必须是 JSON 对象" };
+      }
+      return { ok: true, value };
+    } catch (error) {
+      return { ok: false, error: `JSON 解析失败：${error.message}` };
+    }
+  }
+
+  function summarizePayload(payload) {
+    const nodeId = String(payload.node_id || "").trim() || "-";
+    const sub = parseInt(String(payload.sub || "0"), 10) || 0;
+    const turbineKeys = Object.keys(payload).filter((key) => /^\d{3}$/.test(key)).sort();
+    const missing = [];
+    for (let i = 1; i <= sub; i += 1) {
+      const key = String(i).padStart(3, "0");
+      if (!Object.prototype.hasOwnProperty.call(payload, key)) missing.push(key);
+    }
+    if (!sub) return `node_id=${nodeId}，缺少有效 sub`;
+    if (missing.length) return `node_id=${nodeId}，sub=${sub}，缺少 ${missing.slice(0, 3).join(", ")}`;
+    return `node_id=${nodeId}，sub=${sub}，风机键 ${turbineKeys.length}/${sub}`;
+  }
+
+  function validatePayloadUi() {
+    const parsed = parsePayload();
+    if (!parsed.ok) {
+      setPill(els.jsonState, "JSON 错误", "err");
+      els.payloadSummary.textContent = parsed.error;
+      return parsed;
+    }
+    const payload = parsed.value;
+    const nodeId = String(payload.node_id || "").trim();
+    const sub = parseInt(String(payload.sub || "0"), 10);
+    if (!nodeId) {
+      setPill(els.jsonState, "缺 node_id", "warn");
+    } else if (!Number.isFinite(sub) || sub < 1 || sub > 64) {
+      setPill(els.jsonState, "sub 越界", "warn");
+    } else {
+      setPill(els.jsonState, "JSON 可发送", "ok");
+    }
+    els.payloadSummary.textContent = summarizePayload(payload);
+    return parsed;
   }
 
   function buildSamplePayload(nodeId, subCount) {
@@ -88,93 +137,282 @@
     for (let i = 1; i <= subCount; i += 1) {
       const code = String(i).padStart(3, "0");
       payload[code] = [
-        Number((3.5 + i * 0.02).toFixed(3)),
-        Number((2 + i * 0.02).toFixed(3)),
-        Number((2 + i * 0.03).toFixed(3)),
-        Number((1.6 + i * 0.02).toFixed(3)),
+        Number((3.48 + i * 0.018).toFixed(3)),
+        Number((1.92 + i * 0.015).toFixed(3)),
+        Number((1.72 + i * 0.022).toFixed(3)),
+        Number((1.54 + i * 0.012).toFixed(3)),
       ];
     }
     return payload;
   }
 
   function fillHeaderOnly() {
-    const nodeId = elNodeId.value.trim() || defaults.nodeId;
-    elPayload.value = JSON.stringify({ node_id: nodeId, sub: String(safeSubCount()) }, null, 2);
+    const nodeId = els.nodeId.value.trim() || defaults.nodeId;
+    els.payload.value = JSON.stringify({ node_id: nodeId, sub: String(safeSubCount()) }, null, 2);
+    validatePayloadUi();
   }
 
   function fillSample() {
-    const nodeId = elNodeId.value.trim() || defaults.nodeId;
-    const payload = buildSamplePayload(nodeId, safeSubCount());
-    elPayload.value = JSON.stringify(payload, null, 2);
+    const nodeId = els.nodeId.value.trim() || defaults.nodeId;
+    els.payload.value = JSON.stringify(buildSamplePayload(nodeId, safeSubCount()), null, 2);
+    validatePayloadUi();
   }
 
-  async function sendNow() {
-    const targetUrl = buildUrlPreview();
-    if (!elHost.value.trim()) {
-      setStatus("请填写目标地址", "warn");
+  function formatJson(spaces) {
+    const parsed = parsePayload();
+    if (!parsed.ok) {
+      validatePayloadUi();
+      return false;
+    }
+    els.payload.value = JSON.stringify(parsed.value, null, spaces);
+    validatePayloadUi();
+    return true;
+  }
+
+  async function copyText(text) {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
       return;
     }
-    if (!elPayload.value.trim()) {
-      setStatus("请填写 JSON", "warn");
+    const range = document.createRange();
+    const selection = window.getSelection();
+    const holder = document.createElement("textarea");
+    holder.value = text;
+    holder.style.position = "fixed";
+    holder.style.opacity = "0";
+    document.body.appendChild(holder);
+    holder.select();
+    document.execCommand("copy");
+    document.body.removeChild(holder);
+    selection?.removeAllRanges();
+    range.detach?.();
+  }
+
+  function saveTarget() {
+    const data = {
+      scheme: els.scheme.value,
+      host: els.host.value.trim(),
+      port: String(safePort(els.port.value)),
+      path: normalizePath(els.path.value),
+      nodeKey: els.nodeKey.value.trim(),
+      nodeId: els.nodeId.value.trim(),
+      subCount: String(safeSubCount()),
+    };
+    window.localStorage.setItem(STORAGE_TARGET, JSON.stringify(data));
+    setPill(els.status, "配置已保存", "ok");
+  }
+
+  function loadJson(key, fallback) {
+    try {
+      const value = JSON.parse(window.localStorage.getItem(key) || "null");
+      return value ?? fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  function restoreTarget(data) {
+    if (!data) return;
+    els.scheme.value = data.scheme === "https" ? "https" : "http";
+    els.host.value = data.host || defaults.host;
+    els.port.value = data.port || defaults.port;
+    els.path.value = data.path || defaults.path;
+    els.nodeKey.value = data.nodeKey || "";
+    els.nodeId.value = data.nodeId || defaults.nodeId;
+    els.subCount.value = data.subCount || "4";
+    buildUrlPreview();
+  }
+
+  function renderHistory() {
+    if (!recentHistory.length) {
+      els.historyList.innerHTML = '<div class="history-empty">暂无发送记录</div>';
+      return;
+    }
+    els.historyList.innerHTML = "";
+    recentHistory.forEach((item, index) => {
+      const button = document.createElement("button");
+      button.className = "history-item";
+      button.type = "button";
+      button.innerHTML = `
+        <strong><span>${item.ok ? "OK" : "FAIL"} ${item.statusCode || "-"}</span><span>${item.elapsedMs || 0}ms</span></strong>
+        <small>${item.time} · ${item.targetUrl}</small>
+        <small>${item.summary || ""}</small>
+      `;
+      button.addEventListener("click", () => {
+        restoreTarget(item.target);
+        els.payload.value = item.payloadJson || "";
+        validatePayloadUi();
+        setPill(els.status, `已恢复记录 ${index + 1}`, "ok");
+      });
+      els.historyList.appendChild(button);
+    });
+  }
+
+  function pushHistory(entry) {
+    recentHistory = [entry, ...recentHistory].slice(0, MAX_HISTORY);
+    window.localStorage.setItem(STORAGE_HISTORY, JSON.stringify(recentHistory));
+    renderHistory();
+  }
+
+  function explainFailure(data, status) {
+    const code = data?.status_code || status;
+    const text = String(data?.response_text || data?.error || "");
+    if (code === 401 || code === 403) {
+      return "权限失败：请确认节点已在 WindSight 注册，并填写正确的 X-WindSight-Node-Key。";
+    }
+    if (code === 400) {
+      return "请求被拒绝：请检查 node_id、sub、001..NNN 风机键和四指标数组。";
+    }
+    if (data?.error) {
+      return `连接失败：${data.error}`;
+    }
+    return text || "发送失败，请检查目标地址和 payload。";
+  }
+
+  function currentTargetSnapshot() {
+    return {
+      scheme: els.scheme.value,
+      host: els.host.value.trim(),
+      port: String(safePort(els.port.value)),
+      path: normalizePath(els.path.value),
+      nodeKey: els.nodeKey.value.trim(),
+      nodeId: els.nodeId.value.trim(),
+      subCount: String(safeSubCount()),
+    };
+  }
+
+  function buildSendBody() {
+    return {
+      scheme: els.scheme.value,
+      host: els.host.value.trim(),
+      port: safePort(els.port.value),
+      path: normalizePath(els.path.value),
+      node_key: els.nodeKey.value.trim(),
+      payload_json: els.payload.value,
+    };
+  }
+
+  async function sendRequest(body, targetSnapshot) {
+    const targetUrl = buildUrlPreview();
+    const parsed = validatePayloadUi();
+    if (!els.host.value.trim()) {
+      setPill(els.status, "目标地址缺失", "warn");
+      return;
+    }
+    if (!parsed.ok) {
+      setPill(els.status, "JSON 不可发送", "err");
       return;
     }
 
-    setStatus("发送中...", "warn");
+    setPill(els.status, "发送中...", "warn");
+    els.btnSend.disabled = true;
+    els.btnResend.disabled = true;
+    const startedAt = new Date();
     try {
       const resp = await fetch("/api/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          scheme: elScheme.value,
-          host: elHost.value.trim(),
-          port: Number(elPort.value || 80),
-          path: elPath.value.trim(),
-          payload_json: elPayload.value,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await resp.json().catch(() => ({}));
-      if (!resp.ok || !data.ok) {
-        setStatus("发送失败", "err");
-        appendLog(`[${new Date().toLocaleTimeString()}] FAIL ${targetUrl}\n${JSON.stringify(data, null, 2)}`);
-        return;
-      }
-      setStatus("发送成功", "ok");
-      appendLog(
-        `[${new Date().toLocaleTimeString()}] OK ${data.target_url} ${data.status_code} (${data.elapsed_ms}ms)\n${
-          data.response_text || ""
-        }`
-      );
+      const ok = resp.ok && !!data.ok;
+      const statusCode = data.status_code || resp.status;
+      const elapsedMs = data.elapsed_ms || 0;
+      const summary = summarizePayload(parsed.value);
+
+      setPill(els.status, ok ? "发送成功" : "发送失败", ok ? "ok" : "err");
+      els.responseMeta.textContent = `${statusCode || "-"} · ${elapsedMs}ms · ${data.target_url || targetUrl}`;
+      els.responseBody.textContent = ok ? (data.response_text || "响应为空") : explainFailure(data, resp.status);
+      els.responseJson.textContent = data.response_json
+        ? JSON.stringify(data.response_json, null, 2)
+        : "无";
+
+      lastRequest = { body, target: targetSnapshot };
+      els.btnResend.disabled = false;
+      pushHistory({
+        ok,
+        statusCode,
+        elapsedMs,
+        time: startedAt.toLocaleTimeString(),
+        targetUrl: data.target_url || targetUrl,
+        target: targetSnapshot,
+        payloadJson: body.payload_json,
+        summary,
+      });
     } catch (error) {
-      setStatus("发送异常", "err");
-      appendLog(`[${new Date().toLocaleTimeString()}] ERROR ${targetUrl}\n${String(error)}`);
+      setPill(els.status, "发送异常", "err");
+      els.responseMeta.textContent = `${targetUrl}`;
+      els.responseBody.textContent = `连接失败：${String(error)}`;
+      els.responseJson.textContent = "无";
+    } finally {
+      els.btnSend.disabled = false;
+      els.btnResend.disabled = !lastRequest;
     }
   }
 
-  function initDefaults() {
-    const saved = loadLocal();
-    elScheme.value = (saved && saved.scheme) || "http";
-    elHost.value = (saved && saved.host) || defaults.host;
-    elPort.value = (saved && saved.port) || defaults.port;
-    elPath.value = (saved && saved.path) || defaults.path;
-    elNodeId.value = (saved && saved.nodeId) || defaults.nodeId;
-    elSubCount.value = (saved && saved.subCount) || "4";
-    fillSample();
-    buildUrlPreview();
+  function sendNow() {
+    sendRequest(buildSendBody(), currentTargetSnapshot());
   }
 
-  [elScheme, elHost, elPort, elPath].forEach((el) => {
+  function resendLast() {
+    if (!lastRequest) return;
+    restoreTarget(lastRequest.target);
+    els.payload.value = lastRequest.body.payload_json;
+    sendRequest(lastRequest.body, lastRequest.target);
+  }
+
+  function initDefaults() {
+    const saved = loadJson(STORAGE_TARGET, null);
+    recentHistory = loadJson(STORAGE_HISTORY, []);
+    restoreTarget(saved || {
+      scheme: "http",
+      host: defaults.host,
+      port: defaults.port,
+      path: defaults.path,
+      nodeKey: "",
+      nodeId: defaults.nodeId,
+      subCount: "4",
+    });
+    fillSample();
+    renderHistory();
+  }
+
+  [els.scheme, els.host, els.port, els.path].forEach((el) => {
     el.addEventListener("input", buildUrlPreview);
     el.addEventListener("change", buildUrlPreview);
   });
-  elBtnSaveTarget.addEventListener("click", saveLocal);
-  elBtnFillNodeOnly.addEventListener("click", fillHeaderOnly);
-  elBtnFill32.addEventListener("click", fillSample);
-  elBtnSend.addEventListener("click", sendNow);
-  elBtnClearLog.addEventListener("click", () => {
-    elLog.textContent = "等待操作...";
+  [els.payload].forEach((el) => {
+    el.addEventListener("input", validatePayloadUi);
   });
-  elSubCount.addEventListener("change", fillSample);
+
+  els.btnSaveTarget.addEventListener("click", saveTarget);
+  els.btnFillNodeOnly.addEventListener("click", fillHeaderOnly);
+  els.btnFill32.addEventListener("click", fillSample);
+  els.btnFormatJson.addEventListener("click", () => {
+    if (formatJson(2)) setPill(els.status, "JSON 已格式化", "ok");
+  });
+  els.btnMinifyJson.addEventListener("click", () => {
+    if (formatJson(0)) setPill(els.status, "JSON 已压缩", "ok");
+  });
+  els.btnCopyJson.addEventListener("click", () => {
+    copyText(els.payload.value)
+      .then(() => setPill(els.status, "JSON 已复制", "ok"))
+      .catch(() => setPill(els.status, "复制失败", "err"));
+  });
+  els.btnSend.addEventListener("click", sendNow);
+  els.btnResend.addEventListener("click", resendLast);
+  els.btnClearLog.addEventListener("click", () => {
+    els.responseMeta.textContent = "等待操作";
+    els.responseBody.textContent = "等待操作...";
+    els.responseJson.textContent = "无";
+    recentHistory = [];
+    window.localStorage.removeItem(STORAGE_HISTORY);
+    renderHistory();
+    setPill(els.status, "记录已清空", "ok");
+  });
+  els.subCount.addEventListener("change", fillSample);
+  els.nodeId.addEventListener("change", fillSample);
 
   initDefaults();
-  setStatus("就绪", "ok");
+  setPill(els.status, "就绪", "ok");
 })();

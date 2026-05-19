@@ -1,231 +1,176 @@
 {% extends "base.html" %}
 
-{% block title %}节点管理/设置 - WindSight{% endblock %}
+{% block title %}系统设置 - WindSight{% endblock %}
 {% block page_title %}系统设置{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/settings_console.css') }}?v=20260424-ui6">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settings_console.css') }}?v=20260516-settings-clean">
 {% endblock %}
 
 {% block content %}
 <div class="settings-console">
-    <section class="card settings-hero-panel">
-        <div class="settings-hero-copy">
-            <div class="settings-kicker">Settings Console</div>
-            <h2 class="settings-hero-title">节点管理与系统设置控制台</h2>
-            <p class="settings-hero-text">统一管理轮询、显示、数据留存与节点级清理策略。系统摘要和危险操作分区呈现，不再是旧式白卡堆叠页面。</p>
+    <section class="settings-command-bar">
+        <div>
+            <div class="settings-page-label">运维控制台</div>
+            <h2 class="settings-page-title">系统设置</h2>
+            <p class="settings-page-desc">集中管理采集轮询、离线判定、数据维护和高危清理操作。</p>
         </div>
-        <div class="settings-hero-pills">
-            <span class="settings-pill settings-pill-blue">实时生效</span>
-            <span class="settings-pill settings-pill-teal">配置同步</span>
-            <span class="settings-pill settings-pill-orange">谨慎操作</span>
+        <button class="btn btn-primary settings-save-button" type="button" id="btnSaveSettings">
+            <i class="bi bi-save me-2"></i>保存设置
+        </button>
+    </section>
+
+    <section class="settings-status-strip" aria-label="系统状态">
+        <div class="settings-status-item">
+            <span>当前版本</span>
+            <strong id="systemVersion">--</strong>
+        </div>
+        <div class="settings-status-item">
+            <span>数据库大小</span>
+            <strong class="settings-status-long" id="dbSize">--</strong>
+        </div>
+        <div class="settings-status-item">
+            <span>服务器状态</span>
+            <strong id="serverStatus">--</strong>
+        </div>
+        <div class="settings-status-item">
+            <span>活跃节点</span>
+            <strong id="activeNodes">--</strong>
+        </div>
+        <div class="settings-status-item">
+            <span>采集记录</span>
+            <strong id="totalFaults">--</strong>
+        </div>
+        <div class="settings-status-item">
+            <span>实时通信</span>
+            <strong id="asyncMode">--</strong>
         </div>
     </section>
 
-    <div class="settings-shell">
-        <div class="settings-top-grid">
-            <section class="card settings-panel settings-summary-panel">
-                <div class="card-header settings-card-header">
-                    <div class="settings-card-title-wrap">
-                        <span class="settings-card-icon settings-icon-blue"><i class="bi bi-cpu"></i></span>
-                        <div>
-                            <div class="settings-card-kicker">System Snapshot</div>
-                            <div class="settings-card-title">系统摘要</div>
-                        </div>
-                    </div>
+    <div class="settings-layout">
+        <section class="settings-panel">
+            <div class="settings-panel-header">
+                <span class="settings-panel-icon settings-panel-icon-blue"><i class="bi bi-sliders"></i></span>
+                <div>
+                    <h3>运行参数</h3>
+                    <p>控制前端轮询节奏和节点在线状态判定。</p>
                 </div>
-                <div class="card-body">
-                    <div class="settings-stat-grid">
-                        <div class="settings-stat-tile settings-stat-blue">
-                            <span class="settings-stat-label">当前版本</span>
-                            <strong class="settings-stat-value" id="systemVersion">--</strong>
-                        </div>
-                        <div class="settings-stat-tile settings-stat-teal">
-                            <span class="settings-stat-label">数据库大小</span>
-                            <strong class="settings-stat-value settings-stat-value-sm" id="dbSize">--</strong>
-                        </div>
-                        <div class="settings-stat-tile settings-stat-orange">
-                            <span class="settings-stat-label">服务器状态</span>
-                            <strong class="settings-stat-value" id="serverStatus">--</strong>
-                        </div>
-                        <div class="settings-stat-tile settings-stat-green">
-                            <span class="settings-stat-label">活跃节点</span>
-                            <strong class="settings-stat-value" id="activeNodes">--</strong>
-                        </div>
-                        <div class="settings-stat-tile settings-stat-slate">
-                            <span class="settings-stat-label">采集记录</span>
-                            <strong class="settings-stat-value" id="totalFaults">--</strong>
-                        </div>
-                        <div class="settings-stat-tile settings-stat-blue">
-                            <span class="settings-stat-label">实时通信</span>
-                            <span class="settings-badge-chip" id="asyncMode">--</span>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <section class="card settings-panel settings-save-panel">
-                <div class="card-header settings-card-header">
-                    <div class="settings-card-title-wrap">
-                        <span class="settings-card-icon settings-icon-teal"><i class="bi bi-save"></i></span>
-                        <div>
-                            <div class="settings-card-kicker">Apply Changes</div>
-                            <div class="settings-card-title">保存与发布</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <p class="settings-panel-text">本页修改会优先写入服务器配置，同时在浏览器保留一份本地兜底缓存。建议统一确认后再执行保存。</p>
-                    <button class="btn btn-primary settings-save-button" type="button" id="btnSaveSettings">
-                        <i class="bi bi-save me-2"></i>保存设置
-                    </button>
-                </div>
-            </section>
-
-            <section class="card settings-section-card settings-section-blue">
-                <div class="card-header settings-card-header">
-                    <div class="settings-card-title-wrap">
-                        <span class="settings-card-icon settings-icon-blue"><i class="bi bi-satellite"></i></span>
-                        <div>
-                            <div class="settings-card-kicker">Realtime Polling</div>
-                            <div class="settings-card-title">监测参数</div>
-                        </div>
-                    </div>
-                    <span class="settings-badge-chip settings-badge-blue">生效中</span>
-                </div>
-                <div class="card-body">
+            </div>
+            <div class="settings-panel-body">
+                <div class="settings-field">
                     <label class="form-label settings-label" for="pollInterval">数据轮询间隔（ms）</label>
                     <div class="settings-range-row">
-                        <input type="range" class="form-range flex-grow-1" min="100" max="5000" step="100"
-                               id="pollInterval" value="1000" aria-label="数据轮询间隔（毫秒）">
-                        <span class="settings-inline-value ws-minw-90" id="pollVal">1000ms</span>
+                        <input type="range" class="form-range" min="100" max="5000" step="100"
+                               id="pollInterval" value="1000" aria-label="数据轮询间隔">
+                        <span class="settings-inline-value" id="pollVal">1000ms</span>
                     </div>
-                    <div class="form-text settings-help-text">
-                        当 WebSocket 不可用时，前端会按该间隔使用 HTTP 拉取数据。间隔越低越实时，但服务端负载也越高。
+                    <div class="form-text settings-help-text">WebSocket 不可用时，前端按该间隔通过 HTTP 拉取数据。</div>
+                </div>
+                <div class="settings-field">
+                    <label class="form-label settings-label" for="nodeTimeoutSeconds">节点离线判定时间（秒）</label>
+                    <input type="number" class="form-control" id="nodeTimeoutSeconds" min="1" max="86400" step="1" value="10" aria-label="节点离线判定时间">
+                    <div class="form-text settings-help-text">节点超过该时间未上传数据时，系统判定为离线；保存后立即生效。</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="settings-panel">
+            <div class="settings-panel-header">
+                <span class="settings-panel-icon settings-panel-icon-teal"><i class="bi bi-display"></i></span>
+                <div>
+                    <h3>显示与调试</h3>
+                    <p>控制页面自动刷新和浏览器调试输出。</p>
+                </div>
+            </div>
+            <div class="settings-panel-body settings-switch-stack">
+                <div class="settings-switch-row">
+                    <div>
+                        <label class="form-check-label settings-switch-label" for="autoRefresh">自动刷新</label>
+                        <div class="form-text settings-help-text">开启后，页面会自动拉取并刷新最新数据。</div>
                     </div>
-                    <label class="form-label settings-label mt-3" for="nodeTimeoutSeconds">&#33410;&#28857;&#31163;&#32447;&#21028;&#23450;&#26102;&#38388;&#65288;&#31186;&#65289;</label>
-                    <input type="number" class="form-control" id="nodeTimeoutSeconds" min="1" max="86400" step="1" value="10" aria-label="&#33410;&#28857;&#31163;&#32447;&#21028;&#23450;&#26102;&#38388;&#65288;&#31186;&#65289;">
-                    <div class="form-text settings-help-text">
-                        &#33410;&#28857;&#36229;&#36807;&#35813;&#26102;&#38388;&#26410;&#19978;&#20256;&#25968;&#25454;&#26102;&#65292;&#31995;&#32479;&#20250;&#33258;&#21160;&#21028;&#23450;&#20026;&#31163;&#32447;&#65307;&#20445;&#23384;&#21518;&#31435;&#21363;&#29983;&#25928;&#65292;&#26080;&#38656;&#37325;&#21551;&#26381;&#21153;&#12290;
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="autoRefresh">
                     </div>
                 </div>
-            </section>
-
-            <section class="card settings-section-card settings-section-teal">
-                <div class="card-header settings-card-header">
-                    <div class="settings-card-title-wrap">
-                        <span class="settings-card-icon settings-icon-teal"><i class="bi bi-display"></i></span>
-                        <div>
-                            <div class="settings-card-kicker">Display And Debug</div>
-                            <div class="settings-card-title">显示与调试</div>
-                        </div>
+                <div class="settings-switch-row">
+                    <div>
+                        <label class="form-check-label settings-switch-label" for="showDebugLog">显示调试日志</label>
+                        <div class="form-text settings-help-text">开启后在浏览器控制台输出更详细的调试信息。</div>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="showDebugLog">
                     </div>
                 </div>
-                <div class="card-body settings-switch-stack">
-                    <div class="settings-switch-row">
-                        <div>
-                            <label class="form-check-label settings-switch-label" for="autoRefresh">自动刷新</label>
-                            <div class="form-text settings-help-text">开启后，页面会自动拉取并刷新最新数据。</div>
-                        </div>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="autoRefresh">
-                        </div>
-                    </div>
+            </div>
+        </section>
 
-                    <div class="settings-switch-row">
-                        <div>
-                            <label class="form-check-label settings-switch-label" for="showDebugLog">显示调试日志</label>
-                            <div class="form-text settings-help-text">开启后在浏览器控制台输出更详细的调试信息。</div>
-                        </div>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="showDebugLog">
-                        </div>
-                    </div>
+        <section class="settings-panel settings-panel-wide">
+            <div class="settings-panel-header">
+                <span class="settings-panel-icon settings-panel-icon-orange"><i class="bi bi-database"></i></span>
+                <div>
+                    <h3>数据维护</h3>
+                    <p>管理历史数据保留周期，执行清理、压缩和节点级删除。</p>
                 </div>
-            </section>
-        </div>
-
-        <div class="settings-stack-grid">
-            <section class="card settings-section-card settings-section-orange">
-                <div class="card-header settings-card-header">
-                    <div class="settings-card-title-wrap">
-                        <span class="settings-card-icon settings-icon-orange"><i class="bi bi-database"></i></span>
-                        <div>
-                            <div class="settings-card-kicker">Data Lifecycle</div>
-                            <div class="settings-card-title">数据管理</div>
-                        </div>
+            </div>
+            <div class="settings-panel-body">
+                <div class="settings-maintenance-grid">
+                    <div class="settings-field">
+                        <label class="form-label settings-label" for="logRetention">历史数据保留时长</label>
+                        <select class="form-select" id="logRetention" aria-label="历史数据保留时长">
+                            <option value="7">保留最近 7 天</option>
+                            <option value="30">保留最近 30 天</option>
+                            <option value="90">保留最近 90 天</option>
+                            <option value="180">保留最近 180 天</option>
+                            <option value="365">保留最近 1 年</option>
+                            <option value="-1">永久保存</option>
+                        </select>
+                        <div class="form-text settings-help-text">超过保留时长的数据可通过“清理过期数据”删除。</div>
                     </div>
-                </div>
-                <div class="card-body">
-                    <div class="settings-form-grid">
-                        <div class="settings-subpanel">
-                            <label class="form-label settings-label" for="logRetention">历史数据保留时长</label>
-                            <select class="form-select" id="logRetention" aria-label="历史数据保留时长">
-                                <option value="7">保留最近 7 天</option>
-                                <option value="30">保留最近 30 天</option>
-                                <option value="90">保留最近 90 天</option>
-                                <option value="180">保留最近 180 天</option>
-                                <option value="365">保留最近 1 年</option>
-                                <option value="-1">永久保存</option>
-                            </select>
-                            <div class="form-text settings-help-text">超过保留时长的数据可通过“清理过期数据”删除。</div>
-                        </div>
-
-                        <div class="settings-subpanel">
-                            <div class="settings-action-grid">
-                                <button class="btn btn-outline-primary" type="button" id="btnCleanupOld">
-                                    <i class="bi bi-clock-history me-1"></i>清理过期数据
-                                </button>
-                                <button class="btn btn-outline-secondary" type="button" id="btnVacuumDb">
-                                    <i class="bi bi-arrows-collapse me-1"></i>压缩数据库
-                                </button>
-                            </div>
-                            <div class="form-text settings-help-text">
-                                删除或清理数据后，SQLite 通常不会自动缩小数据库文件；如需减少磁盘占用，请执行压缩数据库。
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="settings-divider"></div>
-
-                    <div class="settings-subpanel">
-                        <label class="form-label settings-label" for="deleteNodeSelect">按节点删除数据</label>
-                        <div class="input-group">
-                            <select class="form-select" id="deleteNodeSelect" aria-label="选择要删除数据的节点">
-                                <option value="">加载中...</option>
-                            </select>
-                            <button class="btn btn-outline-danger" type="button" id="btnDeleteNode">
-                                <i class="bi bi-trash3 me-1"></i>删除
-                            </button>
-                        </div>
-                        <div class="form-text settings-help-text">仅删除该节点在新协议表中的上报与风机明细数据，legacy NodeData 备份不会被删除。</div>
-                    </div>
-                </div>
-            </section>
-
-            <section class="card settings-section-card settings-section-danger">
-                <div class="card-header settings-card-header">
-                    <div class="settings-card-title-wrap">
-                        <span class="settings-card-icon settings-icon-danger"><i class="bi bi-shield-exclamation"></i></span>
-                        <div>
-                            <div class="settings-card-kicker">Danger Zone</div>
-                            <div class="settings-card-title">高危操作</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="settings-danger-box">
-                        <div class="settings-danger-copy">
-                            <div class="settings-danger-title">清空所有数据</div>
-                            <div class="settings-danger-text">将删除所有节点在新协议表中的数据，legacy NodeData 备份不会被删除。此操作不可撤销。</div>
-                        </div>
-                        <button class="btn btn-outline-danger settings-danger-button" type="button" id="btnClearAll">
-                            <i class="bi bi-trash me-1"></i>立即清空
+                    <div class="settings-action-row">
+                        <button class="btn btn-outline-primary" type="button" id="btnCleanupOld">
+                            <i class="bi bi-clock-history me-1"></i>清理过期数据
+                        </button>
+                        <button class="btn btn-outline-secondary" type="button" id="btnVacuumDb">
+                            <i class="bi bi-arrows-collapse me-1"></i>压缩数据库
                         </button>
                     </div>
                 </div>
-            </section>
-        </div>
+
+                <div class="settings-divider"></div>
+
+                <div class="settings-field">
+                    <label class="form-label settings-label" for="deleteNodeSelect">按节点删除数据</label>
+                    <div class="input-group">
+                        <select class="form-select" id="deleteNodeSelect" aria-label="选择要删除数据的节点">
+                            <option value="">加载中...</option>
+                        </select>
+                        <button class="btn btn-outline-danger" type="button" id="btnDeleteNode">
+                            <i class="bi bi-trash3 me-1"></i>删除
+                        </button>
+                    </div>
+                    <div class="form-text settings-help-text">仅删除该节点在新协议表中的上报与风机明细数据，legacy NodeData 备份不会被删除。</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="settings-panel settings-panel-danger">
+            <div class="settings-panel-header">
+                <span class="settings-panel-icon settings-panel-icon-danger"><i class="bi bi-shield-exclamation"></i></span>
+                <div>
+                    <h3>高危操作</h3>
+                    <p>该区域操作不可撤销，执行前请确认已经备份。</p>
+                </div>
+            </div>
+            <div class="settings-danger-box">
+                <div>
+                    <div class="settings-danger-title">清空所有数据</div>
+                    <div class="settings-danger-text">删除所有节点在新协议表中的数据，legacy NodeData 备份不会被删除。</div>
+                </div>
+                <button class="btn btn-outline-danger settings-danger-button" type="button" id="btnClearAll">
+                    <i class="bi bi-trash me-1"></i>立即清空
+                </button>
+            </div>
+        </section>
     </div>
 </div>
 {% endblock %}
@@ -301,7 +246,7 @@
             return true;
         }
         if (message.startsWith('NOT_JSON_RESPONSE_HTTP_')) {
-            alert(`请求失败：服务返回了非 JSON 响应。(${message.replace('NOT_JSON_RESPONSE_HTTP_', 'HTTP ')})`);
+            alert(`请求失败：服务返回了非 JSON 响应（HTTP ${message.replace('NOT_JSON_RESPONSE_HTTP_', '')}）。`);
             return true;
         }
         alert(message || fallbackMessage);
@@ -311,7 +256,7 @@
     async function loadSettings() {
         try {
             const result = await fetchJsonStrict('/api/admin/config', { method: 'GET' });
-            const config = (result && result.success && result.data) ? result.data : {};
+            const config = result && result.success && result.data ? result.data : {};
             if (elPollInterval && config.poll_interval !== undefined) {
                 elPollInterval.value = String(config.poll_interval);
                 updateRangeVal(config.poll_interval);
@@ -364,15 +309,15 @@
 
     async function saveSettings(button = elBtnSave) {
         const restore = setButtonBusy(button, '<i class="bi bi-arrow-repeat me-2 spin"></i>保存中...');
-
         const pollInterval = parseInt(String(elPollInterval ? elPollInterval.value : '1000'), 10) || 1000;
         const autoRefresh = !!(elAutoRefresh && elAutoRefresh.checked);
         const nodeTimeoutSeconds = Math.min(86400, Math.max(1, parseInt(String(elNodeTimeoutSeconds ? elNodeTimeoutSeconds.value : '10'), 10) || 10));
+        const showDebugLog = !!(elShowDebugLog && elShowDebugLog.checked);
+        const logRetention = parseInt(String(elLogRetention ? elLogRetention.value : '30'), 10) || 30;
+
         if (elNodeTimeoutSeconds) {
             elNodeTimeoutSeconds.value = String(nodeTimeoutSeconds);
         }
-        const showDebugLog = !!(elShowDebugLog && elShowDebugLog.checked);
-        const logRetention = parseInt(String(elLogRetention ? elLogRetention.value : '30'), 10) || 30;
 
         try {
             await fetchJsonStrict('/api/admin/config', {
@@ -408,7 +353,7 @@
     async function loadSystemInfo() {
         try {
             const result = await fetchJsonStrict('/api/admin/system_info', { method: 'GET' });
-            const data = (result && result.success && result.data) ? result.data : {};
+            const data = result && result.success && result.data ? result.data : {};
             setText(elSystemVersion, data.version);
 
             const dbMb = typeof data.database_size_mb === 'number' ? data.database_size_mb : null;
@@ -435,7 +380,7 @@
         if (!elDeleteNodeSelect) return;
         try {
             const result = await fetchJsonStrict('/api/nodes', { method: 'GET' });
-            const nodes = (result && result.success && Array.isArray(result.nodes)) ? result.nodes : [];
+            const nodes = result && result.success && Array.isArray(result.nodes) ? result.nodes : [];
             if (!nodes.length) {
                 elDeleteNodeSelect.innerHTML = '<option value="">暂无节点</option>';
                 return;
@@ -466,8 +411,8 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({}),
             });
-            const before = result.details?.before || {};
-            const after = result.details?.after || {};
+            const before = result.details && result.details.before ? result.details.before : {};
+            const after = result.details && result.details.after ? result.details.after : {};
             alert(
                 `压缩完成。\n\n压缩前：DB ${before.db_mb || 0}MB / WAL ${before.wal_mb || 0}MB / SHM ${before.shm_mb || 0}MB\n` +
                 `压缩后：DB ${after.db_mb || 0}MB / WAL ${after.wal_mb || 0}MB / SHM ${after.shm_mb || 0}MB`
@@ -497,9 +442,7 @@
                 body: JSON.stringify({ retention_days: retention }),
             });
             const details = result.details || {};
-            alert(
-                `清理完成。\n\n节点上报：${details.node_uploads_deleted || 0} 条\n风机明细：${details.turbine_measurements_deleted || 0} 条`
-            );
+            alert(`清理完成。\n\n节点上报：${details.node_uploads_deleted || 0} 条\n风机明细：${details.turbine_measurements_deleted || 0} 条`);
             restore('<i class="bi bi-check-circle me-1"></i>已完成');
             window.setTimeout(() => window.location.reload(), 1200);
         } catch (error) {
@@ -526,7 +469,8 @@
             });
             const details = result.details || {};
             alert(
-                `删除完成。\n\n节点：${details.node_id || nodeId}\n节点上报：${details.node_uploads_deleted || 0} 条\n风机明细：${details.turbine_measurements_deleted || 0} 条`
+                `删除完成。\n\n节点：${details.node_id || nodeId}\n` +
+                `节点上报：${details.node_uploads_deleted || 0} 条\n风机明细：${details.turbine_measurements_deleted || 0} 条`
             );
             restore('<i class="bi bi-check-circle me-1"></i>已删除');
             window.setTimeout(() => window.location.reload(), 1200);
@@ -550,9 +494,7 @@
                 headers: { 'Content-Type': 'application/json' },
             });
             const details = result.details || {};
-            alert(
-                `系统已重置。\n\n节点上报：${details.node_uploads_deleted || 0} 条\n风机明细：${details.turbine_measurements_deleted || 0} 条`
-            );
+            alert(`系统已重置。\n\n节点上报：${details.node_uploads_deleted || 0} 条\n风机明细：${details.turbine_measurements_deleted || 0} 条`);
             restore('<i class="bi bi-check-circle me-1"></i>已完成');
             window.setTimeout(() => window.location.reload(), 1500);
         } catch (error) {
@@ -565,16 +507,13 @@
         loadSettings();
         loadSystemInfo();
         loadNodeOptionsForDelete();
-
         if (elPollInterval) {
             updateRangeVal(elPollInterval.value || '1000');
             elPollInterval.addEventListener('input', () => updateRangeVal(elPollInterval.value));
         }
 
         if (elLogRetention) {
-            elLogRetention.addEventListener('change', () => {
-                saveSettings();
-            });
+            elLogRetention.addEventListener('change', () => saveSettings());
         }
 
         elBtnSave?.addEventListener('click', () => saveSettings(elBtnSave));

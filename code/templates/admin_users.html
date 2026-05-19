@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}用户列表 - WindSight{% endblock %}
+{% block page_title %}用户列表{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/user_tree.css') }}?v=20260517-node-key">
+{% endblock %}
+
+{% block content %}
+<div id="deviceTreeApp" class="device-tree-page admin-device-page admin-console-page" data-mode="admin">
+    <section class="device-page-head admin-console-head">
+        <div>
+            <div class="panel-kicker">用户管理</div>
+            <h2>用户列表</h2>
+            <p>在本页选择用户，查看该用户自己注册的节点和所属发电机。</p>
+        </div>
+        <div class="device-page-actions">
+            <div class="device-page-status" id="pageStatusText">等待加载用户</div>
+            <button id="openInviteManagerBtn" type="button" class="secondary-action invite-manager-open">
+                <i class="bi bi-person-plus"></i>
+                邀请注册
+            </button>
+        </div>
+    </section>
+
+    <section class="admin-workbench admin-users-workbench admin-console-grid">
+        <aside class="user-panel admin-console-pane">
+            <div class="section-title">
+                <span>用户列表</span>
+                <button id="refreshUsersBtn" type="button" class="icon-action" title="刷新用户">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+            <div id="adminUserList" class="admin-user-list"></div>
+        </aside>
+
+        <main class="admin-node-panel admin-console-pane">
+            <div class="section-title">
+                <span id="adminNodeTitle">节点列表</span>
+                <small id="adminNodeHint">请先在本页选择一个用户</small>
+            </div>
+            <div id="nodeTreeList" class="node-tree-list"></div>
+        </main>
+
+        <section class="admin-node-detail-inline admin-console-pane">
+            <div class="selected-node-band">
+                <div>
+                    <div class="panel-kicker">当前节点</div>
+                    <h3 id="selectedNodeTitle">请选择节点</h3>
+                    <p id="selectedNodeMeta">点击上方节点后查看所属发电机。</p>
+                </div>
+                <div id="selectedNodeKeyPanel" class="selected-node-key is-hidden">
+                    <span>节点密钥</span>
+                    <input id="selectedNodeKeyText" type="text" readonly value="">
+                    <button id="copySelectedNodeKeyBtn" type="button" class="secondary-action">
+                        <i class="bi bi-copy"></i>
+                        复制
+                    </button>
+                </div>
+            </div>
+
+            <section class="turbine-section">
+                <div class="section-title">
+                    <span>所属发电机</span>
+                    <small id="turbineCountText">0 台</small>
+                </div>
+                <div id="turbineList" class="turbine-list"></div>
+                <div id="adminTurbineActions" class="admin-turbine-actions is-hidden">
+                    <div>
+                        <strong id="selectedTurbineText">请选择发电机</strong>
+                        <span>用户管理页只负责查看关系，点击下面按钮才进入业务页面。</span>
+                    </div>
+                    <div class="admin-turbine-links">
+                        <a id="monitorActionLink" class="secondary-action" href="#">
+                            <i class="bi bi-activity"></i>
+                            实时监测
+                        </a>
+                        <a id="overviewActionLink" class="secondary-action" href="#">
+                            <i class="bi bi-graph-up"></i>
+                            数据概览
+                        </a>
+                    </div>
+                </div>
+            </section>
+        </section>
+    </section>
+
+    <div id="inviteManagerModal" class="invite-modal" hidden aria-hidden="true">
+        <div class="invite-modal-backdrop" data-invite-close></div>
+        <section class="invite-dialog" role="dialog" aria-modal="true" aria-labelledby="inviteManagerTitle">
+            <header class="invite-dialog-header">
+                <div>
+                    <div class="panel-kicker">邀请注册</div>
+                    <h3 id="inviteManagerTitle">一次性邀请码</h3>
+                    <p>生成后复制给需要注册的普通用户，每个邀请码默认 7 天有效且只能使用一次。</p>
+                </div>
+                <button type="button" class="icon-action" title="关闭" data-invite-close>
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </header>
+
+            <div class="invite-dialog-body">
+                <div class="invite-toolbar">
+                    <label class="invite-count-field" for="inviteBatchCount">
+                        <span>生成数量</span>
+                        <input id="inviteBatchCount" type="number" min="1" max="50" step="1" value="1" aria-label="邀请码生成数量">
+                    </label>
+                    <div class="invite-actions">
+                        <button class="primary-action" type="button" id="btnGenerateInvites">
+                            <i class="bi bi-plus-circle"></i>
+                            生成邀请码
+                        </button>
+                        <button class="secondary-action" type="button" id="btnRefreshInvites">
+                            <i class="bi bi-arrow-clockwise"></i>
+                            刷新列表
+                        </button>
+                    </div>
+                </div>
+                <div id="inviteList" class="invite-list">打开后加载邀请码...</div>
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/user_tree.js') }}?v=20260517-node-key"></script>
+{% endblock %}

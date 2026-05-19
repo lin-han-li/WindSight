@@ -7,17 +7,27 @@
   const pageKind = root.dataset.pageKind || "overview";
   const isMonitorPage = pageKind === "monitor";
   const isOverviewPage = pageKind === "overview";
-  const usesDrilldownView = isMonitorPage || isOverviewPage;
+  const isMapPage = pageKind === "map";
+  const isAdminUser = document.body?.dataset?.userRole === "admin";
+  const usesDrilldownView = isMonitorPage || isOverviewPage || isMapPage;
+  const waveOnlyPage = isMonitorPage || isOverviewPage;
   const storageNodeKey = "selectedNodeId";
   const storageTurbineKey = "selectedTurbineCode";
   const storageViewKey = `windsightDrillView:${pageKind}`;
   const mapModeStorageKey = "windsightNodeMapMode";
-  const pollIntervalMs = 3000;
+  let pollIntervalMs = 3000;
   const defaultLimit = 600;
   const maxLimit = 20000;
   const nodeMapConfig = window.WindSightNodeMapConfig || { defaults: {}, nodes: {} };
   const amapConfig = window.WindSightAmapConfig || {};
   const socket = isMonitorPage && typeof io === "function" ? io() : null;
+  root.classList.toggle("is-wave-only", waveOnlyPage);
+  root.classList.toggle("is-map-only", isMapPage);
+
+  const runtimeConfig = {
+    autoRefresh: true,
+    showDebugLog: false,
+  };
 
   const metrics = [
     { key: "voltage", label: "电压", unit: "V", min: 0, max: 250, color: "#2f6fed", elementId: "chartVoltage" },
@@ -41,6 +51,7 @@
     mapMode: window.localStorage.getItem(mapModeStorageKey) === "topology" ? "topology" : "amap",
     metricZoom: null,
     syncingMetricZoom: false,
+    historyEditOrder: [],
   };
 
   const dom = {
@@ -54,6 +65,7 @@
     historyLimit: document.getElementById("historyLimit"),
     historyStart: document.getElementById("historyStart"),
     historyEnd: document.getElementById("historyEnd"),
+    historyLinkHint: document.getElementById("historyLinkHint"),
     btnClearRange: document.getElementById("btnClearRange"),
     mapView: document.getElementById("map-view"),
     treeView: document.getElementById("tree-view"),
@@ -94,6 +106,12 @@
 
   function byId(id) {
     return document.getElementById(id);
+  }
+
+  function debugLog(...args) {
+    if (runtimeConfig.showDebugLog) {
+      console.debug("[dashboard]", ...args);
+    }
   }
 
   function getThemeMode() {
@@ -245,6 +263,21 @@
     return result;
   }
 
+  async function fetchNodesForContext(queryParams) {
+    const userId = queryParams.get("user_id") || "";
+    if (userId) {
+      try {
+        const scoped = await fetchJson(`/api/admin/users/${encodeURIComponent(userId)}/registered_nodes`);
+        if (scoped && Array.isArray(scoped.nodes)) {
+          return { success: true, nodes: scoped.nodes };
+        }
+      } catch (error) {
+        // Non-admin users cannot call the admin endpoint; fall through to their own node scope.
+      }
+    }
+    return fetchJson("/api/nodes");
+  }
+
   function sortNodes(nodes) {
     return [...nodes].sort((a, b) => String(a.node_id || "").localeCompare(String(b.node_id || ""), "zh-Hans-CN"));
   }
@@ -317,6 +350,251 @@
     return Math.max(1, Math.min(maxLimit, raw));
   }
 
+  function normalizeHistoryLimit() {
+    const limit = currentLimit();
+    if (dom.historyLimit) {
+      dom.historyLimit.value = String(limit);
+    }
+    return limit;
+  }
+
+  function setHistoryHint(message, tone = "info") {
+    if (!dom.historyLinkHint) {
+      return;
+    }
+    const text = String(message || "").trim();
+    dom.historyLinkHint.textContent = text;
+    dom.historyLinkHint.hidden = !text;
+    dom.historyLinkHint.dataset.tone = tone;
+  }
+
+  function canLoadHistoryForCurrentSelection() {
+    if (!state.selectedNodeId) {
+      return false;
+    }
+    return !waveOnlyPage || !!state.selectedTurbineCode;
+  }
+
+  function recordHistoryEdit(field) {
+    if (!isOverviewPage) {
+      return;
+    }
+    state.historyEditOrder = state.historyEditOrder.filter((item) => item !== field);
+    state.historyEditOrder.push(field);
+    if (state.historyEditOrder.length > 2) {
+      state.historyEditOrder = state.historyEditOrder.slice(-2);
+    }
+  }
+
+  function hasHistoryFieldValue(field) {
+    if (field === "limit") {
+      return !!dom.historyLimit?.value;
+    }
+    if (field === "start") {
+      return !!dom.historyStart?.value;
+    }
+    if (field === "end") {
+      return !!dom.historyEnd?.value;
+    }
+    return false;
+  }
+
+  function historyFieldPairFromState() {
+    const recent = state.historyEditOrder.filter((field) => hasHistoryFieldValue(field));
+    if (recent.length >= 2) {
+      return recent.slice(-2);
+    }
+
+    const edited = recent[recent.length - 1] || "";
+    if ((edited === "start" || edited === "end") && hasHistoryFieldValue("limit")) {
+      return [edited, "limit"];
+    }
+    if (edited === "limit") {
+      if (hasHistoryFieldValue("start")) {
+        return ["limit", "start"];
+      }
+      if (hasHistoryFieldValue("end")) {
+        return ["limit", "end"];
+      }
+    }
+
+    if (hasHistoryFieldValue("start") && hasHistoryFieldValue("end")) {
+      return ["start", "end"];
+    }
+    if (hasHistoryFieldValue("start") && hasHistoryFieldValue("limit")) {
+      return ["start", "limit"];
+    }
+    if (hasHistoryFieldValue("end") && hasHistoryFieldValue("limit")) {
+      return ["end", "limit"];
+    }
+    return [];
+  }
+
+  function parseHistoryInputDate(value) {
+    if (!value) {
+      return null;
+    }
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  function historyRangeIsInvalid() {
+    const start = parseHistoryInputDate(dom.historyStart?.value || "");
+    const end = parseHistoryInputDate(dom.historyEnd?.value || "");
+    return !!(start && end && start.getTime() > end.getTime());
+  }
+
+  function apiTimeToDateTimeLocal(value) {
+    if (!value) {
+      return "";
+    }
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return "";
+    }
+    return formatDateTimeLocal(parsed, { includeSeconds: true });
+  }
+
+  function setHistoryDateField(field, value) {
+    const localValue = apiTimeToDateTimeLocal(value);
+    if (!localValue) {
+      return false;
+    }
+    if (field === "start" && dom.historyStart) {
+      dom.historyStart.value = localValue;
+      return true;
+    }
+    if (field === "end" && dom.historyEnd) {
+      dom.historyEnd.value = localValue;
+      return true;
+    }
+    return false;
+  }
+
+  function reflectOverviewLoadedRange(rows) {
+    if (!isOverviewPage) {
+      return;
+    }
+    if (!Array.isArray(rows) || !rows.length) {
+      if (!dom.historyStart?.value && !dom.historyEnd?.value) {
+        setHistoryHint("当前筛选条件没有历史数据，时间范围未更新。", "warning");
+      }
+      return;
+    }
+
+    const hadStart = !!dom.historyStart?.value;
+    const hadEnd = !!dom.historyEnd?.value;
+    const firstTs = rows[0]?.timestamp || "";
+    const lastTs = rows[rows.length - 1]?.timestamp || "";
+    let changed = false;
+
+    if (!hadStart) {
+      changed = setHistoryDateField("start", firstTs) || changed;
+    }
+    if (!hadEnd) {
+      changed = setHistoryDateField("end", lastTs) || changed;
+    }
+    if (changed) {
+      setHistoryHint(`已显示实际加载范围：${rows.length} 帧。`, "success");
+    }
+  }
+
+  async function fetchHistoryMeta(mode, fields = {}) {
+    const params = new URLSearchParams();
+    params.set("node_id", state.selectedNodeId);
+    params.set("mode", mode);
+    if (fields.limit) {
+      params.set("limit", String(fields.limit));
+    }
+    if (fields.start) {
+      params.set("start", fields.start);
+    }
+    if (fields.end) {
+      params.set("end", fields.end);
+    }
+    return fetchJson(`/api/data_meta?${params.toString()}`);
+  }
+
+  function pairHas(pair, field) {
+    return pair.includes(field);
+  }
+
+  async function syncHistoryLinkedFields() {
+    if (!isOverviewPage || !state.selectedNodeId) {
+      return true;
+    }
+
+    normalizeHistoryLimit();
+    if (historyRangeIsInvalid()) {
+      setHistoryHint("开始时间不能晚于结束时间，请调整后再确认。", "error");
+      return false;
+    }
+
+    const pair = historyFieldPairFromState();
+    if (pair.length < 2) {
+      setHistoryHint("", "info");
+      return true;
+    }
+
+    if (pairHas(pair, "start") && pairHas(pair, "end")) {
+      const meta = await fetchHistoryMeta("count", {
+        start: dom.historyStart.value,
+        end: dom.historyEnd.value,
+      });
+      const count = Math.max(0, Math.min(maxLimit, Number(meta.count) || 0));
+      if (dom.historyLimit) {
+        dom.historyLimit.value = String(Math.max(1, count));
+      }
+      setHistoryHint(count > 0 ? `已按开始和结束时间计算回放帧数：${count} 帧。` : "该时段暂无数据，回放帧数保留为 1。", count > 0 ? "success" : "warning");
+      return true;
+    }
+
+    if (pairHas(pair, "start") && pairHas(pair, "limit")) {
+      const requested = normalizeHistoryLimit();
+      const meta = await fetchHistoryMeta("nth", {
+        start: dom.historyStart.value,
+        limit: requested,
+      });
+      const target = meta.nth_ts || meta.last_ts;
+      if (setHistoryDateField("end", target)) {
+        const count = Number(meta.count) || 0;
+        setHistoryHint(
+          count >= requested
+            ? `已按开始时间和 ${requested} 帧确定结束时间。`
+            : `可用帧数不足 ${requested} 帧，已使用最后一帧时间作为结束时间。`,
+          count >= requested ? "success" : "warning"
+        );
+      } else {
+        setHistoryHint("开始时间之后暂无可用数据，结束时间未更新。", "warning");
+      }
+      return true;
+    }
+
+    if (pairHas(pair, "end") && pairHas(pair, "limit")) {
+      const requested = normalizeHistoryLimit();
+      const meta = await fetchHistoryMeta("nth_before", {
+        end: dom.historyEnd.value,
+        limit: requested,
+      });
+      const target = meta.nth_ts || meta.first_ts;
+      if (setHistoryDateField("start", target)) {
+        const count = Number(meta.count) || 0;
+        setHistoryHint(
+          count >= requested
+            ? `已按结束时间和 ${requested} 帧确定开始时间。`
+            : `可用帧数不足 ${requested} 帧，已使用最早一帧时间作为开始时间。`,
+          count >= requested ? "success" : "warning"
+        );
+      } else {
+        setHistoryHint("结束时间之前暂无可用数据，开始时间未更新。", "warning");
+      }
+      return true;
+    }
+
+    setHistoryHint("", "info");
+    return true;
+  }
+
   function getRowKey(row) {
     return String(row?.upload_id || `${row?.node_id || ""}-${row?.timestamp || ""}`);
   }
@@ -366,19 +644,37 @@
     return [lng, lat];
   }
 
+  function partitionNodesByGeo(nodes) {
+    const locatedNodes = [];
+    const missingNodes = [];
+    (Array.isArray(nodes) ? nodes : []).forEach((node) => {
+      if (getValidGeo(node)) {
+        locatedNodes.push(node);
+      } else {
+        missingNodes.push(node);
+      }
+    });
+    return { locatedNodes, missingNodes };
+  }
+
   function getAmapAvailability(nodes) {
     const key = String(amapConfig.jsKey || "").trim();
     if (!key || amapConfig.enabled === false) {
-      return { usable: false, reason: "未配置高德地图 Key" };
+      return { usable: false, reason: "未配置高德地图 Key", locatedNodes: [], missingNodes: nodes || [] };
     }
     if (!Array.isArray(nodes) || !nodes.length) {
-      return { usable: false, reason: "暂无节点" };
+      return { usable: false, reason: "暂无节点", locatedNodes: [], missingNodes: [] };
     }
-    const missingGeo = nodes.filter((node) => !getValidGeo(node));
-    if (missingGeo.length) {
-      return { usable: false, reason: `${missingGeo.length} 个节点未配置经纬度` };
+    const { locatedNodes, missingNodes } = partitionNodesByGeo(nodes);
+    if (!locatedNodes.length) {
+      return {
+        usable: false,
+        reason: "暂无可定位节点，请先设置经纬度",
+        locatedNodes,
+        missingNodes,
+      };
     }
-    return { usable: true, reason: "高德地图模式" };
+    return { usable: true, reason: "高德地图模式", locatedNodes, missingNodes };
   }
 
   function mapModeSwitchHtml(activeMode = state.mapMode) {
@@ -518,12 +814,15 @@
   }
 
   function buildAmapNodeSignature(nodes) {
-    return nodes
-      .map((node) => {
-        const geo = getValidGeo(node) || [];
-        return [node.nodeId, geo[0], geo[1], node.status, node.turbineCount, node.accentColor].join(":");
-      })
-      .join("|");
+    return [
+      state.selectedNodeId || "",
+      nodes
+        .map((node) => {
+          const geo = getValidGeo(node) || [];
+          return [node.nodeId, geo[0], geo[1], node.status, node.turbineCount, node.accentColor].join(":");
+        })
+        .join("|"),
+    ].join("||");
   }
 
   function buildTopologyRenderSignature(nodes, options = {}) {
@@ -601,6 +900,7 @@
     const aliasId = nodeId.startsWith("WIND_") ? nodeId.replace("WIND_", "WIN_") : nodeId.startsWith("WIN_") ? nodeId.replace("WIN_", "WIND_") : nodeId;
     const preset = configNodes[nodeId] || configNodes[aliasId] || {};
     const turbines = normalizeTurbines(node.turbines || []);
+    const nodeGeo = getValidGeo(node);
     return {
       nodeId,
       displayName: preset.displayName || node.node_id || "未命名节点",
@@ -610,7 +910,7 @@
       mapY: preset.mapY,
       topologyX: preset.topologyX ?? preset.mapX,
       topologyY: preset.topologyY ?? preset.mapY,
-      geo: preset.geo || null,
+      geo: nodeGeo ? { lng: nodeGeo[0], lat: nodeGeo[1] } : (preset.geo || null),
       accentColor: preset.accentColor || defaults.accentColor || "#2f6fed",
       status: getNodeStatus(node),
       online: !!node.online,
@@ -1452,7 +1752,7 @@
     element.querySelectorAll("[data-node-id]").forEach((button) => {
       button.addEventListener("click", () => {
         const nodeId = button.dataset.nodeId || "";
-        jumpToTree(nodeId).catch((error) => console.error("[dashboard] jump to tree failed", error));
+        handleMapNodeClick(nodeId).catch((error) => console.error("[dashboard] map node select failed", error));
       });
     });
     bindMapModeButtons(element);
@@ -1488,13 +1788,44 @@
     `;
   }
 
-  async function renderAmapNodeMap(nodes, token) {
+  function renderAmapLocationPanel(locatedNodes, missingNodes, totalNodes) {
+    const selectedMissing = missingNodes.find((node) => node.nodeId === state.selectedNodeId);
+    const missingPreview = missingNodes.slice(0, 4);
+    const moreCount = Math.max(0, missingNodes.length - missingPreview.length);
+    return `
+      <div class="amap-location-panel ${missingNodes.length ? "has-missing" : "is-complete"}" data-amap-location-panel>
+        <div class="amap-location-status">
+          <strong>已定位 ${locatedNodes.length} 个 / 未定位 ${missingNodes.length} 个</strong>
+          <span>共 ${Number(totalNodes || locatedNodes.length)} 个注册节点</span>
+        </div>
+        ${
+          selectedMissing
+            ? `<div class="amap-location-alert">当前节点“${escapeHtml(selectedMissing.displayName || selectedMissing.nodeId)}”未配置经纬度，请点击左侧节点旁的定位按钮设置。</div>`
+            : ""
+        }
+        ${
+          missingNodes.length
+            ? `<div class="amap-location-missing">
+                ${missingPreview
+                  .map((node) => `<span>${escapeHtml(node.displayName || node.nodeId)}</span>`)
+                  .join("")}
+                ${moreCount ? `<span>还有 ${moreCount} 个</span>` : ""}
+              </div>`
+            : ""
+        }
+      </div>
+    `;
+  }
+
+  async function renderAmapNodeMap(nodes, token, options = {}) {
     const element = dom.nodeMapChart;
     if (!element) {
       return;
     }
 
     const nextSignature = buildAmapNodeSignature(nodes);
+    const missingNodes = Array.isArray(options.missingNodes) ? options.missingNodes : [];
+    const totalNodes = Number(options.totalNodes || nodes.length + missingNodes.length);
     const needsShell = !amapState.map || !element.querySelector("[data-amap-canvas]");
     renderTopologyLegend("amap");
     mapRenderState.topologySignature = "";
@@ -1510,6 +1841,9 @@
             <small>真实坐标模式</small>
             ${mapModeSwitchHtml("amap")}
           </div>
+          <div data-amap-location-panel-host>
+            ${renderAmapLocationPanel(nodes, missingNodes, totalNodes)}
+          </div>
         </div>
       `;
       bindMapModeButtons(element);
@@ -1517,6 +1851,15 @@
       const countElement = element.querySelector("[data-amap-node-count]");
       if (countElement) {
         countElement.textContent = `${nodes.length} 个节点`;
+      }
+      const panelHost = element.querySelector("[data-amap-location-panel-host]");
+      if (panelHost) {
+        panelHost.innerHTML = renderAmapLocationPanel(nodes, missingNodes, totalNodes);
+      } else {
+        element.querySelector(".amap-node-map-shell")?.insertAdjacentHTML(
+          "beforeend",
+          `<div data-amap-location-panel-host>${renderAmapLocationPanel(nodes, missingNodes, totalNodes)}</div>`
+        );
       }
     }
 
@@ -1568,7 +1911,7 @@
         zIndex: node.nodeId === state.selectedNodeId ? 120 : 100,
       });
       marker.on("click", () => {
-        jumpToTree(node.nodeId).catch((error) => console.error("[dashboard] jump to tree failed", error));
+        handleMapNodeClick(node.nodeId).catch((error) => console.error("[dashboard] map node select failed", error));
       });
       return marker;
     });
@@ -1576,7 +1919,11 @@
     amapState.markers = markers;
     amapState.nodeSignature = nextSignature;
     map.add(markers);
-    if (amapState.fittedSignature !== nextSignature && markers.length > 1) {
+    const selectedNode = nodes.find((node) => node.nodeId === state.selectedNodeId);
+    if (amapState.fittedSignature !== nextSignature && selectedNode) {
+      map.setZoomAndCenter(Math.max(getAmapDefaultZoom(), 13), getValidGeo(selectedNode));
+      amapState.fittedSignature = nextSignature;
+    } else if (amapState.fittedSignature !== nextSignature && markers.length > 1) {
       map.setFitView(markers, false, [96, 96, 96, 96], 16);
       amapState.fittedSignature = nextSignature;
     } else if (amapState.fittedSignature !== nextSignature && markers.length === 1) {
@@ -1604,15 +1951,20 @@
     mapRenderState.topologySignature = "";
     renderTopologyLegend("topology");
     element.classList.remove("is-amap-mode");
+    const emptyLocation = String(reason || "").includes("暂无可定位节点");
+    const title = emptyLocation ? "暂无可定位节点" : "高德地图不可用";
+    const note = emptyLocation
+      ? "请在左侧展开用户和节点，点击节点旁的定位按钮设置经纬度；设置后即可显示真实高德地图。"
+      : "需要节省额度时请选择“拓扑图”；需要查看真实地理位置时再切回“高德地图”。";
     element.innerHTML = `
       <div class="amap-unavailable-shell">
         <div class="amap-unavailable-card">
-          <div class="amap-unavailable-title">高德地图不可用</div>
+          <div class="amap-unavailable-title">${escapeHtml(title)}</div>
           <div class="amap-unavailable-reason">${escapeHtml(reason || "请检查地图配置")}</div>
           <div class="amap-unavailable-actions">
             ${mapModeSwitchHtml("amap")}
           </div>
-          <div class="amap-unavailable-note">需要节省额度时请选择“拓扑图”；需要查看真实地理位置时再切回“高德地图”。</div>
+          <div class="amap-unavailable-note">${escapeHtml(note)}</div>
         </div>
         <div class="amap-unavailable-count">${nodes.length} 个节点</div>
       </div>
@@ -1636,7 +1988,10 @@
 
     const token = amapState.renderToken + 1;
     amapState.renderToken = token;
-    renderAmapNodeMap(nodes, token).catch((error) => {
+    renderAmapNodeMap(availability.locatedNodes, token, {
+      missingNodes: availability.missingNodes,
+      totalNodes: nodes.length,
+    }).catch((error) => {
       console.warn("[dashboard] amap render failed", error);
       if (token === amapState.renderToken) {
         renderAmapUnavailable(nodes, "高德地图加载失败，请检查网络或 Key 配置");
@@ -2032,10 +2387,10 @@
   function getEmptyState() {
     if (!state.selectedNodeId) {
       return {
-        title: "请先选择地图节点",
-        text: isMonitorPage
-          ? "从全局拓扑地图点击节点后，界面会切换到节点详情视图。"
-          : "请先返回节点地图并点击目标节点，再进入树状列表选择发电机。",
+        title: waveOnlyPage ? "请先在左侧选择节点" : "请先选择地图节点",
+        text: waveOnlyPage
+          ? "在左侧按用户、节点、发电机展开，选择实时监测或数据概览后查看四图波形。"
+          : "在节点地图中点击目标节点，地图会聚焦到该节点。",
       };
     }
     if (!state.selectedTurbineCode) {
@@ -2276,10 +2631,12 @@
   }
 
   function renderAll() {
-    renderMapSummary();
-    renderMapChart();
+    if (!waveOnlyPage) {
+      renderMapSummary();
+      renderMapChart();
+      renderTurbineTree();
+    }
     renderSelectionSummary();
-    renderTurbineTree();
     renderMetricCards();
     renderMetricCharts();
   }
@@ -2303,7 +2660,7 @@
       renderAll();
       return;
     }
-    if (!isMonitorPage && !state.selectedTurbineCode) {
+    if (waveOnlyPage && !state.selectedTurbineCode) {
       clearUploads();
       renderAll();
       return;
@@ -2312,10 +2669,28 @@
     const rows = Array.isArray(result.data) ? result.data : [];
     state.uploads = rows;
     state.uploadIds = new Set(rows.map((row) => getRowKey(row)));
+    reflectOverviewLoadedRange(rows);
     if (rows.length) {
       updateNodeFromRow(rows[rows.length - 1]);
     }
     renderAll();
+  }
+
+  async function loadUserRuntimeConfig() {
+    if (isAdminUser) {
+      return;
+    }
+    try {
+      const result = await fetchJson("/api/my/config");
+      const data = result.data || {};
+      const nextInterval = Number(data.poll_interval || 3000);
+      pollIntervalMs = Math.min(30000, Math.max(500, Number.isFinite(nextInterval) ? nextInterval : 3000));
+      runtimeConfig.autoRefresh = data.auto_refresh !== false;
+      runtimeConfig.showDebugLog = !!data.show_debug_log;
+      debugLog("user runtime config loaded", { pollIntervalMs, ...runtimeConfig });
+    } catch (error) {
+      console.warn("[dashboard] user config fallback to defaults", error);
+    }
   }
 
   function stopPolling() {
@@ -2327,7 +2702,7 @@
 
   function startPolling() {
     stopPolling();
-    if (!isMonitorPage || !state.selectedNodeId) {
+    if (!isMonitorPage || !state.selectedNodeId || !runtimeConfig.autoRefresh) {
       return;
     }
     state.pollTimer = window.setInterval(() => {
@@ -2420,23 +2795,31 @@
     renderAll();
   }
 
-  function formatDateTimeLocal(date) {
+  function formatDateTimeLocal(date, options = {}) {
     const pad = (value) => String(value).padStart(2, "0");
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(
+    const base = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(
       date.getMinutes()
     )}`;
+    return options.includeSeconds ? `${base}:${pad(date.getSeconds())}` : base;
   }
 
-  function applyQuickRange(minutes) {
+  async function applyQuickRange(minutes) {
     if (!dom.historyStart || !dom.historyEnd) {
       return;
     }
     const now = new Date();
     const start = new Date(now.getTime() - Number(minutes) * 60 * 1000);
-    dom.historyStart.value = formatDateTimeLocal(start);
-    dom.historyEnd.value = formatDateTimeLocal(now);
-    if (state.selectedNodeId && (!isMonitorPage ? state.selectedTurbineCode : true)) {
-      loadHistory().catch((error) => console.error("[dashboard] quick range failed", error));
+    dom.historyStart.value = formatDateTimeLocal(start, { includeSeconds: isOverviewPage });
+    dom.historyEnd.value = formatDateTimeLocal(now, { includeSeconds: isOverviewPage });
+    if (isOverviewPage) {
+      state.historyEditOrder = ["start", "end"];
+      const linked = await syncHistoryLinkedFields();
+      if (!linked) {
+        return;
+      }
+    }
+    if (canLoadHistoryForCurrentSelection()) {
+      await loadHistory();
     }
   }
 
@@ -2449,7 +2832,12 @@
         subscribeToNode(state.selectedNodeId);
       }
     });
-    const handler = (payload) => appendRealtimeRow(payload?.data || payload);
+    const handler = (payload) => {
+      if (!runtimeConfig.autoRefresh) {
+        return;
+      }
+      appendRealtimeRow(payload?.data || payload);
+    };
     socket.on("monitor_update", handler);
     socket.on("node_data_update", handler);
   }
@@ -2489,7 +2877,12 @@
       return;
     }
     let nextMode = mode;
-    if (nextMode === "chart" && (!state.selectedNodeId || !state.selectedTurbineCode)) {
+    if (isMapPage) {
+      nextMode = "map";
+    }
+    else if (waveOnlyPage) {
+      nextMode = "chart";
+    } else if (nextMode === "chart" && (!state.selectedNodeId || !state.selectedTurbineCode)) {
       nextMode = state.selectedNodeId ? "tree" : "map";
     } else if (nextMode === "tree" && !state.selectedNodeId) {
       nextMode = "map";
@@ -2497,8 +2890,8 @@
 
     state.view = nextMode;
     persistView(state.view);
-    const mapMode = nextMode === "map";
-    const treeMode = nextMode === "tree";
+    const mapMode = !waveOnlyPage && nextMode === "map";
+    const treeMode = !waveOnlyPage && nextMode === "tree";
     const chartMode = nextMode === "chart";
 
     setViewSection(dom.mapView, mapMode);
@@ -2506,10 +2899,10 @@
     setViewSection(dom.chartView, chartMode);
 
     if (dom.btnBackToMap) {
-      dom.btnBackToMap.classList.toggle("is-hidden", !treeMode);
+      dom.btnBackToMap.classList.toggle("is-hidden", waveOnlyPage || !treeMode);
     }
     if (dom.btnBackToTree) {
-      dom.btnBackToTree.classList.toggle("is-hidden", !chartMode);
+      dom.btnBackToTree.classList.toggle("is-hidden", waveOnlyPage || !chartMode);
     }
 
     requestAnimationFrame(() => {
@@ -2523,6 +2916,27 @@
         chartStore.metrics.forEach((chart) => chart.resize());
       }
     });
+  }
+
+  async function handleMapNodeClick(nodeId) {
+    const nextId = String(nodeId || "").trim();
+    if (!nextId) {
+      return;
+    }
+    if (isMapPage) {
+      window.localStorage.setItem(storageNodeKey, nextId);
+      window.localStorage.removeItem(storageTurbineKey);
+      const params = new URLSearchParams(window.location.search);
+      params.set("select", nextId);
+      params.delete("node_id");
+      params.delete("turbine");
+      params.delete("generator");
+      params.delete("view");
+      const nextUrl = `${window.location.pathname}?${params.toString()}`;
+      window.location.href = nextUrl;
+      return;
+    }
+    await jumpToTree(nextId);
   }
 
   async function jumpToTree(nodeId = state.selectedNodeId) {
@@ -2577,34 +2991,100 @@
     }
   }
 
+  async function confirmHistoryFilters() {
+    normalizeHistoryLimit();
+    if (isOverviewPage) {
+      const linked = await syncHistoryLinkedFields();
+      if (!linked) {
+        return;
+      }
+      if (!canLoadHistoryForCurrentSelection()) {
+        setHistoryHint("筛选条件已更新，选择节点和发电机后生效。", "info");
+        return;
+      }
+      await loadHistory();
+      return;
+    }
+
+    await loadHistory();
+  }
+
   function bindEvents() {
     dom.btnReload?.addEventListener("click", () => {
-      loadHistory().catch((error) => console.error("[dashboard] reload failed", error));
+      confirmHistoryFilters().catch((error) => {
+        setHistoryHint("筛选条件联动失败，请检查输入后重试。", "error");
+        console.error("[dashboard] reload failed", error);
+      });
+    });
+
+    dom.historyLimit?.addEventListener("input", () => {
+      recordHistoryEdit("limit");
+    });
+
+    dom.historyStart?.addEventListener("input", () => {
+      recordHistoryEdit("start");
+    });
+
+    dom.historyEnd?.addEventListener("input", () => {
+      recordHistoryEdit("end");
     });
 
     dom.historyLimit?.addEventListener("change", () => {
+      recordHistoryEdit("limit");
       dom.historyLimit.value = String(currentLimit());
-      if (state.selectedNodeId && (!isMonitorPage ? state.selectedTurbineCode : true)) {
+      if (!isOverviewPage && state.selectedNodeId && (!isMonitorPage ? state.selectedTurbineCode : true)) {
         loadHistory().catch((error) => console.error("[dashboard] limit change failed", error));
       }
     });
 
     dom.historyStart?.addEventListener("change", () => {
-      loadHistory().catch((error) => console.error("[dashboard] start change failed", error));
+      recordHistoryEdit("start");
+      if (!isOverviewPage) {
+        loadHistory().catch((error) => console.error("[dashboard] start change failed", error));
+      }
     });
 
     dom.historyEnd?.addEventListener("change", () => {
-      loadHistory().catch((error) => console.error("[dashboard] end change failed", error));
+      recordHistoryEdit("end");
+      if (!isOverviewPage) {
+        loadHistory().catch((error) => console.error("[dashboard] end change failed", error));
+      }
+    });
+
+    [dom.historyLimit, dom.historyStart, dom.historyEnd].forEach((input) => {
+      input?.addEventListener("keydown", (event) => {
+        if (!isOverviewPage || event.key !== "Enter") {
+          return;
+        }
+        event.preventDefault();
+        confirmHistoryFilters().catch((error) => {
+          setHistoryHint("筛选条件联动失败，请检查输入后重试。", "error");
+          console.error("[dashboard] enter confirm failed", error);
+        });
+      });
     });
 
     dom.btnClearRange?.addEventListener("click", () => {
       if (dom.historyStart) dom.historyStart.value = "";
       if (dom.historyEnd) dom.historyEnd.value = "";
-      loadHistory().catch((error) => console.error("[dashboard] clear range failed", error));
+      if (isOverviewPage) {
+        state.historyEditOrder = ["limit"];
+        setHistoryHint("", "info");
+      }
+      if (!isOverviewPage) {
+        loadHistory().catch((error) => console.error("[dashboard] clear range failed", error));
+      } else if (canLoadHistoryForCurrentSelection()) {
+        loadHistory().catch((error) => console.error("[dashboard] clear range failed", error));
+      }
     });
 
     document.querySelectorAll("[data-range-min]").forEach((button) => {
-      button.addEventListener("click", () => applyQuickRange(button.dataset.rangeMin || "0"));
+      button.addEventListener("click", () => {
+        applyQuickRange(button.dataset.rangeMin || "0").catch((error) => {
+          setHistoryHint("快捷时段联动失败，请重试。", "error");
+          console.error("[dashboard] quick range failed", error);
+        });
+      });
     });
 
     dom.btnBackToMap?.addEventListener("click", jumpToMap);
@@ -2619,8 +3099,18 @@
   function resolveInitialView(options = {}) {
     const savedView = usesDrilldownView ? window.localStorage.getItem(storageViewKey) || "" : "";
     const preferTree = !!options.preferTree;
+    const forceChart = !!options.forceChart;
 
     if (!usesDrilldownView) {
+      return "chart";
+    }
+    if (isMapPage) {
+      return "map";
+    }
+    if (waveOnlyPage) {
+      return "chart";
+    }
+    if (forceChart && state.selectedNodeId && state.selectedTurbineCode) {
       return "chart";
     }
     if ((preferTree || savedView === "tree") && state.selectedNodeId) {
@@ -2639,7 +3129,8 @@
   }
 
   async function loadNodes() {
-    const result = await fetchJson("/api/nodes");
+    const queryParams = new URLSearchParams(window.location.search);
+    const result = await fetchNodesForContext(queryParams);
     state.nodes = sortNodes(Array.isArray(result.nodes) ? result.nodes : []);
     state.nodeMap = new Map(
       state.nodes.map((node) => [
@@ -2651,10 +3142,16 @@
       ])
     );
 
-    const fromQuery = new URLSearchParams(window.location.search).get("select");
-    const fromStorage = window.localStorage.getItem(storageNodeKey) || "";
+    const userFromQuery = queryParams.get("user_id") || "";
+    const fromQuery = queryParams.get("select") || "";
+    const turbineFromQuery = queryParams.get("turbine") || queryParams.get("generator") || "";
+    const viewFromQuery = (queryParams.get("view") || queryParams.get("mode") || "").toLowerCase();
+    const canRestoreStoredSelection = !userFromQuery && !fromQuery;
+    const storedNode = window.localStorage.getItem(storageNodeKey) || "";
+    const canRestoreStoredTurbine = canRestoreStoredSelection || (isMapPage && !!fromQuery && storedNode === fromQuery);
+    const fromStorage = canRestoreStoredSelection ? window.localStorage.getItem(storageNodeKey) || "" : "";
     const restoredNode = fromQuery || fromStorage;
-    const restoredTurbine = window.localStorage.getItem(storageTurbineKey) || "";
+    const restoredTurbine = turbineFromQuery || (canRestoreStoredTurbine ? window.localStorage.getItem(storageTurbineKey) || "" : "");
 
     if (restoredNode && state.nodeMap.has(restoredNode)) {
       state.selectedNodeId = restoredNode;
@@ -2669,10 +3166,15 @@
     }
 
     renderAll();
-    setView(resolveInitialView({ preferTree: !!fromQuery }));
+    setView(resolveInitialView({ preferTree: !!fromQuery && !turbineFromQuery, forceChart: viewFromQuery === "chart" || !!turbineFromQuery }));
     persistSelection();
 
     if (!state.selectedNodeId) {
+      return;
+    }
+
+    if (isMapPage) {
+      setView("map");
       return;
     }
 
@@ -2688,9 +3190,14 @@
     }
   }
 
-  bindEvents();
-  bindSocket();
-  updateMetricChartTitles();
-  renderAll();
-  loadNodes().catch((error) => console.error("[dashboard] init failed", error));
+  async function initDashboard() {
+    await loadUserRuntimeConfig();
+    bindEvents();
+    bindSocket();
+    updateMetricChartTitles();
+    renderAll();
+    await loadNodes();
+  }
+
+  initDashboard().catch((error) => console.error("[dashboard] init failed", error));
 })();

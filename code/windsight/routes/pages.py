@@ -1,43 +1,71 @@
-"""
-页面路由蓝图
-处理前端页面渲染
-"""
-from flask import Blueprint, render_template
-from flask_login import login_required
+from __future__ import annotations
 
-pages_bp = Blueprint('pages', __name__)
+from functools import wraps
+
+from flask import Blueprint, abort, redirect, render_template, url_for
+from flask_login import current_user, login_required
+
+pages_bp = Blueprint("pages", __name__)
 
 
-@pages_bp.route('/')
+def admin_page_required(view_func):
+    @wraps(view_func)
+    @login_required
+    def wrapper(*args, **kwargs):
+        if getattr(current_user, "role", "") != "admin":
+            abort(403)
+        return view_func(*args, **kwargs)
+
+    return wrapper
+
+
+@pages_bp.route("/")
 @login_required
 def index():
-    """主页面：数据概览（Dashboard）"""
-    return render_template('overview.html')
+    if getattr(current_user, "role", "") == "admin":
+        return redirect(url_for("pages.overview"))
+    return redirect(url_for("pages.my_tree"))
 
 
-@pages_bp.route('/overview')
+@pages_bp.route("/my/tree")
+@login_required
+def my_tree():
+    return render_template("my_tree.html")
+
+
+@pages_bp.route("/admin/users")
+@admin_page_required
+def admin_users():
+    return render_template("admin_users.html")
+
+
+@pages_bp.route("/overview")
 @login_required
 def overview():
-    """数据概览（Dashboard）"""
-    return render_template('overview.html')
+    return render_template("overview.html")
 
 
-@pages_bp.route('/settings')
+@pages_bp.route("/map")
+@login_required
+def map_overview():
+    return render_template("map.html")
+
+
+@pages_bp.route("/settings")
 @login_required
 def settings():
-    """节点管理 / 系统设置页面"""
-    return render_template('settings.html')
+    if getattr(current_user, "role", "") != "admin":
+        return render_template("user_settings.html")
+    return render_template("settings.html")
 
 
-@pages_bp.route('/monitor')
+@pages_bp.route("/monitor")
 @login_required
 def monitor():
-    """三窗口波形监测页面（电压/电流/转速）"""
-    return render_template('monitor.html')
+    return render_template("monitor.html")
 
 
-@pages_bp.route('/system_overview')
-@login_required
+@pages_bp.route("/system_overview")
+@admin_page_required
 def system_overview():
-    """系统概览（统计卡片 + 节点状态墙）"""
-    return render_template('system_overview.html')
+    return render_template("system_overview.html")
