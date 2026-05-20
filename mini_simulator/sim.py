@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import hmac
 import os
+import secrets
 import sys
 import time
 from urllib.parse import urlparse
@@ -68,9 +71,63 @@ def _parse_response_json(response: requests.Response):
         return None
 
 
+def _build_upload_canonical_string(
+    *,
+    method: str,
+    path: str,
+    device_id: str,
+    key_id: str,
+    timestamp: str,
+    nonce: str,
+    body_sha256: str,
+) -> str:
+    return "\n".join(
+        [
+            "WIND-SIGHT-HMAC-SHA256",
+            "v1",
+            method.upper(),
+            path,
+            device_id,
+            key_id,
+            timestamp,
+            nonce,
+            body_sha256,
+        ]
+    )
+
+
+def _hmac_headers(target_url: str, raw_body: bytes, data_obj: dict, key_id: str, secret: str) -> dict:
+    device_id = str(data_obj.get("node_id") or "").strip().upper()
+    timestamp = str(int(time.time()))
+    nonce = secrets.token_urlsafe(18)
+    body_sha256 = hashlib.sha256(raw_body).hexdigest()
+    path = urlparse(target_url).path or "/api/upload"
+    canonical = _build_upload_canonical_string(
+        method="POST",
+        path=path,
+        device_id=device_id,
+        key_id=key_id,
+        timestamp=timestamp,
+        nonce=nonce,
+        body_sha256=body_sha256,
+    )
+    signature = hmac.new(secret.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256).hexdigest()
+    return {
+        "Content-Type": "application/json",
+        "X-WindSight-Signature-Version": "v1",
+        "X-WindSight-Algorithm": "HMAC-SHA256",
+        "X-WindSight-Device-Id": device_id,
+        "X-WindSight-Key-Id": key_id,
+        "X-WindSight-Timestamp": timestamp,
+        "X-WindSight-Nonce": nonce,
+        "X-WindSight-Body-SHA256": body_sha256,
+        "X-WindSight-Signature": signature,
+    }
+
+
 def _error_hint(status_code: int | None, error: str = "") -> str:
     if status_code in (401, 403):
-        return "权限失败：请确认节点已注册，并填写正确的 X-WindSight-Node-Key。"
+        return "权限失败：请确认节点已注册，并填写正确的签名凭证或旧版 X-WindSight-Node-Key。"
     if status_code == 400:
         return "请求格式失败：请检查 node_id、sub、001..NNN 风机键和四指标数组。"
     if status_code and status_code >= 500:
@@ -109,7 +166,10 @@ def api_send():
     host = (payload.get("host") or "").strip()
     port = _safe_port(payload.get("port"), DEFAULT_TARGET_PORT)
     path = (payload.get("path") or DEFAULT_TARGET_PATH).strip()
+    auth_mode = (payload.get("auth_mode") or "legacy").strip().lower()
     node_key = (payload.get("node_key") or "").strip()
+    credential_id = (payload.get("credential_id") or "").strip()
+    credential_secret = (payload.get("credential_secret") or "").strip()
 
     # 允许两种方式：直接给 target_url 或者 host/port/path 组装
     if target_url:
@@ -139,8 +199,15 @@ def api_send():
 
     t0 = time.time()
     try:
-        headers = {"X-WindSight-Node-Key": node_key} if node_key else {}
-        resp = requests.post(target_url, json=data_obj, headers=headers, timeout=8)
+        if auth_mode == "hmac":
+            if not credential_id or not credential_secret:
+                return jsonify({"ok": False, "error": "签名认证需要 key_id 和 secret"}), 400
+            raw_body = json.dumps(data_obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+            headers = _hmac_headers(target_url, raw_body, data_obj, credential_id, credential_secret)
+            resp = requests.post(target_url, data=raw_body, headers=headers, timeout=8)
+        else:
+            headers = {"X-WindSight-Node-Key": node_key} if node_key else {}
+            resp = requests.post(target_url, json=data_obj, headers=headers, timeout=8)
         elapsed_ms = int((time.time() - t0) * 1000)
         response_json = _parse_response_json(resp)
         ok = 200 <= resp.status_code < 300
@@ -151,6 +218,7 @@ def api_send():
                     "target_url": target_url,
                     "status_code": resp.status_code,
                     "elapsed_ms": elapsed_ms,
+                    "auth_mode": "hmac" if auth_mode == "hmac" else "legacy",
                     "response_text": resp.text[:20000],
                     "response_json": response_json,
                     "error_hint": None if ok else _error_hint(resp.status_code),

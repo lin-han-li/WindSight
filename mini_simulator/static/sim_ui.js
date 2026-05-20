@@ -16,7 +16,10 @@
     host: document.getElementById("host"),
     port: document.getElementById("port"),
     path: document.getElementById("path"),
+    authMode: document.getElementById("authMode"),
     nodeKey: document.getElementById("nodeKey"),
+    credentialId: document.getElementById("credentialId"),
+    credentialSecret: document.getElementById("credentialSecret"),
     preview: document.getElementById("targetUrlPreview"),
     nodeId: document.getElementById("nodeId"),
     subCount: document.getElementById("subCount"),
@@ -41,6 +44,16 @@
 
   let recentHistory = [];
   let lastRequest = null;
+
+  function syncAuthModeUi() {
+    const mode = els.authMode?.value === "legacy" ? "legacy" : "hmac";
+    document.querySelectorAll(".auth-hmac").forEach((el) => {
+      el.hidden = mode !== "hmac";
+    });
+    document.querySelectorAll(".auth-legacy").forEach((el) => {
+      el.hidden = mode !== "legacy";
+    });
+  }
 
   function setPill(el, text, level = "idle") {
     if (!el) return;
@@ -194,7 +207,10 @@
       host: els.host.value.trim(),
       port: String(safePort(els.port.value)),
       path: normalizePath(els.path.value),
+      authMode: els.authMode?.value || "hmac",
       nodeKey: els.nodeKey.value.trim(),
+      credentialId: els.credentialId?.value.trim() || "",
+      credentialSecret: els.credentialSecret?.value.trim() || "",
       nodeId: els.nodeId.value.trim(),
       subCount: String(safeSubCount()),
     };
@@ -217,10 +233,14 @@
     els.host.value = data.host || defaults.host;
     els.port.value = data.port || defaults.port;
     els.path.value = data.path || defaults.path;
+    if (els.authMode) els.authMode.value = data.authMode === "legacy" ? "legacy" : "hmac";
     els.nodeKey.value = data.nodeKey || "";
+    if (els.credentialId) els.credentialId.value = data.credentialId || "";
+    if (els.credentialSecret) els.credentialSecret.value = data.credentialSecret || "";
     els.nodeId.value = data.nodeId || defaults.nodeId;
     els.subCount.value = data.subCount || "4";
     buildUrlPreview();
+    syncAuthModeUi();
   }
 
   function renderHistory() {
@@ -258,7 +278,7 @@
     const code = data?.status_code || status;
     const text = String(data?.response_text || data?.error || "");
     if (code === 401 || code === 403) {
-      return "权限失败：请确认节点已在 WindSight 注册，并填写正确的 X-WindSight-Node-Key。";
+      return "权限失败：请确认节点已在 WindSight 注册，并填写正确的签名凭证或旧版 X-WindSight-Node-Key。";
     }
     if (code === 400) {
       return "请求被拒绝：请检查 node_id、sub、001..NNN 风机键和四指标数组。";
@@ -275,7 +295,10 @@
       host: els.host.value.trim(),
       port: String(safePort(els.port.value)),
       path: normalizePath(els.path.value),
+      authMode: els.authMode?.value || "hmac",
       nodeKey: els.nodeKey.value.trim(),
+      credentialId: els.credentialId?.value.trim() || "",
+      credentialSecret: els.credentialSecret?.value.trim() || "",
       nodeId: els.nodeId.value.trim(),
       subCount: String(safeSubCount()),
     };
@@ -287,7 +310,10 @@
       host: els.host.value.trim(),
       port: safePort(els.port.value),
       path: normalizePath(els.path.value),
+      auth_mode: els.authMode?.value || "hmac",
       node_key: els.nodeKey.value.trim(),
+      credential_id: els.credentialId?.value.trim() || "",
+      credential_secret: els.credentialSecret?.value.trim() || "",
       payload_json: els.payload.value,
     };
   }
@@ -369,7 +395,10 @@
       host: defaults.host,
       port: defaults.port,
       path: defaults.path,
+      authMode: "hmac",
       nodeKey: "",
+      credentialId: "",
+      credentialSecret: "",
       nodeId: defaults.nodeId,
       subCount: "4",
     });
@@ -381,6 +410,7 @@
     el.addEventListener("input", buildUrlPreview);
     el.addEventListener("change", buildUrlPreview);
   });
+  els.authMode?.addEventListener("change", syncAuthModeUi);
   [els.payload].forEach((el) => {
     el.addEventListener("input", validatePayloadUi);
   });

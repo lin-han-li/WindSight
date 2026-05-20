@@ -70,7 +70,22 @@
             <label for="path">路径</label>
             <input id="path" placeholder="/api/upload" autocomplete="off" />
           </div>
-          <div class="field wide">
+          <div class="field compact">
+            <label for="authMode">认证模式</label>
+            <select id="authMode">
+              <option value="hmac">签名 HMAC</option>
+              <option value="legacy">旧版 Header</option>
+            </select>
+          </div>
+          <div class="field grow auth-field auth-hmac">
+            <label for="credentialId">key_id</label>
+            <input id="credentialId" placeholder="WSK_..." autocomplete="off" />
+          </div>
+          <div class="field wide auth-field auth-hmac">
+            <label for="credentialSecret">secret</label>
+            <input id="credentialSecret" placeholder="用户节点详情中可复制的 HMAC secret" autocomplete="off" />
+          </div>
+          <div class="field wide auth-field auth-legacy">
             <label for="nodeKey">节点密钥 Header</label>
             <input id="nodeKey" placeholder="注册节点后生成的 X-WindSight-Node-Key" autocomplete="off" />
           </div>

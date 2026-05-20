@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import secrets
 import re
@@ -83,6 +84,14 @@ class RegisteredNode(db.Model):
     is_active = db.Column(db.Boolean, default=True, nullable=False)
 
     owner = relationship("User", back_populates="registered_nodes")
+    credentials = relationship(
+        "NodeCredential",
+        back_populates="registered_node",
+        cascade="all, delete-orphan",
+        passive_deletes=False,
+        lazy="selectin",
+        order_by="NodeCredential.created_at.desc()",
+    )
 
     @staticmethod
     def generate_node_key():
@@ -94,6 +103,96 @@ class RegisteredNode(db.Model):
 
     def check_node_key(self, node_key):
         return check_password_hash(self.node_key_hash, node_key)
+
+
+class NodeCredential(db.Model):
+    __tablename__ = "node_credentials"
+
+    STATUS_ACTIVE = "active"
+    STATUS_GRACE = "grace"
+    STATUS_REVOKED = "revoked"
+    ALGORITHM_HMAC_SHA256 = "HMAC-SHA256"
+
+    id = db.Column(db.Integer, primary_key=True)
+    registered_node_id = db.Column(
+        db.Integer,
+        db.ForeignKey("registered_nodes.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    node_id = db.Column(db.String(100), nullable=False, index=True)
+    key_id = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    secret_encrypted = db.Column(db.Text, nullable=False)
+    secret_hash = db.Column(db.String(64), nullable=False, index=True)
+    algorithm = db.Column(db.String(32), nullable=False, default=ALGORITHM_HMAC_SHA256)
+    status = db.Column(db.String(20), nullable=False, default=STATUS_ACTIVE, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    activated_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = db.Column(db.DateTime, index=True)
+    revoked_at = db.Column(db.DateTime)
+    last_used_at = db.Column(db.DateTime)
+    last_failed_at = db.Column(db.DateTime)
+    last_failure_reason = db.Column(db.String(255))
+
+    registered_node = relationship("RegisteredNode", back_populates="credentials")
+    nonces = relationship(
+        "NodeAuthNonce",
+        back_populates="credential",
+        cascade="all, delete-orphan",
+        passive_deletes=False,
+        lazy="selectin",
+    )
+
+    __table_args__ = (
+        Index("ix_node_credentials_node_status", "node_id", "status"),
+    )
+
+    @staticmethod
+    def generate_key_id():
+        alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+        return "WSK_" + "".join(secrets.choice(alphabet) for _ in range(20))
+
+    @staticmethod
+    def generate_secret():
+        return secrets.token_urlsafe(32)
+
+    @staticmethod
+    def hash_secret(secret: str) -> str:
+        return hashlib.sha256(str(secret or "").encode("utf-8")).hexdigest()
+
+    def is_usable(self, now: datetime | None = None) -> bool:
+        now = now or datetime.utcnow()
+        if self.status == self.STATUS_ACTIVE:
+            return True
+        if self.status == self.STATUS_GRACE and self.expires_at and self.expires_at >= now:
+            return True
+        return False
+
+
+class NodeAuthNonce(db.Model):
+    __tablename__ = "node_auth_nonces"
+
+    id = db.Column(db.Integer, primary_key=True)
+    credential_id = db.Column(
+        db.Integer,
+        db.ForeignKey("node_credentials.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    node_id = db.Column(db.String(100), nullable=False, index=True)
+    key_id = db.Column(db.String(64), nullable=False, index=True)
+    nonce = db.Column(db.String(128), nullable=False)
+    body_sha256 = db.Column(db.String(64), nullable=False)
+    signature_sha256 = db.Column(db.String(64), nullable=False)
+    received_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False, index=True)
+
+    credential = relationship("NodeCredential", back_populates="nonces")
+
+    __table_args__ = (
+        UniqueConstraint("credential_id", "nonce", name="uq_node_auth_nonce_credential_nonce"),
+        Index("ix_node_auth_nonces_node_key_nonce", "node_id", "key_id", "nonce"),
+    )
 
 
 class SystemConfig(db.Model):

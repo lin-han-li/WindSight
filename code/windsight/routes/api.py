@@ -1,21 +1,28 @@
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
 import json
 import logging
 import os
 import re
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
 
-from flask import Blueprint, jsonify, request
+from cryptography.fernet import Fernet, InvalidToken
+from flask import Blueprint, current_app, jsonify, request
 from flask_login import current_user, login_required
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from windsight.models import (
+    NodeAuthNonce,
+    NodeCredential,
     NodeUpload,
     RegisteredNode,
     RegistrationInvite,
@@ -37,6 +44,11 @@ active_nodes = {}
 DEFAULT_NODE_TIMEOUT = int(os.environ.get("NODE_TIMEOUT_SECONDS", os.environ.get("NODE_TIMEOUT", 10)))
 DEFAULT_INVITE_EXPIRES_DAYS = 7
 MAX_INVITE_BATCH_COUNT = 50
+UPLOAD_SIGNATURE_VERSION = "v1"
+UPLOAD_SIGNATURE_ALGORITHM = "HMAC-SHA256"
+UPLOAD_TIMESTAMP_WINDOW_SECONDS = int(os.environ.get("WINDSIGHT_UPLOAD_SIGNATURE_WINDOW_SECONDS", "300"))
+UPLOAD_NONCE_TTL_SECONDS = UPLOAD_TIMESTAMP_WINDOW_SECONDS + 60
+ALLOW_LEGACY_NODE_KEY_UPLOAD = os.environ.get("WINDSIGHT_ALLOW_LEGACY_NODE_KEY_UPLOAD", "1").strip() != "0"
 USER_CONFIG_DEFAULTS = {
     "poll_interval": 3000,
     "auto_refresh": True,
@@ -67,6 +79,296 @@ def _validate_node_id(value: str) -> tuple[bool, str]:
     if not NODE_ID_RE.match(node_id):
         return False, "node_id must be 3-64 chars: A-Z, 0-9, _ or -"
     return True, node_id
+
+
+def _utcnow() -> datetime:
+    return datetime.utcnow()
+
+
+def _json_error(message: str, status_code: int = 400, error_code: str = "bad_request"):
+    return jsonify({"success": False, "status": "error", "error": message, "error_code": error_code}), status_code
+
+
+def _credential_cipher() -> Fernet:
+    configured = (os.environ.get("WINDSIGHT_CREDENTIAL_ENCRYPTION_KEY") or "").strip()
+    if configured:
+        try:
+            return Fernet(configured.encode("utf-8"))
+        except Exception as exc:
+            raise RuntimeError("WINDSIGHT_CREDENTIAL_ENCRYPTION_KEY is not a valid Fernet key") from exc
+
+    secret_key = str(current_app.config.get("SECRET_KEY") or os.environ.get("SECRET_KEY") or "windsight-dev")
+    derived = base64.urlsafe_b64encode(hashlib.sha256(secret_key.encode("utf-8")).digest())
+    return Fernet(derived)
+
+
+def _encrypt_credential_secret(secret: str) -> str:
+    return _credential_cipher().encrypt(secret.encode("utf-8")).decode("utf-8")
+
+
+def _decrypt_credential_secret(credential: NodeCredential) -> str:
+    try:
+        return _credential_cipher().decrypt(credential.secret_encrypted.encode("utf-8")).decode("utf-8")
+    except InvalidToken as exc:
+        raise RuntimeError("credential secret cannot be decrypted") from exc
+
+
+def _credential_public_dict(
+    credential: NodeCredential | None,
+    include_secret: bool = False,
+    secret: str | None = None,
+) -> dict | None:
+    if not credential:
+        return None
+    data = {
+        "key_id": credential.key_id,
+        "algorithm": credential.algorithm,
+        "status": credential.status,
+        "auth_version": UPLOAD_SIGNATURE_VERSION,
+        "created_at": iso_beijing(credential.created_at, with_seconds=True) if credential.created_at else None,
+        "activated_at": iso_beijing(credential.activated_at, with_seconds=True) if credential.activated_at else None,
+        "expires_at": iso_beijing(credential.expires_at, with_seconds=True) if credential.expires_at else None,
+        "revoked_at": iso_beijing(credential.revoked_at, with_seconds=True) if credential.revoked_at else None,
+        "last_used_at": iso_beijing(credential.last_used_at, with_seconds=True) if credential.last_used_at else None,
+        "last_failed_at": iso_beijing(credential.last_failed_at, with_seconds=True) if credential.last_failed_at else None,
+        "last_failure_reason": credential.last_failure_reason or "",
+        "secret_fingerprint": (credential.secret_hash or "")[:16],
+    }
+    if include_secret:
+        data["secret"] = secret if secret is not None else _decrypt_credential_secret(credential)
+        data["secret_visible"] = True
+    else:
+        data["secret_visible"] = False
+    return data
+
+
+def _current_node_credential(registered_node: RegisteredNode) -> NodeCredential | None:
+    credentials = list(getattr(registered_node, "credentials", []) or [])
+    if not credentials:
+        return None
+    order = {
+        NodeCredential.STATUS_ACTIVE: 0,
+        NodeCredential.STATUS_GRACE: 1,
+        NodeCredential.STATUS_REVOKED: 2,
+    }
+    credentials.sort(key=lambda item: (order.get(item.status, 9), item.created_at or datetime.min), reverse=False)
+    return credentials[0]
+
+
+def _create_node_credential(registered_node: RegisteredNode) -> tuple[NodeCredential, str]:
+    secret = NodeCredential.generate_secret()
+    key_id = ""
+    for _ in range(30):
+        candidate = NodeCredential.generate_key_id()
+        if not NodeCredential.query.filter_by(key_id=candidate).first():
+            key_id = candidate
+            break
+    if not key_id:
+        raise RuntimeError("failed to generate unique credential key_id")
+    credential = NodeCredential(
+        registered_node=registered_node,
+        registered_node_id=registered_node.id,
+        node_id=registered_node.node_id,
+        key_id=key_id,
+        secret_encrypted=_encrypt_credential_secret(secret),
+        secret_hash=NodeCredential.hash_secret(secret),
+        algorithm=UPLOAD_SIGNATURE_ALGORITHM,
+        status=NodeCredential.STATUS_ACTIVE,
+        created_at=_utcnow(),
+        activated_at=_utcnow(),
+    )
+    db.session.add(credential)
+    return credential, secret
+
+
+def _rotate_node_credential(registered_node: RegisteredNode, grace_hours: int = 0) -> tuple[NodeCredential, str]:
+    now = _utcnow()
+    grace_hours = max(0, min(24, int(grace_hours or 0)))
+    for credential in list(getattr(registered_node, "credentials", []) or []):
+        if credential.status == NodeCredential.STATUS_ACTIVE:
+            if grace_hours > 0:
+                credential.status = NodeCredential.STATUS_GRACE
+                credential.expires_at = now + timedelta(hours=grace_hours)
+            else:
+                credential.status = NodeCredential.STATUS_REVOKED
+                credential.revoked_at = now
+                credential.expires_at = now
+    return _create_node_credential(registered_node)
+
+
+def build_upload_canonical_string(
+    *,
+    method: str,
+    path: str,
+    device_id: str,
+    key_id: str,
+    timestamp: str,
+    nonce: str,
+    body_sha256: str,
+) -> str:
+    return "\n".join(
+        [
+            "WIND-SIGHT-HMAC-SHA256",
+            UPLOAD_SIGNATURE_VERSION,
+            method.upper(),
+            path,
+            device_id,
+            key_id,
+            timestamp,
+            nonce,
+            body_sha256,
+        ]
+    )
+
+
+def sign_upload_request(secret: str, canonical_string: str) -> str:
+    return hmac.new(secret.encode("utf-8"), canonical_string.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def _parse_upload_timestamp(raw_value: str) -> datetime | None:
+    value = str(raw_value or "").strip()
+    if not value:
+        return None
+    try:
+        return datetime.utcfromtimestamp(float(value))
+    except Exception:
+        pass
+    try:
+        normalized = value.replace("Z", "+00:00")
+        parsed = datetime.fromisoformat(normalized)
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+        return parsed
+    except Exception:
+        return None
+
+
+def _signature_headers_present() -> bool:
+    marker_headers = (
+        "X-WindSight-Signature-Version",
+        "X-WindSight-Key-Id",
+        "X-WindSight-Signature",
+    )
+    return any((request.headers.get(name) or "").strip() for name in marker_headers)
+
+
+def _record_credential_failure(credential: NodeCredential | None, reason: str):
+    if not credential:
+        return
+    try:
+        credential.last_failed_at = _utcnow()
+        credential.last_failure_reason = str(reason or "auth_failed")[:255]
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
+def _authenticate_upload_request(raw_body: bytes, payload: dict, parsed):
+    node_id = _normalize_node_id(parsed.node_id)
+    body_sha256 = hashlib.sha256(raw_body or b"").hexdigest()
+    registered_node = RegisteredNode.query.filter_by(node_id=node_id, is_active=True).first()
+
+    if _signature_headers_present():
+        required = {
+            "version": "X-WindSight-Signature-Version",
+            "algorithm": "X-WindSight-Algorithm",
+            "device_id": "X-WindSight-Device-Id",
+            "key_id": "X-WindSight-Key-Id",
+            "timestamp": "X-WindSight-Timestamp",
+            "nonce": "X-WindSight-Nonce",
+            "body_sha256": "X-WindSight-Body-SHA256",
+            "signature": "X-WindSight-Signature",
+        }
+        headers = {key: (request.headers.get(name) or "").strip() for key, name in required.items()}
+        missing = [name for key, name in required.items() if not headers[key]]
+        if missing:
+            return None, None, _json_error("missing HMAC auth headers", 403, "missing_hmac_headers")
+        if headers["version"] != UPLOAD_SIGNATURE_VERSION:
+            return None, None, _json_error("unsupported signature version", 403, "unsupported_signature_version")
+        if headers["algorithm"].upper() != UPLOAD_SIGNATURE_ALGORITHM:
+            return None, None, _json_error("unsupported signature algorithm", 403, "unsupported_signature_algorithm")
+        device_id = _normalize_node_id(headers["device_id"])
+        if device_id != node_id:
+            return None, None, _json_error("header device id does not match payload node_id", 403, "device_id_mismatch")
+        if not registered_node:
+            return None, None, _json_error("registered node not found", 403, "node_not_registered")
+
+        credential = NodeCredential.query.filter_by(key_id=headers["key_id"]).first()
+        if (
+            not credential
+            or credential.node_id != node_id
+            or credential.registered_node_id != registered_node.id
+            or credential.algorithm != UPLOAD_SIGNATURE_ALGORITHM
+        ):
+            return None, None, _json_error("credential not found", 403, "credential_not_found")
+        now = _utcnow()
+        if not credential.is_usable(now):
+            _record_credential_failure(credential, "credential_revoked_or_expired")
+            return None, None, _json_error("credential revoked or expired", 403, "credential_revoked")
+
+        signed_at = _parse_upload_timestamp(headers["timestamp"])
+        if not signed_at or abs((now - signed_at).total_seconds()) > UPLOAD_TIMESTAMP_WINDOW_SECONDS:
+            _record_credential_failure(credential, "timestamp_out_of_window")
+            return None, None, _json_error("timestamp is outside allowed window", 403, "timestamp_out_of_window")
+        if not hmac.compare_digest(headers["body_sha256"].lower(), body_sha256):
+            _record_credential_failure(credential, "body_sha256_mismatch")
+            return None, None, _json_error("body sha256 mismatch", 403, "body_sha256_mismatch")
+        if len(headers["nonce"]) > 128:
+            _record_credential_failure(credential, "nonce_too_long")
+            return None, None, _json_error("nonce too long", 403, "nonce_too_long")
+
+        try:
+            secret = _decrypt_credential_secret(credential)
+        except RuntimeError:
+            logger.exception("[/api/upload] failed to decrypt credential secret for key_id=%s", credential.key_id)
+            return None, None, _json_error("credential secret unavailable", 500, "credential_secret_unavailable")
+
+        canonical = build_upload_canonical_string(
+            method=request.method,
+            path=request.path,
+            device_id=device_id,
+            key_id=headers["key_id"],
+            timestamp=headers["timestamp"],
+            nonce=headers["nonce"],
+            body_sha256=body_sha256,
+        )
+        expected_signature = sign_upload_request(secret, canonical)
+        supplied_signature = headers["signature"].removeprefix("sha256=").lower()
+        if not hmac.compare_digest(supplied_signature, expected_signature):
+            _record_credential_failure(credential, "signature_mismatch")
+            return None, None, _json_error("signature mismatch", 403, "signature_mismatch")
+
+        try:
+            NodeAuthNonce.query.filter(NodeAuthNonce.expires_at < now).delete(synchronize_session=False)
+            db.session.add(
+                NodeAuthNonce(
+                    credential_id=credential.id,
+                    node_id=node_id,
+                    key_id=credential.key_id,
+                    nonce=headers["nonce"],
+                    body_sha256=body_sha256,
+                    signature_sha256=hashlib.sha256(supplied_signature.encode("utf-8")).hexdigest(),
+                    received_at=now,
+                    expires_at=now + timedelta(seconds=UPLOAD_NONCE_TTL_SECONDS),
+                )
+            )
+            db.session.flush()
+        except IntegrityError:
+            db.session.rollback()
+            _record_credential_failure(credential, "nonce_replay")
+            return None, None, _json_error("nonce has already been used", 403, "nonce_replay")
+
+        credential.last_used_at = now
+        credential.last_failure_reason = ""
+        credential.last_failed_at = None
+        return registered_node, {"version": "hmac-v1", "key_id": credential.key_id}, None
+
+    node_key = (request.headers.get("X-WindSight-Node-Key") or "").strip()
+    if not ALLOW_LEGACY_NODE_KEY_UPLOAD:
+        return None, None, _json_error("legacy node key auth is disabled", 403, "legacy_auth_disabled")
+    if not registered_node or not node_key or not registered_node.check_node_key(node_key):
+        return None, None, _json_error("节点未注册或密钥错误", 403, "legacy_node_key_invalid")
+    return registered_node, {"version": "legacy-node-key"}, None
 
 
 def _is_admin_user(user=None) -> bool:
@@ -208,6 +510,8 @@ def _registered_node_to_dict(
     registered_node: RegisteredNode,
     include_owner: bool = False,
     include_key: bool = False,
+    include_auth: bool = False,
+    include_credential_secret: bool = False,
 ):
     latest_upload = _load_latest_upload(registered_node.node_id)
     item = _build_node_item(registered_node.node_id, latest_upload, _now_ts())
@@ -229,6 +533,26 @@ def _registered_node_to_dict(
     if include_key:
         item["node_key"] = registered_node.node_key_plain or ""
         item["node_key_available"] = bool(registered_node.node_key_plain)
+        include_auth = True
+        include_credential_secret = True
+    if include_auth:
+        credential = _current_node_credential(registered_node)
+        item["credential"] = _credential_public_dict(
+            credential,
+            include_secret=include_credential_secret,
+        )
+        item["auth"] = {
+            "version": "hmac-v1" if credential else "legacy-node-key",
+            "legacy_available": bool(registered_node.node_key_plain),
+            "credential_available": bool(credential),
+            "credential_status": credential.status if credential else "",
+            "last_success_at": (
+                iso_beijing(credential.last_used_at, with_seconds=True)
+                if credential and credential.last_used_at
+                else None
+            ),
+            "last_failure_reason": credential.last_failure_reason if credential else "",
+        }
     return item
 
 
@@ -313,10 +637,6 @@ def _invite_to_admin_dict(invite: RegistrationInvite, now: datetime | None = Non
         "used_at": iso_beijing(invite.used_at) if invite.used_at else None,
         "revoked_at": iso_beijing(invite.revoked_at) if invite.revoked_at else None,
     }
-
-
-def _utcnow() -> datetime:
-    return datetime.utcnow()
 
 
 def _now_ts() -> float:
@@ -478,17 +798,17 @@ def _emit_upload_events(node_id: str, upload_row):
 
 @api_bp.route("/upload", methods=["POST"])
 def upload_node_data():
+    raw_body = request.get_data(cache=True) or b""
     payload = request.get_json(silent=True)
     try:
         parsed = parse_turbine_upload(payload)
     except ProtocolValidationError as exc:
-        return jsonify({"status": "error", "error": str(exc)}), 400
+        return _json_error(str(exc), 400, "protocol_invalid")
 
     node_id = _normalize_node_id(parsed.node_id)
-    registered_node = RegisteredNode.query.filter_by(node_id=node_id, is_active=True).first()
-    node_key = (request.headers.get("X-WindSight-Node-Key") or "").strip()
-    if not registered_node or not node_key or not registered_node.check_node_key(node_key):
-        return jsonify({"status": "error", "error": "节点未注册或密钥错误"}), 403
+    registered_node, auth_info, auth_error = _authenticate_upload_request(raw_body, payload, parsed)
+    if auth_error:
+        return auth_error
 
     timestamp = _utcnow()
     try:
@@ -519,7 +839,7 @@ def upload_node_data():
 
         _update_active_node_cache(node_id, row)
         _emit_upload_events(node_id, row)
-        return jsonify({"status": "success", "upload_id": row.id}), 200
+        return jsonify({"status": "success", "upload_id": row.id, "auth": auth_info}), 200
     except Exception as exc:
         db.session.rollback()
         logger.exception("[/api/upload] failed: %s", exc)
@@ -701,6 +1021,8 @@ def create_my_registered_node():
         )
         registered_node.set_node_key(node_key)
         db.session.add(registered_node)
+        db.session.flush()
+        credential, credential_secret = _create_node_credential(registered_node)
         db.session.commit()
         return (
             jsonify(
@@ -709,7 +1031,8 @@ def create_my_registered_node():
                     "message": "registered",
                     "node": _registered_node_to_dict(registered_node, include_key=True),
                     "node_key": node_key,
-                    "warning": "node_key is visible on the registered node detail page",
+                    "credential": _credential_public_dict(credential, include_secret=True, secret=credential_secret),
+                    "warning": "node key and HMAC credential are visible on the registered node detail page",
                 }
             ),
             201,
@@ -732,21 +1055,27 @@ def rotate_my_registered_node_key(node_id):
         if not registered_node:
             return jsonify({"success": False, "error": "registered node not found"}), 404
 
+        payload = request.get_json(silent=True) or {}
+        transition = str(payload.get("transition") or "").strip().lower()
+        grace_hours = 24 if transition in {"grace", "keep_old_24h", "24h"} else 0
         node_key = RegisteredNode.generate_node_key()
         registered_node.set_node_key(node_key)
+        credential, credential_secret = _rotate_node_credential(registered_node, grace_hours=grace_hours)
         db.session.commit()
         return (
             jsonify(
                 {
                     "success": True,
-                    "message": "node key rotated",
+                    "message": "node credential rotated",
                     "node": _registered_node_to_dict(
                         registered_node,
                         include_owner=_is_admin_user(),
                         include_key=True,
                     ),
                     "node_key": node_key,
-                    "warning": "node_key is visible on the registered node detail page",
+                    "credential": _credential_public_dict(credential, include_secret=True, secret=credential_secret),
+                    "transition": "grace_24h" if grace_hours else "immediate_revoke",
+                    "warning": "node key and HMAC credential are visible on the registered node detail page",
                 }
             ),
             200,
@@ -974,7 +1303,7 @@ def admin_user_registered_nodes(user_id: int):
                 {
                     "success": True,
                     "user": _user_to_admin_dict(user),
-                    "nodes": [_registered_node_to_dict(node, include_key=True) for node in nodes],
+                    "nodes": [_registered_node_to_dict(node, include_auth=True) for node in nodes],
                 }
             ),
             200,
@@ -982,6 +1311,51 @@ def admin_user_registered_nodes(user_id: int):
     except Exception as exc:
         logger.exception("[/api/admin/users/%s/registered_nodes] failed: %s", user_id, exc)
         return jsonify({"success": False, "nodes": [], "error": str(exc)}), 500
+
+
+@api_bp.route("/admin/users/<int:user_id>/registered_nodes/<node_id>/credentials/revoke", methods=["POST"])
+@admin_required
+def admin_revoke_registered_node_credentials(user_id: int, node_id):
+    try:
+        user = db.session.get(User, user_id)
+        if not user:
+            return jsonify({"success": False, "error": "user not found"}), 404
+        ok, normalized_or_error = _validate_node_id(node_id)
+        if not ok:
+            return jsonify({"success": False, "error": normalized_or_error}), 400
+        registered_node = RegisteredNode.query.filter_by(
+            node_id=normalized_or_error,
+            owner_user_id=user.id,
+            is_active=True,
+        ).first()
+        if not registered_node:
+            return jsonify({"success": False, "error": "registered node not found"}), 404
+
+        now = _utcnow()
+        revoked_count = 0
+        for credential in list(getattr(registered_node, "credentials", []) or []):
+            if credential.status in {NodeCredential.STATUS_ACTIVE, NodeCredential.STATUS_GRACE}:
+                credential.status = NodeCredential.STATUS_REVOKED
+                credential.revoked_at = now
+                credential.expires_at = now
+                revoked_count += 1
+        db.session.commit()
+        return jsonify(
+            {
+                "success": True,
+                "revoked_count": revoked_count,
+                "node": _registered_node_to_dict(registered_node, include_owner=True, include_auth=True),
+            }
+        ), 200
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception(
+            "[POST /api/admin/users/%s/registered_nodes/%s/credentials/revoke] failed: %s",
+            user_id,
+            node_id,
+            exc,
+        )
+        return jsonify({"success": False, "error": str(exc)}), 500
 
 
 @api_bp.route("/admin/users/<int:user_id>/registered_nodes/<node_id>/location", methods=["PATCH"])

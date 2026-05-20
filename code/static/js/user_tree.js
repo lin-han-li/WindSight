@@ -21,8 +21,11 @@
         selectedNodeMeta: document.getElementById("selectedNodeMeta"),
         selectedNodeKeyPanel: document.getElementById("selectedNodeKeyPanel"),
         selectedNodeKeyText: document.getElementById("selectedNodeKeyText"),
+        selectedCredentialKeyId: document.getElementById("selectedCredentialKeyId"),
+        selectedCredentialStatus: document.getElementById("selectedCredentialStatus"),
         copySelectedNodeKeyBtn: document.getElementById("copySelectedNodeKeyBtn"),
         rotateNodeKeyBtn: document.getElementById("rotateNodeKeyBtn"),
+        forceRevokeCredentialBtn: document.getElementById("forceRevokeCredentialBtn"),
         turbineCountText: document.getElementById("turbineCountText"),
         turbineList: document.getElementById("turbineList"),
         adminTurbineActions: document.getElementById("adminTurbineActions"),
@@ -106,11 +109,67 @@
         textarea.remove();
     }
 
+    function credentialStatusText(status) {
+        const map = {
+            active: "启用中",
+            grace: "过渡期",
+            revoked: "已吊销",
+        };
+        return map[status] || status || "未生成";
+    }
+
+    function buildCredentialConfig(node) {
+        const credential = node?.credential || null;
+        const lines = [
+            "auth_mode=hmac",
+            `node_id=${node?.node_id || ""}`,
+            `key_id=${credential?.key_id || ""}`,
+            `secret=${credential?.secret || ""}`,
+            "algorithm=HMAC-SHA256",
+            "signature_version=v1",
+            "upload_path=/api/upload",
+        ];
+        if (node?.node_key) {
+            lines.push("", "# legacy compatibility", `legacy_node_key=${node.node_key}`);
+        }
+        return lines.join("\n");
+    }
+
     function renderSelectedNodeKey(node) {
         if (!els.selectedNodeKeyPanel || !els.selectedNodeKeyText) return;
-        const key = String(node?.node_key || "");
-        els.selectedNodeKeyText.value = key;
-        els.selectedNodeKeyPanel.classList.toggle("is-hidden", !key);
+        const credential = node?.credential || null;
+        const hasCredential = !!credential;
+        const hasSecret = !!credential?.secret;
+        if (els.selectedCredentialKeyId) {
+            els.selectedCredentialKeyId.textContent = `key_id：${credential?.key_id || "--"}`;
+        }
+        if (els.selectedCredentialStatus) {
+            const failure = credential?.last_failure_reason ? `，最近失败：${credential.last_failure_reason}` : "";
+            els.selectedCredentialStatus.textContent = `状态：${credentialStatusText(credential?.status)}${failure}`;
+        }
+        if (mode === "admin") {
+            const canRevoke = hasCredential && ["active", "grace"].includes(credential.status);
+            els.selectedNodeKeyText.value = hasCredential
+                ? [
+                    `认证版本：hmac-v1`,
+                    `算法：${credential.algorithm || "HMAC-SHA256"}`,
+                    `最近成功：${credential.last_used_at || "--"}`,
+                    `最近失败：${credential.last_failure_reason || "--"}`,
+                    "secret：仅节点所属用户可见",
+            ].join("\n")
+                : "该节点还没有 HMAC 签名凭证";
+            els.selectedNodeKeyPanel.classList.toggle("is-hidden", !node);
+            if (els.copySelectedNodeKeyBtn) els.copySelectedNodeKeyBtn.classList.add("is-hidden");
+            if (els.forceRevokeCredentialBtn) els.forceRevokeCredentialBtn.classList.toggle("is-hidden", !canRevoke);
+            return;
+        }
+
+        const legacyKey = String(node?.node_key || "");
+        const text = hasSecret ? buildCredentialConfig(node) : legacyKey;
+        els.selectedNodeKeyText.value = text;
+        els.selectedNodeKeyPanel.classList.toggle("is-hidden", !text);
+        if (els.copySelectedNodeKeyBtn) els.copySelectedNodeKeyBtn.classList.remove("is-hidden");
+        if (els.forceRevokeCredentialBtn) els.forceRevokeCredentialBtn.classList.add("is-hidden");
     }
 
     async function copySelectedNodeKey() {
@@ -118,10 +177,10 @@
         if (!key) return;
         try {
             await copyText(key);
-            toast("节点密钥已复制", "success");
+            toast("节点认证配置已复制", "success");
         } catch (error) {
             els.selectedNodeKeyText.select();
-            toast("已选中密钥，请手动复制", "warning");
+            toast("已选中认证配置，请手动复制", "warning");
         }
     }
 
@@ -291,6 +350,7 @@
             if (els.selectedNodeTitle) els.selectedNodeTitle.textContent = "请选择节点";
             if (els.selectedNodeMeta) els.selectedNodeMeta.textContent = "点击节点后查看所属发电机。";
             if (els.rotateNodeKeyBtn) els.rotateNodeKeyBtn.classList.add("is-hidden");
+            if (els.forceRevokeCredentialBtn) els.forceRevokeCredentialBtn.classList.add("is-hidden");
             renderSelectedNodeKey(null);
             renderTurbineList([]);
             paintCharts([]);
@@ -424,9 +484,13 @@
         await loadAdminUserNodes(user.id);
     }
 
-    function showNodeKey(nodeKey) {
+    function showNodeKey(nodeOrKey) {
         if (!els.nodeKeyPanel || !els.nodeKeyText) return;
-        els.nodeKeyText.value = nodeKey || "";
+        if (nodeOrKey && typeof nodeOrKey === "object") {
+            els.nodeKeyText.value = buildCredentialConfig(nodeOrKey);
+        } else {
+            els.nodeKeyText.value = nodeOrKey || "";
+        }
         els.nodeKeyPanel.classList.remove("is-hidden");
     }
 
@@ -434,10 +498,10 @@
         if (!els.nodeKeyText?.value) return;
         try {
             await copyText(els.nodeKeyText.value);
-            toast("节点密钥已复制", "success");
+            toast("节点认证配置已复制", "success");
         } catch (error) {
             els.nodeKeyText.select();
-            toast("已选中密钥，请手动复制", "warning");
+            toast("已选中认证配置，请手动复制", "warning");
         }
     }
 
@@ -456,7 +520,7 @@
                     display_name: els.nodeNameInput?.value.trim() || "",
                 }),
             });
-            showNodeKey(data.node_key);
+            showNodeKey(data.node || data.node_key);
             if (data.node) {
                 state.nodes = state.nodes.map((node) => (
                     node.node_id === data.node.node_id ? data.node : node
@@ -475,14 +539,15 @@
 
     async function rotateNodeKey() {
         if (!state.selectedNode) return;
-        const confirmed = window.confirm(`确定重置 ${state.selectedNode.node_id} 的节点密钥吗？旧密钥会立即失效。`);
+        const confirmed = window.confirm(`确定重置 ${state.selectedNode.node_id} 的签名凭证吗？`);
         if (!confirmed) return;
+        const keepOld = window.confirm("是否保留旧 HMAC 凭证 24 小时作为过渡？\n\n确定：旧凭证 24 小时内仍可上报。\n取消：旧凭证立即失效。");
         try {
             const data = await requestJson(`/api/my/registered_nodes/${encodeURIComponent(state.selectedNode.node_id)}/rotate_key`, {
                 method: "POST",
-                body: JSON.stringify({}),
+                body: JSON.stringify({ transition: keepOld ? "keep_old_24h" : "immediate" }),
             });
-            showNodeKey(data.node_key);
+            showNodeKey(data.node || data.node_key);
             if (data.node) {
                 state.nodes = state.nodes.map((node) => (
                     node.node_id === data.node.node_id ? data.node : node
@@ -491,9 +556,40 @@
                 renderNodeList();
                 renderSelectedNode();
             }
-            toast("节点密钥已重置", "success");
+            toast(keepOld ? "签名凭证已重置，旧凭证保留 24 小时" : "签名凭证已重置，旧凭证已失效", "success");
         } catch (error) {
-            toast(error.message || "密钥重置失败", "error");
+            toast(error.message || "签名凭证重置失败", "error");
+        }
+    }
+
+    async function forceRevokeCredential() {
+        if (mode !== "admin" || !state.selectedUser || !state.selectedNode) return;
+        const confirmed = window.confirm(
+            `确认强制吊销 ${state.selectedNode.node_id} 的当前签名凭证？\n\n吊销后该节点需要所属用户重新生成凭证才能继续使用 HMAC 上报。`
+        );
+        if (!confirmed) return;
+        const restore = setButtonBusy(els.forceRevokeCredentialBtn, '<i class="bi bi-arrow-repeat"></i>吊销中...');
+        try {
+            const data = await requestJson(
+                `/api/admin/users/${encodeURIComponent(state.selectedUser.id)}/registered_nodes/${encodeURIComponent(state.selectedNode.node_id)}/credentials/revoke`,
+                {
+                    method: "POST",
+                    body: JSON.stringify({}),
+                }
+            );
+            if (data.node) {
+                state.nodes = state.nodes.map((node) => (
+                    node.node_id === data.node.node_id ? data.node : node
+                ));
+                state.selectedNode = data.node;
+                renderNodeList();
+                renderSelectedNode();
+            }
+            restore('<i class="bi bi-shield-x"></i>强制吊销凭证');
+            toast("签名凭证已吊销", "success");
+        } catch (error) {
+            restore('<i class="bi bi-shield-x"></i>强制吊销凭证');
+            toast(error.message || "吊销凭证失败", "error");
         }
     }
 
@@ -878,6 +974,7 @@
         els.copyNodeKeyBtn?.addEventListener("click", copyNodeKey);
         els.copySelectedNodeKeyBtn?.addEventListener("click", copySelectedNodeKey);
         els.rotateNodeKeyBtn?.addEventListener("click", rotateNodeKey);
+        els.forceRevokeCredentialBtn?.addEventListener("click", forceRevokeCredential);
         els.refreshNodesBtn?.addEventListener("click", () => loadMyNodes());
         els.refreshUsersBtn?.addEventListener("click", () => loadAdminUsers());
         els.openInviteManagerBtn?.addEventListener("click", openInviteManager);

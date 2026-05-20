@@ -4,7 +4,7 @@
 {% block page_title %}用户列表{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/user_tree.css') }}?v=20260517-node-key">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/user_tree.css') }}?v=20260520-hmac-auth">
 {% endblock %}
 
 {% block content %}
@@ -51,13 +51,17 @@
                     <p id="selectedNodeMeta">点击上方节点后查看所属发电机。</p>
                 </div>
                 <div id="selectedNodeKeyPanel" class="selected-node-key is-hidden">
-                    <span>节点密钥</span>
-                    <input id="selectedNodeKeyText" type="text" readonly value="">
-                    <button id="copySelectedNodeKeyBtn" type="button" class="secondary-action">
-                        <i class="bi bi-copy"></i>
-                        复制
-                    </button>
+                    <span>认证状态</span>
+                    <div class="credential-lines">
+                        <small id="selectedCredentialKeyId">key_id：--</small>
+                        <small id="selectedCredentialStatus">状态：--</small>
+                    </div>
+                    <textarea id="selectedNodeKeyText" readonly></textarea>
                 </div>
+                <button id="forceRevokeCredentialBtn" type="button" class="secondary-action is-hidden">
+                    <i class="bi bi-shield-x"></i>
+                    强制吊销凭证
+                </button>
             </div>
 
             <section class="turbine-section">
@@ -125,5 +129,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/user_tree.js') }}?v=20260517-node-key"></script>
+<script src="{{ url_for('static', filename='js/user_tree.js') }}?v=20260520-hmac-auth"></script>
 {% endblock %}

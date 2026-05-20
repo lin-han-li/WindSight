@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import hmac
+import json
 import math
 import os
 import random
+import secrets
 import sys
 import threading
 import time
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
 import requests
 
@@ -46,8 +51,83 @@ def _get_env_node_key() -> str:
     return ""
 
 
+def _get_env_credential_id() -> str:
+    for name in ("WINDSIGHT_CREDENTIAL_ID", "WINDSIGHT_KEY_ID", "NODE_CREDENTIAL_ID", "NODE_KEY_ID"):
+        value = os.environ.get(name)
+        if value:
+            return value.strip()
+    return ""
+
+
+def _get_env_credential_secret() -> str:
+    for name in ("WINDSIGHT_CREDENTIAL_SECRET", "WINDSIGHT_NODE_SECRET", "NODE_CREDENTIAL_SECRET"):
+        value = os.environ.get(name)
+        if value:
+            return value.strip()
+    return ""
+
+
+def _get_env_auth_mode() -> str:
+    value = os.environ.get("WINDSIGHT_UPLOAD_AUTH_MODE", "auto").strip().lower()
+    return value if value in {"auto", "legacy", "hmac"} else "auto"
+
+
 def _clamp_turbine_count(value: int) -> int:
     return max(1, min(MAX_TURBINE_COUNT, int(value)))
+
+
+def _build_upload_canonical_string(
+    *,
+    method: str,
+    path: str,
+    device_id: str,
+    key_id: str,
+    timestamp: str,
+    nonce: str,
+    body_sha256: str,
+) -> str:
+    return "\n".join(
+        [
+            "WIND-SIGHT-HMAC-SHA256",
+            "v1",
+            method.upper(),
+            path,
+            device_id,
+            key_id,
+            timestamp,
+            nonce,
+            body_sha256,
+        ]
+    )
+
+
+def _hmac_headers(url: str, raw_body: bytes, payload: dict, credential_id: str, credential_secret: str) -> dict:
+    device_id = str(payload.get("node_id") or "").strip().upper()
+    path = urlparse(url).path or "/api/upload"
+    timestamp = str(int(time.time()))
+    nonce = secrets.token_urlsafe(18)
+    body_sha256 = hashlib.sha256(raw_body).hexdigest()
+    canonical = _build_upload_canonical_string(
+        method="POST",
+        path=path,
+        device_id=device_id,
+        key_id=credential_id,
+        timestamp=timestamp,
+        nonce=nonce,
+        body_sha256=body_sha256,
+    )
+    signature = hmac.new(credential_secret.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256).hexdigest()
+    return {
+        "Content-Type": "application/json",
+        "X-WindSight-Signature-Version": "v1",
+        "X-WindSight-Algorithm": "HMAC-SHA256",
+        "X-WindSight-Device-Id": device_id,
+        "X-WindSight-Key-Id": credential_id,
+        "X-WindSight-Timestamp": timestamp,
+        "X-WindSight-Nonce": nonce,
+        "X-WindSight-Body-SHA256": body_sha256,
+        "X-WindSight-Signature": signature,
+    }
 
 
 @dataclass
@@ -148,11 +228,24 @@ def upload_once(
     payload: dict,
     timeout: float = 3.0,
     node_key: str = "",
+    auth_mode: str = "auto",
+    credential_id: str = "",
+    credential_secret: str = "",
 ) -> tuple[bool, str]:
     url = f"{server_url.rstrip('/')}/api/upload"
-    headers = {"X-WindSight-Node-Key": node_key} if node_key else {}
+    mode = (auth_mode or "auto").strip().lower()
+    if mode == "auto":
+        mode = "hmac" if credential_id and credential_secret else "legacy"
     try:
-        response = session.post(url, json=payload, headers=headers, timeout=timeout)
+        if mode == "hmac":
+            if not credential_id or not credential_secret:
+                return False, "missing hmac credential id or secret"
+            raw_body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+            headers = _hmac_headers(url, raw_body, payload, credential_id, credential_secret)
+            response = session.post(url, data=raw_body, headers=headers, timeout=timeout)
+        else:
+            headers = {"X-WindSight-Node-Key": node_key} if node_key else {}
+            response = session.post(url, json=payload, headers=headers, timeout=timeout)
         if response.status_code == 200:
             try:
                 data = response.json()
@@ -167,12 +260,25 @@ def upload_once(
 
 
 class NodeWorker(threading.Thread):
-    def __init__(self, node: NodeSimState, server_url: str, interval_ms: int, timeout_s: float, node_key: str = ""):
+    def __init__(
+        self,
+        node: NodeSimState,
+        server_url: str,
+        interval_ms: int,
+        timeout_s: float,
+        node_key: str = "",
+        auth_mode: str = "auto",
+        credential_id: str = "",
+        credential_secret: str = "",
+    ):
         super().__init__(daemon=True, name=f"NodeWorker-{node.node_id}")
         self.node = node
         self.server_url = server_url.rstrip("/")
         self.timeout_s = float(timeout_s)
         self.node_key = node_key.strip()
+        self.auth_mode = (auth_mode or "auto").strip().lower()
+        self.credential_id = credential_id.strip()
+        self.credential_secret = credential_secret.strip()
         self._interval_s = max(0.05, float(interval_ms) / 1000.0)
         self._interval_lock = threading.Lock()
         self._stop_evt = threading.Event()
@@ -193,7 +299,16 @@ class NodeWorker(threading.Thread):
     def run(self):
         while not self._stop_evt.is_set():
             payload = build_payload(self.node, time.time())
-            ok, msg = upload_once(self._session, self.server_url, payload, timeout=self.timeout_s, node_key=self.node_key)
+            ok, msg = upload_once(
+                self._session,
+                self.server_url,
+                payload,
+                timeout=self.timeout_s,
+                node_key=self.node_key,
+                auth_mode=self.auth_mode,
+                credential_id=self.credential_id,
+                credential_secret=self.credential_secret,
+            )
             with self._stats_lock:
                 if ok:
                     self._ok_count += 1
@@ -221,10 +336,23 @@ class NodeWorker(threading.Thread):
 
 
 class NodeManager:
-    def __init__(self, server_url: str, interval_ms: int, timeout_s: float, turbine_count: int, node_key: str = ""):
+    def __init__(
+        self,
+        server_url: str,
+        interval_ms: int,
+        timeout_s: float,
+        turbine_count: int,
+        node_key: str = "",
+        auth_mode: str = "auto",
+        credential_id: str = "",
+        credential_secret: str = "",
+    ):
         self.server_url = server_url.rstrip("/")
         self.timeout_s = float(timeout_s)
         self.node_key = node_key.strip()
+        self.auth_mode = (auth_mode or "auto").strip().lower()
+        self.credential_id = credential_id.strip()
+        self.credential_secret = credential_secret.strip()
         self._interval_ms = max(50, int(interval_ms))
         self._turbine_count = _clamp_turbine_count(turbine_count)
         self._lock = threading.Lock()
@@ -257,6 +385,9 @@ class NodeManager:
                 self._interval_ms,
                 self.timeout_s,
                 node_key=self.node_key,
+                auth_mode=self.auth_mode,
+                credential_id=self.credential_id,
+                credential_secret=self.credential_secret,
             )
             self._workers[nid] = worker
             worker.start()
@@ -347,7 +478,10 @@ def main():
     parser.add_argument("--nodes", type=int, default=0, help="number of nodes to start immediately")
     parser.add_argument("--sub", type=int, default=DEFAULT_TURBINE_COUNT, help="turbine count per upload frame")
     parser.add_argument("--interval-ms", type=int, default=500, help="upload interval in ms")
+    parser.add_argument("--auth-mode", choices=("auto", "legacy", "hmac"), default=None, help="upload auth mode")
     parser.add_argument("--node-key", type=str, default=None, help="registered node key for X-WindSight-Node-Key")
+    parser.add_argument("--credential-id", type=str, default=None, help="HMAC credential key_id")
+    parser.add_argument("--credential-secret", type=str, default=None, help="HMAC credential secret")
     parser.add_argument("--once", action="store_true", help="send one frame and exit")
     parser.add_argument("--timeout", type=float, default=3.0, help="HTTP timeout in seconds")
     parser.add_argument("--no-console", action="store_true", help="disable interactive console")
@@ -355,6 +489,11 @@ def main():
 
     server_url = (args.server or _get_env_server_url()).rstrip("/")
     node_key = (args.node_key if args.node_key is not None else _get_env_node_key()).strip()
+    auth_mode = args.auth_mode or _get_env_auth_mode()
+    credential_id = (args.credential_id if args.credential_id is not None else _get_env_credential_id()).strip()
+    credential_secret = (
+        args.credential_secret if args.credential_secret is not None else _get_env_credential_secret()
+    ).strip()
     node_count = max(0, int(args.nodes))
     interval_ms = max(50, int(args.interval_ms))
     turbine_count = _clamp_turbine_count(args.sub)
@@ -365,7 +504,9 @@ def main():
     print(f"nodes: {node_count}")
     print(f"sub: {turbine_count}")
     print(f"interval: {interval_ms} ms")
+    print(f"auth_mode: {auth_mode}")
     print(f"node_key: {'configured' if node_key else 'missing'}")
+    print(f"hmac_credential: {'configured' if credential_id and credential_secret else 'missing'}")
     print("=" * 72)
 
     if args.once:
@@ -383,7 +524,16 @@ def main():
                 ),
                 time.time(),
             )
-            ok, msg = upload_once(session, server_url, payload, timeout=float(args.timeout), node_key=node_key)
+            ok, msg = upload_once(
+                session,
+                server_url,
+                payload,
+                timeout=float(args.timeout),
+                node_key=node_key,
+                auth_mode=auth_mode,
+                credential_id=credential_id,
+                credential_secret=credential_secret,
+            )
             if ok:
                 ok_count += 1
             else:
@@ -397,6 +547,9 @@ def main():
         timeout_s=float(args.timeout),
         turbine_count=turbine_count,
         node_key=node_key,
+        auth_mode=auth_mode,
+        credential_id=credential_id,
+        credential_secret=credential_secret,
     )
 
     if node_count <= 0:

@@ -1,5 +1,8 @@
 import json
 import os
+import hashlib
+import hmac
+import time
 import unittest
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -11,7 +14,7 @@ os.environ.setdefault("WINDSIGHT_DEFAULT_ADMIN_ENABLED", "0")
 os.environ.setdefault("WINDSIGHT_USER_INVITE_CODE", "INVITE-2026")
 
 from app import active_nodes, app, socketio  # noqa: E402
-from windsight.models import NodeUpload, RegisteredNode, TurbineMeasurement, User, UserSetting, db  # noqa: E402
+from windsight.models import NodeAuthNonce, NodeCredential, NodeUpload, RegisteredNode, TurbineMeasurement, User, UserSetting, db  # noqa: E402
 from windsight.socket_events import client_subscriptions  # noqa: E402
 
 
@@ -49,6 +52,64 @@ class RegisteredNodeTests(unittest.TestCase):
             "sub": "1",
             "001": [2.5, 2.0, 1.5, 1.0],
         }
+
+    def _raw_payload(self, payload):
+        return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+
+    def _register_node_via_api(self, node_id="WIN_H01"):
+        self._login_user_id(self.alice_id)
+        response = self.client.post("/api/my/registered_nodes", json={"node_id": node_id})
+        self.assertEqual(response.status_code, 201)
+        data = response.get_json()
+        return data["node"], data["credential"]
+
+    def _hmac_headers(
+        self,
+        payload,
+        credential,
+        raw_body=None,
+        timestamp=None,
+        nonce="nonce-1",
+        device_id=None,
+        secret=None,
+        body_hash=None,
+        key_id=None,
+    ):
+        raw_body = raw_body if raw_body is not None else self._raw_payload(payload)
+        body_hash = body_hash or hashlib.sha256(raw_body).hexdigest()
+        timestamp = str(timestamp if timestamp is not None else int(time.time()))
+        device_id = device_id or str(payload.get("node_id") or "").upper()
+        key_id = key_id or credential["key_id"]
+        secret = secret or credential["secret"]
+        canonical = "\n".join(
+            [
+                "WIND-SIGHT-HMAC-SHA256",
+                "v1",
+                "POST",
+                "/api/upload",
+                device_id,
+                key_id,
+                timestamp,
+                nonce,
+                body_hash,
+            ]
+        )
+        signature = hmac.new(secret.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256).hexdigest()
+        return {
+            "X-WindSight-Signature-Version": "v1",
+            "X-WindSight-Algorithm": "HMAC-SHA256",
+            "X-WindSight-Device-Id": device_id,
+            "X-WindSight-Key-Id": key_id,
+            "X-WindSight-Timestamp": timestamp,
+            "X-WindSight-Nonce": nonce,
+            "X-WindSight-Body-SHA256": body_hash,
+            "X-WindSight-Signature": signature,
+        }
+
+    def _post_hmac_upload(self, payload, credential, **header_overrides):
+        raw_body = header_overrides.pop("raw_body", None) or self._raw_payload(payload)
+        headers = self._hmac_headers(payload, credential, raw_body=raw_body, **header_overrides)
+        return self.client.post("/api/upload", data=raw_body, headers=headers, content_type="application/json")
 
     def _register_node_row(self, owner_user_id, node_id, node_key="NODE-KEY", display_name=None):
         node = RegisteredNode(
@@ -100,6 +161,10 @@ class RegisteredNodeTests(unittest.TestCase):
         self.assertIn("node_key", data)
         self.assertEqual(data["node"]["node_key"], data["node_key"])
         self.assertTrue(data["node"]["node_key_available"])
+        self.assertIn("credential", data)
+        self.assertEqual(data["node"]["credential"]["key_id"], data["credential"]["key_id"])
+        self.assertTrue(data["node"]["credential"]["secret"])
+        self.assertEqual(data["node"]["credential"]["status"], NodeCredential.STATUS_ACTIVE)
 
         response = self.client.post("/api/my/registered_nodes", json={"node_id": "WIN_101"})
         self.assertEqual(response.status_code, 409)
@@ -110,12 +175,15 @@ class RegisteredNodeTests(unittest.TestCase):
             self.assertEqual(node.owner_user_id, self.alice_id)
             self.assertNotEqual(node.node_key_hash, data["node_key"])
             self.assertEqual(node.node_key_plain, data["node_key"])
+            self.assertEqual(NodeCredential.query.filter_by(node_id="WIN_101").count(), 1)
 
         response = self.client.get("/api/my/registered_nodes")
         self.assertEqual(response.status_code, 200)
         listed = response.get_json()["nodes"][0]
         self.assertEqual(listed["node_key"], data["node_key"])
         self.assertTrue(listed["node_key_available"])
+        self.assertEqual(listed["credential"]["key_id"], data["credential"]["key_id"])
+        self.assertTrue(listed["credential"]["secret_visible"])
 
     def test_upload_rejects_unregistered_missing_and_wrong_key(self):
         response = self.client.post("/api/upload", json=self._payload("WIN_404"))
@@ -137,6 +205,18 @@ class RegisteredNodeTests(unittest.TestCase):
         with app.app_context():
             self.assertEqual(NodeUpload.query.count(), 0)
 
+    def test_admin_registered_node_list_hides_user_secrets(self):
+        _, credential = self._register_node_via_api("WIN_SEC")
+
+        self._login_user_id(self.admin_id)
+        response = self.client.get(f"/api/admin/users/{self.alice_id}/registered_nodes")
+        self.assertEqual(response.status_code, 200)
+        node = response.get_json()["nodes"][0]
+        self.assertEqual(node["credential"]["key_id"], credential["key_id"])
+        self.assertNotIn("secret", node["credential"])
+        self.assertFalse(node["credential"]["secret_visible"])
+        self.assertNotIn("node_key", node)
+
     def test_upload_accepts_registered_node_with_correct_key(self):
         with app.app_context():
             self._register_node_row(self.alice_id, "WIN_101", "RIGHT-KEY")
@@ -154,6 +234,61 @@ class RegisteredNodeTests(unittest.TestCase):
             self.assertEqual(TurbineMeasurement.query.count(), 1)
             node = RegisteredNode.query.filter_by(node_id="WIN_101").first()
             self.assertIsNotNone(node.last_seen_at)
+
+    def test_upload_accepts_hmac_signature_and_records_nonce(self):
+        _, credential = self._register_node_via_api("WIN_H01")
+        payload = self._payload("WIN_H01")
+
+        response = self._post_hmac_upload(payload, credential, nonce="nonce-ok")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["auth"]["version"], "hmac-v1")
+
+        with app.app_context():
+            self.assertEqual(NodeUpload.query.filter_by(node_id="WIN_H01").count(), 1)
+            self.assertEqual(NodeAuthNonce.query.count(), 1)
+            row = NodeCredential.query.filter_by(key_id=credential["key_id"]).first()
+            self.assertIsNotNone(row.last_used_at)
+
+    def test_hmac_rejects_bad_signature_hash_timestamp_replay_and_device_mismatch(self):
+        _, credential = self._register_node_via_api("WIN_H02")
+        payload = self._payload("WIN_H02")
+
+        response = self._post_hmac_upload(payload, credential, secret="wrong-secret", nonce="nonce-bad-sig")
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()["error_code"], "signature_mismatch")
+
+        response = self._post_hmac_upload(
+            payload,
+            credential,
+            body_hash="0" * 64,
+            nonce="nonce-bad-body",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()["error_code"], "body_sha256_mismatch")
+
+        response = self._post_hmac_upload(
+            payload,
+            credential,
+            timestamp=int(time.time()) - 1000,
+            nonce="nonce-old-ts",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()["error_code"], "timestamp_out_of_window")
+
+        response = self._post_hmac_upload(
+            payload,
+            credential,
+            device_id="WIN_OTHER",
+            nonce="nonce-device",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()["error_code"], "device_id_mismatch")
+
+        response = self._post_hmac_upload(payload, credential, nonce="nonce-replay")
+        self.assertEqual(response.status_code, 200)
+        response = self._post_hmac_upload(payload, credential, nonce="nonce-replay")
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()["error_code"], "nonce_replay")
 
     def test_rotated_node_key_invalidates_old_key(self):
         with app.app_context():
@@ -179,6 +314,48 @@ class RegisteredNodeTests(unittest.TestCase):
             headers={"X-WindSight-Node-Key": new_key},
         )
         self.assertEqual(response.status_code, 200)
+
+    def test_rotated_hmac_credential_invalidates_old_credential(self):
+        _, old_credential = self._register_node_via_api("WIN_H03")
+        self._login_user_id(self.alice_id)
+
+        response = self.client.post(
+            "/api/my/registered_nodes/WIN_H03/rotate_key",
+            json={"transition": "immediate"},
+        )
+        self.assertEqual(response.status_code, 200)
+        new_credential = response.get_json()["credential"]
+        self.assertNotEqual(new_credential["key_id"], old_credential["key_id"])
+
+        payload = self._payload("WIN_H03")
+        response = self._post_hmac_upload(payload, old_credential, nonce="nonce-old-credential")
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()["error_code"], "credential_revoked")
+
+        response = self._post_hmac_upload(payload, new_credential, nonce="nonce-new-credential")
+        self.assertEqual(response.status_code, 200)
+
+    def test_hmac_credential_rotation_can_keep_old_credential_in_grace(self):
+        _, old_credential = self._register_node_via_api("WIN_H04")
+        self._login_user_id(self.alice_id)
+
+        response = self.client.post(
+            "/api/my/registered_nodes/WIN_H04/rotate_key",
+            json={"transition": "keep_old_24h"},
+        )
+        self.assertEqual(response.status_code, 200)
+        new_credential = response.get_json()["credential"]
+
+        payload = self._payload("WIN_H04")
+        response = self._post_hmac_upload(payload, old_credential, nonce="nonce-grace-old")
+        self.assertEqual(response.status_code, 200)
+        response = self._post_hmac_upload(payload, new_credential, nonce="nonce-grace-new")
+        self.assertEqual(response.status_code, 200)
+
+        with app.app_context():
+            old_row = NodeCredential.query.filter_by(key_id=old_credential["key_id"]).first()
+            self.assertEqual(old_row.status, NodeCredential.STATUS_GRACE)
+            self.assertIsNotNone(old_row.expires_at)
 
     def test_user_config_is_account_scoped(self):
         self._login_user_id(self.alice_id)
