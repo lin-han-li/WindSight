@@ -44,12 +44,15 @@
     return node && node.online ? "online" : "offline";
   }
 
-  function getNodeMeta(nodeId) {
+  function getNodeMeta(node) {
+    const nodeId = node?.node_id || "";
     const defaults = nodeMapConfig.defaults || {};
     const preset = (nodeMapConfig.nodes || {})[nodeId] || {};
+    const registeredName = String(node?.display_name || "").trim();
+    const geoConfigured = !!(node?.geo_configured || node?.geo);
     return {
-      displayName: preset.displayName || nodeId,
-      zoneLabel: preset.zoneLabel || defaults.zoneLabel || "未标定区域",
+      displayName: registeredName || preset.displayName || nodeId,
+      zoneLabel: geoConfigured ? "已定位区域" : (defaults.zoneLabel || "未标定区域"),
       description: preset.description || defaults.description || "风场节点",
     };
   }
@@ -87,7 +90,7 @@
 
   function renderNodeRow(node) {
     const nodeId = node.node_id || "";
-    const meta = getNodeMeta(nodeId);
+    const meta = getNodeMeta(node);
     const status = getNodeStatus(node);
     const statusText = statusLabel(status);
     const turbineCount = Number.isFinite(Number(node.turbine_count)) ? Number(node.turbine_count) : 0;
