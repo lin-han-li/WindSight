@@ -37,6 +37,9 @@
         selectedTurbineText: document.getElementById("selectedTurbineText"),
         monitorActionLink: document.getElementById("monitorActionLink"),
         overviewActionLink: document.getElementById("overviewActionLink"),
+        adminUserDangerPanel: document.getElementById("adminUserDangerPanel"),
+        adminDangerUserText: document.getElementById("adminDangerUserText"),
+        adminDeleteSelectedUserBtn: document.getElementById("adminDeleteSelectedUserBtn"),
         waveTitle: document.getElementById("waveTitle"),
         openInviteManagerBtn: document.getElementById("openInviteManagerBtn"),
         inviteManagerModal: document.getElementById("inviteManagerModal"),
@@ -248,16 +251,12 @@
         if (!els.adminUserList) return;
         if (!state.users.length) {
             els.adminUserList.innerHTML = '<div class="empty-state">暂无用户。</div>';
+            renderAdminUserDanger();
             return;
         }
         const rows = state.users.map((user) => {
             const active = state.selectedUser && state.selectedUser.id === user.id ? " is-active" : "";
             const roleText = user.role === "admin" ? "管理员" : "普通用户";
-            const deleteButton = user.role === "admin"
-                ? ""
-                : `<button class="admin-user-delete" type="button" title="删除用户" data-user-delete="${escapeHtml(user.id)}">
-                       <i class="bi bi-trash3"></i>
-                   </button>`;
             return `
                 <div class="admin-user-item admin-user-row${active}">
                     <button class="admin-user-select" type="button" data-user-id="${escapeHtml(user.id)}">
@@ -266,7 +265,6 @@
                         <span class="admin-user-count">${Number(user.node_count || 0)} 个节点</span>
                         <span class="admin-user-seen">${escapeHtml(user.last_seen_at || "--")}</span>
                     </button>
-                    ${deleteButton}
                 </div>
             `;
         }).join("");
@@ -277,7 +275,6 @@
                     <span>角色</span>
                     <span>节点</span>
                     <span>最近上报</span>
-                    <span></span>
                 </div>
                 ${rows}
             </div>
@@ -288,9 +285,25 @@
                 if (user) selectUser(user);
             });
         });
-        els.adminUserList.querySelectorAll("[data-user-delete]").forEach((button) => {
-            button.addEventListener("click", () => deleteUser(button.dataset.userDelete, button));
-        });
+        renderAdminUserDanger();
+    }
+
+    function renderAdminUserDanger() {
+        if (mode !== "admin" || !els.adminUserDangerPanel) return;
+        const user = state.selectedUser;
+        const canDelete = !!user && user.role !== "admin";
+        els.adminUserDangerPanel.classList.toggle("is-hidden", !canDelete);
+        if (!canDelete) {
+            els.adminUserDangerPanel.open = false;
+        }
+        if (els.adminDangerUserText) {
+            els.adminDangerUserText.textContent = canDelete
+                ? `${user.username} · ${Number(user.node_count || 0)} 个节点`
+                : "未选择可注销的普通用户";
+        }
+        if (els.adminDeleteSelectedUserBtn) {
+            els.adminDeleteSelectedUserBtn.disabled = !canDelete;
+        }
     }
 
     function renderNodeList() {
@@ -765,7 +778,7 @@
         );
         if (!confirmed) return;
 
-        const restore = setButtonBusy(button, '<i class="bi bi-arrow-repeat"></i>');
+        const restore = setButtonBusy(button, '<i class="bi bi-arrow-repeat"></i> 注销中...');
         try {
             const data = await requestJson(`/api/admin/users/${encodeURIComponent(id)}`, {
                 method: "DELETE",
@@ -780,7 +793,7 @@
             }
             await loadAdminUsers();
         } catch (error) {
-            restore('<i class="bi bi-trash3"></i>');
+            restore();
             toast(error.message || "删除用户失败", "error");
         }
     }
@@ -1073,6 +1086,9 @@
         els.cancelNodeNameEditBtn?.addEventListener("click", closeNodeNameEditor);
         els.refreshNodesBtn?.addEventListener("click", () => loadMyNodes());
         els.refreshUsersBtn?.addEventListener("click", () => loadAdminUsers());
+        els.adminDeleteSelectedUserBtn?.addEventListener("click", () => {
+            if (state.selectedUser) deleteUser(state.selectedUser.id, els.adminDeleteSelectedUserBtn);
+        });
         els.openInviteManagerBtn?.addEventListener("click", openInviteManager);
         els.btnGenerateInvites?.addEventListener("click", () => generateInvitations(els.btnGenerateInvites));
         els.btnRefreshInvites?.addEventListener("click", () => loadInvitations());

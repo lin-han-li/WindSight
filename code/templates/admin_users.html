@@ -4,7 +4,7 @@
 {% block page_title %}用户列表{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/user_tree.css') }}?v=20260521-node-name-edit">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/user_tree.css') }}?v=20260521-user-delete-safe">
 {% endblock %}
 
 {% block content %}
@@ -105,6 +105,23 @@
                     </div>
                 </div>
             </section>
+
+            <details id="adminUserDangerPanel" class="admin-user-danger-zone is-hidden">
+                <summary>
+                    <span><i class="bi bi-exclamation-triangle"></i> 账号危险操作</span>
+                    <small>默认收起，避免误删用户</small>
+                </summary>
+                <div class="admin-user-danger-body">
+                    <div>
+                        <strong id="adminDangerUserText">未选择用户</strong>
+                        <p>注销后该账号无法登录，系统会同步删除该用户注册的节点关系。此操作不可撤销。</p>
+                    </div>
+                    <button id="adminDeleteSelectedUserBtn" type="button" class="admin-user-danger-delete">
+                        <i class="bi bi-trash3"></i>
+                        注销当前用户
+                    </button>
+                </div>
+            </details>
         </section>
     </section>
 
@@ -147,5 +164,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/user_tree.js') }}?v=20260521-node-name-edit"></script>
+<script src="{{ url_for('static', filename='js/user_tree.js') }}?v=20260521-user-delete-safe"></script>
 {% endblock %}

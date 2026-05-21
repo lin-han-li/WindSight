@@ -1026,7 +1026,7 @@ body[data-theme="light"] .empty-state {
 }
 
 .admin-user-table {
-    min-width: 560px;
+    min-width: 520px;
 }
 
 .admin-node-table {
@@ -1054,7 +1054,7 @@ body[data-theme="light"] .admin-table-head {
 }
 
 .admin-user-row {
-    grid-template-columns: minmax(120px, 1fr) 76px 78px minmax(120px, 1fr) 34px;
+    grid-template-columns: minmax(120px, 1fr) 76px 78px minmax(120px, 1fr);
     column-gap: 10px;
 }
 
@@ -1378,7 +1378,7 @@ body[data-theme="light"] .admin-console-page {
 }
 
 .admin-console-page .admin-user-table {
-    min-width: 590px;
+    min-width: 540px;
 }
 
 .admin-console-page .admin-node-table {
@@ -1405,7 +1405,7 @@ body[data-theme="light"] .admin-console-page {
 }
 
 .admin-console-page .admin-user-row {
-    grid-template-columns: minmax(130px, 1fr) 72px 76px minmax(130px, 1fr) 34px;
+    grid-template-columns: minmax(130px, 1fr) 72px 76px minmax(130px, 1fr);
     column-gap: 10px;
 }
 
@@ -1469,14 +1469,6 @@ body[data-theme="light"] .admin-console-page {
     font-size: 12px;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.admin-console-page .admin-user-delete {
-    position: static;
-    justify-self: center;
-    align-self: center;
-    width: 24px;
-    height: 24px;
 }
 
 .admin-console-page .admin-node-row {
@@ -1583,6 +1575,89 @@ body[data-theme="light"] .admin-console-page {
     border-top: 1px solid var(--tree-line);
     border-radius: 0;
     background: transparent;
+}
+
+.admin-console-page .admin-user-danger-zone {
+    flex: 0 0 auto;
+    margin: 0;
+    border-top: 1px solid var(--tree-line);
+    background: color-mix(in srgb, var(--tree-danger) 4%, var(--admin-bg));
+}
+
+.admin-console-page .admin-user-danger-zone summary {
+    display: flex;
+    min-height: 38px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 14px;
+    color: var(--tree-muted);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 800;
+    list-style: none;
+}
+
+.admin-console-page .admin-user-danger-zone summary::-webkit-details-marker {
+    display: none;
+}
+
+.admin-console-page .admin-user-danger-zone summary span {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--tree-text);
+}
+
+.admin-console-page .admin-user-danger-zone summary i {
+    color: var(--tree-warning);
+}
+
+.admin-console-page .admin-user-danger-zone summary small {
+    color: var(--tree-muted);
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.admin-console-page .admin-user-danger-body {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 0 14px 14px;
+}
+
+.admin-console-page .admin-user-danger-body strong {
+    color: var(--tree-text);
+    font-size: 13px;
+}
+
+.admin-console-page .admin-user-danger-body p {
+    max-width: 560px;
+    margin: 4px 0 0;
+    color: var(--tree-muted);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.admin-console-page .admin-user-danger-delete {
+    flex: 0 0 auto;
+    display: inline-flex;
+    min-height: 30px;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border: 1px solid color-mix(in srgb, var(--tree-danger) 38%, var(--tree-line));
+    border-radius: 6px;
+    color: var(--tree-danger);
+    background: transparent;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.admin-console-page .admin-user-danger-delete:hover,
+.admin-console-page .admin-user-danger-delete:focus-visible {
+    background: color-mix(in srgb, var(--tree-danger) 10%, transparent);
 }
 
 .my-device-page {
@@ -1965,6 +2040,15 @@ body[data-theme="light"] .my-device-page .turbine-item.my-turbine-cell.is-active
     .node-name-edit-form {
         grid-template-columns: 1fr;
         width: 100%;
+    }
+
+    .admin-console-page .admin-user-danger-body {
+        flex-direction: column;
+    }
+
+    .admin-console-page .admin-user-danger-delete {
+        width: 100%;
+        justify-content: center;
     }
 
     .node-name-edit-form .secondary-action {
