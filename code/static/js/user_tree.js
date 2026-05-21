@@ -19,6 +19,11 @@
         nodeTreeList: document.getElementById("nodeTreeList"),
         selectedNodeTitle: document.getElementById("selectedNodeTitle"),
         selectedNodeMeta: document.getElementById("selectedNodeMeta"),
+        editNodeNameBtn: document.getElementById("editNodeNameBtn"),
+        nodeNameEditForm: document.getElementById("nodeNameEditForm"),
+        nodeNameEditInput: document.getElementById("nodeNameEditInput"),
+        saveNodeNameBtn: document.getElementById("saveNodeNameBtn"),
+        cancelNodeNameEditBtn: document.getElementById("cancelNodeNameEditBtn"),
         selectedNodeKeyPanel: document.getElementById("selectedNodeKeyPanel"),
         selectedNodeKeyText: document.getElementById("selectedNodeKeyText"),
         selectedCredentialKeyId: document.getElementById("selectedCredentialKeyId"),
@@ -54,6 +59,7 @@
         nodes: [],
         selectedNode: null,
         selectedTurbine: null,
+        nodeNameEditing: false,
         charts: {},
         chartPoints: [],
     };
@@ -78,6 +84,10 @@
 
     function setStatus(text) {
         if (els.pageStatus) els.pageStatus.textContent = text;
+    }
+
+    function displayNameForNode(node) {
+        return node?.display_name || node?.node_id || "";
     }
 
     function setButtonBusy(button, busyHtml) {
@@ -297,7 +307,7 @@
             const active = state.selectedNode && state.selectedNode.node_id === node.node_id ? " is-active" : "";
             const onlineClass = node.online ? " is-online" : "";
             const statusText = node.online ? "在线" : "离线";
-            const name = node.display_name || node.node_id;
+            const name = displayNameForNode(node);
             if (mode === "admin") {
                 return `
                     <button class="device-node-item admin-node-row${active}" type="button" data-node-id="${escapeHtml(node.node_id)}">
@@ -347,8 +357,11 @@
     function renderSelectedNode() {
         const node = state.selectedNode;
         if (!node) {
+            state.nodeNameEditing = false;
             if (els.selectedNodeTitle) els.selectedNodeTitle.textContent = "请选择节点";
             if (els.selectedNodeMeta) els.selectedNodeMeta.textContent = "点击节点后查看所属发电机。";
+            if (els.editNodeNameBtn) els.editNodeNameBtn.classList.add("is-hidden");
+            if (els.nodeNameEditForm) els.nodeNameEditForm.classList.add("is-hidden");
             if (els.rotateNodeKeyBtn) els.rotateNodeKeyBtn.classList.add("is-hidden");
             if (els.forceRevokeCredentialBtn) els.forceRevokeCredentialBtn.classList.add("is-hidden");
             renderSelectedNodeKey(null);
@@ -357,11 +370,20 @@
             return;
         }
 
-        const name = node.display_name || node.node_id;
+        const name = displayNameForNode(node);
         const statusText = node.online ? "在线" : "离线";
-        if (els.selectedNodeTitle) els.selectedNodeTitle.textContent = `${name}（${node.node_id}）`;
+        if (els.selectedNodeTitle) els.selectedNodeTitle.textContent = name;
         if (els.selectedNodeMeta) {
-            els.selectedNodeMeta.textContent = `${statusText} · ${Number(node.turbine_count || 0)} 台发电机 · 最近上报 ${node.last_seen_at || node.last_upload || "--"}`;
+            els.selectedNodeMeta.textContent = `${statusText} · ID: ${node.node_id} · ${Number(node.turbine_count || 0)} 台发电机 · 最近上报 ${node.last_seen_at || node.last_upload || "--"}`;
+        }
+        if (els.editNodeNameBtn) {
+            els.editNodeNameBtn.classList.toggle("is-hidden", state.nodeNameEditing);
+        }
+        if (els.nodeNameEditForm) {
+            els.nodeNameEditForm.classList.toggle("is-hidden", !state.nodeNameEditing);
+        }
+        if (state.nodeNameEditing && els.nodeNameEditInput && document.activeElement !== els.nodeNameEditInput) {
+            els.nodeNameEditInput.value = node.display_name || "";
         }
         if (els.rotateNodeKeyBtn && mode === "my") {
             els.rotateNodeKeyBtn.classList.remove("is-hidden");
@@ -428,7 +450,7 @@
         }
         els.adminTurbineActions.classList.remove("is-hidden");
         if (els.selectedTurbineText) {
-            const nodeName = state.selectedNode.display_name || state.selectedNode.node_id;
+            const nodeName = displayNameForNode(state.selectedNode);
             els.selectedTurbineText.textContent = `${nodeName} · 发电机 ${state.selectedTurbine}`;
         }
         if (els.monitorActionLink) {
@@ -442,6 +464,7 @@
     function selectNode(node) {
         state.selectedNode = node;
         state.selectedTurbine = null;
+        state.nodeNameEditing = false;
         state.chartPoints = [];
         renderNodeList();
         renderSelectedNode();
@@ -474,6 +497,7 @@
         state.selectedUser = user;
         state.selectedNode = null;
         state.selectedTurbine = null;
+        state.nodeNameEditing = false;
         state.nodes = [];
         renderUsers();
         renderNodeList();
@@ -482,6 +506,73 @@
         if (els.adminNodeHint) els.adminNodeHint.textContent = "这里的选择只作用于用户管理页，不联动设备工作区";
         setStatus(`当前用户：${user.username}`);
         await loadAdminUserNodes(user.id);
+    }
+
+    function openNodeNameEditor() {
+        if (!state.selectedNode || !els.nodeNameEditForm || !els.nodeNameEditInput) return;
+        state.nodeNameEditing = true;
+        els.nodeNameEditInput.value = state.selectedNode.display_name || "";
+        renderSelectedNode();
+        window.setTimeout(() => {
+            els.nodeNameEditInput?.focus();
+            els.nodeNameEditInput?.select();
+        }, 0);
+    }
+
+    function closeNodeNameEditor() {
+        state.nodeNameEditing = false;
+        renderSelectedNode();
+    }
+
+    function nodeNameUpdateEndpoint() {
+        if (!state.selectedNode) return "";
+        const nodeId = encodeURIComponent(state.selectedNode.node_id);
+        if (mode === "admin") {
+            if (!state.selectedUser?.id) return "";
+            return `/api/admin/users/${encodeURIComponent(state.selectedUser.id)}/registered_nodes/${nodeId}`;
+        }
+        return `/api/my/registered_nodes/${nodeId}`;
+    }
+
+    function applyUpdatedNode(updatedNode) {
+        if (!updatedNode?.node_id) return;
+        state.nodes = state.nodes.map((node) => (
+            node.node_id === updatedNode.node_id ? updatedNode : node
+        ));
+        if (state.selectedNode && state.selectedNode.node_id === updatedNode.node_id) {
+            state.selectedNode = updatedNode;
+        }
+        state.nodeNameEditing = false;
+        renderNodeList();
+        renderSelectedNode();
+        renderAdminTurbineActions();
+        window.dispatchEvent(new CustomEvent("windsight:nodes-renamed", {
+            detail: {
+                mode,
+                node_id: updatedNode.node_id,
+                display_name: displayNameForNode(updatedNode),
+            },
+        }));
+    }
+
+    async function saveNodeName(event) {
+        event.preventDefault();
+        if (!state.selectedNode || !els.nodeNameEditInput) return;
+        const endpoint = nodeNameUpdateEndpoint();
+        if (!endpoint) return;
+        const restore = setButtonBusy(els.saveNodeNameBtn, '<i class="bi bi-arrow-repeat"></i>保存中');
+        try {
+            const data = await requestJson(endpoint, {
+                method: "PATCH",
+                body: JSON.stringify({ display_name: els.nodeNameEditInput.value }),
+            });
+            applyUpdatedNode(data.node);
+            restore('<i class="bi bi-check2"></i>保存');
+            toast("节点显示名称已保存", "success");
+        } catch (error) {
+            restore('<i class="bi bi-check2"></i>保存');
+            toast(error.message || "节点显示名称保存失败", "error");
+        }
     }
 
     function showNodeKey(nodeOrKey) {
@@ -603,6 +694,7 @@
                 : state.nodes.find((node) => state.selectedNode && node.node_id === state.selectedNode.node_id);
             state.selectedNode = nextNode || state.nodes[0] || null;
             state.selectedTurbine = null;
+            state.nodeNameEditing = false;
             renderNodeList();
             renderSelectedNode();
             setStatus(`${state.nodes.length} 个已注册节点`);
@@ -648,6 +740,7 @@
             state.nodes = data.nodes || [];
             state.selectedNode = state.nodes[0] || null;
             state.selectedTurbine = null;
+            state.nodeNameEditing = false;
             renderNodeList();
             renderSelectedNode();
         } catch (error) {
@@ -975,6 +1068,9 @@
         els.copySelectedNodeKeyBtn?.addEventListener("click", copySelectedNodeKey);
         els.rotateNodeKeyBtn?.addEventListener("click", rotateNodeKey);
         els.forceRevokeCredentialBtn?.addEventListener("click", forceRevokeCredential);
+        els.editNodeNameBtn?.addEventListener("click", openNodeNameEditor);
+        els.nodeNameEditForm?.addEventListener("submit", saveNodeName);
+        els.cancelNodeNameEditBtn?.addEventListener("click", closeNodeNameEditor);
         els.refreshNodesBtn?.addEventListener("click", () => loadMyNodes());
         els.refreshUsersBtn?.addEventListener("click", () => loadAdminUsers());
         els.openInviteManagerBtn?.addEventListener("click", openInviteManager);
@@ -986,6 +1082,8 @@
         document.addEventListener("keydown", (event) => {
             if (event.key === "Escape" && els.inviteManagerModal?.classList.contains("is-open")) {
                 closeInviteManager();
+            } else if (event.key === "Escape" && state.nodeNameEditing) {
+                closeNodeNameEditor();
             }
         });
         window.addEventListener("resize", () => {

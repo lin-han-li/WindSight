@@ -14,7 +14,7 @@ os.environ.setdefault("WINDSIGHT_DEFAULT_ADMIN_ENABLED", "0")
 os.environ.setdefault("WINDSIGHT_USER_INVITE_CODE", "INVITE-2026")
 
 from app import active_nodes, app, socketio  # noqa: E402
-from windsight.models import NodeAuthNonce, NodeCredential, NodeUpload, RegisteredNode, TurbineMeasurement, User, UserSetting, db  # noqa: E402
+from windsight.models import NodeAuthNonce, NodeCredential, NodeUpload, RegisteredNode, SystemConfig, TurbineMeasurement, User, UserSetting, db  # noqa: E402
 from windsight.socket_events import client_subscriptions  # noqa: E402
 
 
@@ -122,6 +122,15 @@ class RegisteredNodeTests(unittest.TestCase):
         db.session.add(node)
         db.session.commit()
         return node
+
+    def _set_system_config(self, key, value):
+        row = SystemConfig.query.filter_by(key=key).first()
+        raw_value = json.dumps(value, ensure_ascii=False)
+        if row:
+            row.value = raw_value
+        else:
+            db.session.add(SystemConfig(key=key, value=raw_value, description="test config"))
+        db.session.commit()
 
     def _insert_upload(self, node_id, turbine_code="001", timestamp=None):
         upload_kwargs = {
@@ -234,6 +243,106 @@ class RegisteredNodeTests(unittest.TestCase):
             self.assertEqual(TurbineMeasurement.query.count(), 1)
             node = RegisteredNode.query.filter_by(node_id="WIN_101").first()
             self.assertIsNotNone(node.last_seen_at)
+
+    def test_upload_auth_required_toggle_allows_node_id_only_debug_mode(self):
+        with app.app_context():
+            self._register_node_row(self.alice_id, "WIN_101", "RIGHT-KEY")
+
+        response = self.client.post("/api/upload", json=self._payload("WIN_101"))
+        self.assertEqual(response.status_code, 403)
+
+        with app.app_context():
+            self._set_system_config("upload_auth_required", False)
+
+        response = self.client.post("/api/upload", json=self._payload("WIN_101"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["auth"]["version"], "node-id-only")
+
+        response = self.client.post("/api/upload", json=self._payload("WIN_404"))
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()["error_code"], "node_not_registered")
+
+        bad_payload = {"node_id": "WIN_101", "sub": "1", "001": [1, 2, 3]}
+        response = self.client.post("/api/upload", json=bad_payload)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["error_code"], "protocol_invalid")
+
+        with app.app_context():
+            self._set_system_config("upload_auth_required", True)
+
+        response = self.client.post("/api/upload", json=self._payload("WIN_101"))
+        self.assertEqual(response.status_code, 403)
+
+    def test_admin_config_controls_upload_auth_required(self):
+        self._login_user_id(self.alice_id)
+        response = self.client.post("/api/admin/config", json={"upload_auth_required": False})
+        self.assertEqual(response.status_code, 403)
+
+        self._login_user_id(self.admin_id)
+        response = self.client.get("/api/admin/config")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["data"]["upload_auth_required"])
+
+        response = self.client.post("/api/admin/config", json={"upload_auth_required": False})
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.get("/api/admin/config")
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.get_json()["data"]["upload_auth_required"])
+
+        response = self.client.post("/api/admin/config", json={"upload_auth_required": "true"})
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.get("/api/admin/config")
+        self.assertTrue(response.get_json()["data"]["upload_auth_required"])
+
+    def test_user_and_admin_update_registered_node_display_name(self):
+        with app.app_context():
+            self._register_node_row(self.alice_id, "WIN_A01", "A-KEY", display_name="Old A")
+            self._register_node_row(self.bob_id, "WIN_B01", "B-KEY", display_name="Old B")
+
+        self._login_user_id(self.alice_id)
+        response = self.client.patch(
+            "/api/my/registered_nodes/WIN_A01",
+            json={"display_name": "  North Array  "},
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["node"]["node_id"], "WIN_A01")
+        self.assertEqual(data["node"]["display_name"], "North Array")
+
+        response = self.client.patch("/api/my/registered_nodes/WIN_B01", json={"display_name": "Wrong"})
+        self.assertEqual(response.status_code, 404)
+
+        response = self.client.patch("/api/my/registered_nodes/WIN_A01", json={"display_name": ""})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["node"]["display_name"], "WIN_A01")
+
+        long_name = "X" * 150
+        response = self.client.patch("/api/my/registered_nodes/WIN_A01", json={"display_name": long_name})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.get_json()["node"]["display_name"]), 120)
+
+        self._login_user_id(self.admin_id)
+        response = self.client.patch(
+            f"/api/admin/users/{self.bob_id}/registered_nodes/WIN_B01",
+            json={"display_name": "Bob Field"},
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(data["node"]["owner_user_id"], self.bob_id)
+        self.assertEqual(data["node"]["display_name"], "Bob Field")
+
+        response = self.client.patch(
+            f"/api/admin/users/{self.alice_id}/registered_nodes/WIN_B01",
+            json={"display_name": "Wrong Owner"},
+        )
+        self.assertEqual(response.status_code, 404)
+
+        with app.app_context():
+            self.assertEqual(RegisteredNode.query.filter_by(node_id="WIN_A01").first().node_id, "WIN_A01")
+            self.assertEqual(RegisteredNode.query.filter_by(node_id="WIN_B01").first().display_name, "Bob Field")
 
     def test_upload_accepts_hmac_signature_and_records_nonce(self):
         _, credential = self._register_node_via_api("WIN_H01")

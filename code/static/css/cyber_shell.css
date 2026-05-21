@@ -728,12 +728,12 @@ body.windsight-shell[data-theme="dark"] .topbar {
 
 /* Final admin sidebar authority: keep this after the shell theme layer. */
 body[data-user-role="admin"] .sidebar {
-  width: 244px !important;
+  width: var(--sidebar-width, var(--sidebar-default-width, 244px)) !important;
   box-shadow: none !important;
 }
 
 body[data-user-role="admin"] .main-content {
-  margin-left: 244px !important;
+  margin-left: var(--sidebar-width, var(--sidebar-default-width, 244px)) !important;
 }
 
 body[data-user-role="admin"] .sidebar-header {
@@ -935,7 +935,7 @@ body[data-theme="light"][data-user-role="admin"] .sidebar-nav {
   scrollbar-color: rgba(47, 111, 237, 0.32) transparent;
 }
 
-@media (max-width: 991.98px) {
+@media (max-width: 768px) {
   body[data-user-role="admin"] .main-content {
     margin-left: 0 !important;
   }
@@ -943,7 +943,7 @@ body[data-theme="light"][data-user-role="admin"] .sidebar-nav {
 
 /* Admin sidebar: compact console navigation. */
 body[data-user-role="admin"] .sidebar {
-  width: 244px;
+  width: var(--sidebar-width, var(--sidebar-default-width, 244px));
   background: var(--shell-sidebar-bg) !important;
   border-right: 1px solid var(--shell-sidebar-border) !important;
   box-shadow: none !important;
@@ -954,7 +954,7 @@ body[data-user-role="admin"] .sidebar::after {
 }
 
 body[data-user-role="admin"] .main-content {
-  margin-left: 244px;
+  margin-left: var(--sidebar-width, var(--sidebar-default-width, 244px));
 }
 
 body[data-user-role="admin"] .sidebar-header {
@@ -1154,11 +1154,16 @@ body[data-user-role="admin"] .nav-node-link.active {
 
 body[data-user-role="admin"] .nav-node-link small,
 body[data-user-role="admin"] .nav-turbine-link small {
-  max-width: 58px;
+  flex: 0 0 auto;
+  max-width: clamp(88px, calc(var(--sidebar-width, var(--sidebar-default-width, 244px)) - 250px), 220px);
   overflow: hidden;
   font-family: "Roboto Mono", Consolas, monospace;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+body[data-user-role="admin"] .nav-turbine-link small {
+  max-width: clamp(64px, calc(var(--sidebar-width, var(--sidebar-default-width, 244px)) - 270px), 140px);
 }
 
 body[data-user-role="admin"] .nav-turbine-list {
@@ -1235,7 +1240,7 @@ body[data-user-role="admin"] .project-info div:nth-child(2) {
   display: none;
 }
 
-@media (max-width: 991.98px) {
+@media (max-width: 768px) {
   body[data-user-role="admin"] .main-content {
     margin-left: 0;
   }
@@ -1709,12 +1714,12 @@ body.windsight-shell[data-theme="dark"] .btn-outline-danger:hover {
 
 /* Final admin sidebar authority: keep this after the shell theme layer. */
 body[data-user-role="admin"] .sidebar {
-  width: 244px !important;
+  width: var(--sidebar-width, var(--sidebar-default-width, 244px)) !important;
   box-shadow: none !important;
 }
 
 body[data-user-role="admin"] .main-content {
-  margin-left: 244px !important;
+  margin-left: var(--sidebar-width, var(--sidebar-default-width, 244px)) !important;
 }
 
 body[data-user-role="admin"] .sidebar-header {
@@ -1880,7 +1885,7 @@ body[data-user-role="admin"] .project-info div:nth-child(2) {
   display: none !important;
 }
 
-@media (max-width: 991.98px) {
+@media (max-width: 768px) {
   body[data-user-role="admin"] .main-content {
     margin-left: 0 !important;
   }

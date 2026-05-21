@@ -68,6 +68,7 @@ def api_send():
     host = (payload.get("host") or "").strip()
     port = _safe_int(payload.get("port"), DEFAULT_TARGET_PORT)
     path = (payload.get("path") or DEFAULT_TARGET_PATH).strip()
+    node_key = (payload.get("node_key") or "").strip()
 
     # 允许两种方式：直接给 target_url 或者 host/port/path 组装
     if target_url:
@@ -93,12 +94,13 @@ def api_send():
 
     t0 = time.time()
     try:
-        resp = requests.post(target_url, json=data_obj, timeout=8)
+        headers = {"X-WindSight-Node-Key": node_key} if node_key else {}
+        resp = requests.post(target_url, json=data_obj, headers=headers, timeout=8)
         elapsed_ms = int((time.time() - t0) * 1000)
         return (
             jsonify(
                 {
-                    "ok": True,
+                    "ok": 200 <= resp.status_code < 300,
                     "target_url": target_url,
                     "status_code": resp.status_code,
                     "elapsed_ms": elapsed_ms,

@@ -81,6 +81,11 @@ def _validate_node_id(value: str) -> tuple[bool, str]:
     return True, node_id
 
 
+def _normalize_node_display_name(value, fallback_node_id: str) -> str:
+    display_name = str(value or "").strip()
+    return display_name[:120] or fallback_node_id
+
+
 def _utcnow() -> datetime:
     return datetime.utcnow()
 
@@ -267,6 +272,11 @@ def _authenticate_upload_request(raw_body: bytes, payload: dict, parsed):
     node_id = _normalize_node_id(parsed.node_id)
     body_sha256 = hashlib.sha256(raw_body or b"").hexdigest()
     registered_node = RegisteredNode.query.filter_by(node_id=node_id, is_active=True).first()
+
+    if not get_upload_auth_required():
+        if not registered_node:
+            return None, None, _json_error("registered node not found", 403, "node_not_registered")
+        return registered_node, {"version": "node-id-only"}, None
 
     if _signature_headers_present():
         required = {
@@ -656,6 +666,19 @@ def get_node_timeout_seconds() -> int:
         return timeout
     except Exception:
         return DEFAULT_NODE_TIMEOUT
+
+
+def get_upload_auth_required() -> bool:
+    try:
+        row = SystemConfig.query.filter_by(key="upload_auth_required").first()
+        if not row or row.value is None:
+            return True
+        value = json.loads(row.value)
+        if isinstance(value, str):
+            return value.strip().lower() not in {"0", "false", "off", "no"}
+        return bool(value)
+    except Exception:
+        return True
 
 
 def _is_online(node_info: dict, now_ts: float, timeout_sec: int | None = None) -> bool:
@@ -1112,6 +1135,34 @@ def update_my_registered_node_location(node_id):
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
+@api_bp.route("/my/registered_nodes/<node_id>", methods=["PATCH"])
+@login_required
+def update_my_registered_node(node_id):
+    try:
+        ok, normalized_or_error = _validate_node_id(node_id)
+        if not ok:
+            return jsonify({"success": False, "error": normalized_or_error}), 400
+        registered_node = RegisteredNode.query.filter_by(
+            node_id=normalized_or_error,
+            owner_user_id=current_user.id,
+            is_active=True,
+        ).first()
+        if not registered_node:
+            return jsonify({"success": False, "error": "registered node not found"}), 404
+
+        payload = request.get_json(silent=True) or {}
+        registered_node.display_name = _normalize_node_display_name(
+            payload.get("display_name"),
+            registered_node.node_id,
+        )
+        db.session.commit()
+        return jsonify({"success": True, "node": _registered_node_to_dict(registered_node, include_key=True)}), 200
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception("[PATCH /api/my/registered_nodes/%s] failed: %s", node_id, exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
 @api_bp.route("/my/registered_nodes/<node_id>", methods=["DELETE"])
 @login_required
 def delete_my_registered_node(node_id):
@@ -1351,6 +1402,45 @@ def admin_revoke_registered_node_credentials(user_id: int, node_id):
         db.session.rollback()
         logger.exception(
             "[POST /api/admin/users/%s/registered_nodes/%s/credentials/revoke] failed: %s",
+            user_id,
+            node_id,
+            exc,
+        )
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@api_bp.route("/admin/users/<int:user_id>/registered_nodes/<node_id>", methods=["PATCH"])
+@admin_required
+def admin_update_registered_node(user_id: int, node_id):
+    try:
+        user = db.session.get(User, user_id)
+        if not user:
+            return jsonify({"success": False, "error": "user not found"}), 404
+        ok, normalized_or_error = _validate_node_id(node_id)
+        if not ok:
+            return jsonify({"success": False, "error": normalized_or_error}), 400
+        registered_node = RegisteredNode.query.filter_by(
+            node_id=normalized_or_error,
+            owner_user_id=user.id,
+            is_active=True,
+        ).first()
+        if not registered_node:
+            return jsonify({"success": False, "error": "registered node not found"}), 404
+
+        payload = request.get_json(silent=True) or {}
+        registered_node.display_name = _normalize_node_display_name(
+            payload.get("display_name"),
+            registered_node.node_id,
+        )
+        db.session.commit()
+        return (
+            jsonify({"success": True, "node": _registered_node_to_dict(registered_node, include_owner=True, include_auth=True)}),
+            200,
+        )
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception(
+            "[PATCH /api/admin/users/%s/registered_nodes/%s] failed: %s",
             user_id,
             node_id,
             exc,
@@ -1672,10 +1762,13 @@ def admin_system_info():
 @api_bp.route("/admin/config", methods=["GET", "POST"])
 @admin_required
 def admin_config():
-    keys = ["poll_interval", "auto_refresh", "show_debug_log", "log_retention", "node_timeout_seconds"]
+    keys = ["poll_interval", "auto_refresh", "show_debug_log", "log_retention", "node_timeout_seconds", "upload_auth_required"]
     try:
         if request.method == "GET":
-            data = {"node_timeout_seconds": get_node_timeout_seconds()}
+            data = {
+                "node_timeout_seconds": get_node_timeout_seconds(),
+                "upload_auth_required": get_upload_auth_required(),
+            }
             for key in keys:
                 row = SystemConfig.query.filter_by(key=key).first()
                 if row and row.value is not None:
@@ -1693,6 +1786,12 @@ def admin_config():
                     raise ValueError
             except Exception:
                 return jsonify({"success": False, "error": "node_timeout_seconds must be an integer between 1 and 86400"}), 400
+        if "upload_auth_required" in payload:
+            value = payload.get("upload_auth_required")
+            if isinstance(value, str):
+                payload["upload_auth_required"] = value.strip().lower() not in {"0", "false", "off", "no"}
+            else:
+                payload["upload_auth_required"] = bool(value)
 
         for key in keys:
             if key not in payload:

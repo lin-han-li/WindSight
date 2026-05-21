@@ -37,6 +37,9 @@
         :root {
             --sidebar-dark: #1e293b;
             --sidebar-dark-hover: #334155;
+            --sidebar-default-width: 260px;
+            --sidebar-min-width: 220px;
+            --sidebar-max-width: 560px;
             --primary-blue: #2563eb;
             --bg-light: #f8fafc;
             --success-green: #10b981;
@@ -59,12 +62,16 @@
             color: #1f2937;
         }
 
+        body[data-user-role="admin"] {
+            --sidebar-default-width: 244px;
+        }
+
         /* ========== 左侧导航栏 ========== */
         .sidebar {
             position: fixed;
             left: 0;
             top: 0;
-            width: 260px;
+            width: var(--sidebar-width, var(--sidebar-default-width, 260px));
             height: 100vh;
             background: var(--sidebar-dark);
             color: white;
@@ -72,6 +79,49 @@
             display: flex;
             flex-direction: column;
             box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            transition: width 0.16s ease;
+        }
+
+        .sidebar-resize-handle {
+            position: absolute;
+            top: 0;
+            right: -4px;
+            width: 8px;
+            height: 100%;
+            z-index: 1002;
+            cursor: col-resize;
+            touch-action: none;
+        }
+
+        .sidebar-resize-handle::before {
+            content: "";
+            position: absolute;
+            top: 12px;
+            bottom: 12px;
+            left: 3px;
+            width: 2px;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.28);
+            opacity: 0;
+            transition: opacity 0.16s ease, background-color 0.16s ease;
+        }
+
+        .sidebar-resize-handle:hover::before,
+        .sidebar-resize-handle.is-active::before,
+        body.is-resizing-sidebar .sidebar-resize-handle::before {
+            opacity: 1;
+            background: rgba(37, 99, 235, 0.58);
+        }
+
+        body.is-resizing-sidebar,
+        body.is-resizing-sidebar * {
+            cursor: col-resize !important;
+            user-select: none !important;
+        }
+
+        body.is-resizing-sidebar .sidebar,
+        body.is-resizing-sidebar .main-content {
+            transition: none !important;
         }
 
         .sidebar-header {
@@ -719,9 +769,10 @@
 
         /* ========== 主内容区 ========== */
         .main-content {
-            margin-left: 260px;
+            margin-left: var(--sidebar-width, var(--sidebar-default-width, 260px));
             min-height: 100vh;
             background: transparent;
+            transition: margin-left 0.16s ease;
         }
 
         /* 顶部栏 */
@@ -1090,6 +1141,10 @@
                 transition: transform 0.3s;
             }
 
+            .sidebar-resize-handle {
+                display: none;
+            }
+
             .main-content {
                 margin-left: 0;
             }
@@ -1197,7 +1252,7 @@
             animation: slideOut 0.3s ease forwards;
         }
     </style>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/cyber_shell.css') }}?v=20260517-node-map">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/cyber_shell.css') }}?v=20260521-sidebar-resize-wide">
 
     {% block extra_css %}{% endblock %}
     
@@ -1283,6 +1338,7 @@
                 <div style="margin-top: 8px;">HTTP 数据上报 + SQLite 存储 + Web 可视化回放</div>
             </div>
         </div>
+        <div class="sidebar-resize-handle" id="sidebarResizeHandle" role="separator" aria-orientation="vertical" aria-label="Resize sidebar" title="Drag to resize sidebar. Double-click to reset."></div>
     </div>
 
     <!-- 主内容区 -->
@@ -1468,6 +1524,141 @@
                 const nextTheme = getThemeMode() === 'dark' ? 'light' : 'dark';
                 applyTheme(nextTheme);
             });
+        }
+
+        // 侧边栏拖拽缩放
+        function initResizableSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            const handle = document.getElementById('sidebarResizeHandle');
+            if (!sidebar || !handle) return;
+
+            const minWidth = 220;
+            const maxWidth = 560;
+            const desktopMinWidth = 769;
+            const role = document.body.dataset.userRole === 'admin' ? 'admin' : 'user';
+            const defaultWidth = role === 'admin' ? 244 : 260;
+            const storageKey = `windsightSidebarWidth:${role}`;
+            let dragState = null;
+
+            function isDesktop() {
+                return window.innerWidth >= desktopMinWidth;
+            }
+
+            function clampWidth(value) {
+                const parsed = Number.parseInt(value, 10);
+                if (!Number.isFinite(parsed)) return defaultWidth;
+                return Math.min(maxWidth, Math.max(minWidth, parsed));
+            }
+
+            function readStoredWidth() {
+                try {
+                    const stored = localStorage.getItem(storageKey);
+                    if (stored === null) return defaultWidth;
+                    const parsed = Number.parseInt(stored, 10);
+                    if (!Number.isFinite(parsed) || parsed < minWidth || parsed > maxWidth) {
+                        localStorage.removeItem(storageKey);
+                        return defaultWidth;
+                    }
+                    return parsed;
+                } catch (error) {
+                    console.warn('[sidebar] failed to read width preference', error);
+                    return defaultWidth;
+                }
+            }
+
+            function applyWidth(width) {
+                const nextWidth = clampWidth(width);
+                document.body.style.setProperty('--sidebar-width', `${nextWidth}px`);
+                return nextWidth;
+            }
+
+            function persistWidth(width) {
+                try {
+                    localStorage.setItem(storageKey, String(clampWidth(width)));
+                } catch (error) {
+                    console.warn('[sidebar] failed to persist width preference', error);
+                }
+            }
+
+            function restoreWidth() {
+                if (!isDesktop()) {
+                    document.body.style.removeProperty('--sidebar-width');
+                    return;
+                }
+                applyWidth(readStoredWidth());
+            }
+
+            function stopResize(event) {
+                if (!dragState) return;
+                const width = sidebar.getBoundingClientRect().width || defaultWidth;
+                persistWidth(width);
+                document.body.classList.remove('is-resizing-sidebar');
+                handle.classList.remove('is-active');
+                try {
+                    if (event && event.pointerId !== undefined) {
+                        handle.releasePointerCapture(event.pointerId);
+                    }
+                } catch (error) {
+                    // Pointer capture can already be released by the browser.
+                }
+                dragState = null;
+            }
+
+            handle.addEventListener('pointerdown', function(event) {
+                if (!isDesktop()) return;
+                if (event.button !== undefined && event.button !== 0) return;
+                event.preventDefault();
+                dragState = {
+                    pointerId: event.pointerId,
+                    startX: event.clientX,
+                    startWidth: sidebar.getBoundingClientRect().width || readStoredWidth()
+                };
+                document.body.classList.add('is-resizing-sidebar');
+                handle.classList.add('is-active');
+                try {
+                    handle.setPointerCapture(event.pointerId);
+                } catch (error) {
+                    // Older touch stacks may not support pointer capture.
+                }
+            });
+
+            function resizeSidebar(event) {
+                if (!dragState) return;
+                event.preventDefault();
+                applyWidth(dragState.startWidth + event.clientX - dragState.startX);
+            }
+
+            handle.addEventListener('pointermove', resizeSidebar);
+            handle.addEventListener('pointerup', stopResize);
+            handle.addEventListener('pointercancel', stopResize);
+            handle.addEventListener('lostpointercapture', stopResize);
+            document.addEventListener('pointermove', resizeSidebar);
+            document.addEventListener('pointerup', stopResize);
+            document.addEventListener('pointercancel', stopResize);
+
+            handle.addEventListener('dblclick', function(event) {
+                if (!isDesktop()) return;
+                event.preventDefault();
+                try {
+                    localStorage.removeItem(storageKey);
+                } catch (error) {
+                    console.warn('[sidebar] failed to reset width preference', error);
+                }
+                applyWidth(defaultWidth);
+            });
+
+            window.addEventListener('resize', function() {
+                if (!isDesktop()) {
+                    dragState = null;
+                    document.body.classList.remove('is-resizing-sidebar');
+                    handle.classList.remove('is-active');
+                    document.body.style.removeProperty('--sidebar-width');
+                    return;
+                }
+                restoreWidth();
+            });
+
+            restoreWidth();
         }
 
         // 更新侧边栏节点状态
@@ -2184,18 +2375,20 @@
                 activeNodeSuggestions = nodes.map(node => {
                     const nodeId = node.node_id || node.device_id || node.id;
                     if (!nodeId) return null;
+                    const displayName = (node.display_name || nodeId).trim();
+                    const hasCustomName = displayName && displayName !== nodeId;
                     
                     const online = !!node.online;
                     const statusText = online ? '在线' : '离线';
                     
                     return {
-                        name: `${nodeId} (${statusText})`,
+                        name: hasCustomName ? `${displayName} (${nodeId} · ${statusText})` : `${nodeId} (${statusText})`,
                         url: `/overview?select=${encodeURIComponent(nodeId)}`,
                         category: '节点',
                         icon: 'bi-cpu',
                         nodeId: nodeId,
                         status: online ? 'online' : 'offline',
-                        keywords: [nodeId.toLowerCase(), '节点', 'node']
+                        keywords: [nodeId.toLowerCase(), displayName.toLowerCase(), '节点', 'node']
                     };
                 }).filter(item => item !== null); // 过滤掉null值
             } catch (error) {
@@ -2785,6 +2978,7 @@
         // 初始化
         document.addEventListener('DOMContentLoaded', function() {
             initThemeToggle();
+            initResizableSidebar();
             rememberSidebarSelectionContext();
             updateContextPageLinks();
             initSidebarGroups();
@@ -2796,6 +2990,11 @@
             setActiveDeviceAction();
             updateSidebarStatus();
             initGlobalSearch(); // 初始化全局搜索
+            window.addEventListener('windsight:nodes-renamed', function() {
+                initAdminUserTreeNav();
+                initMyDeviceTreeNav();
+                updateNodeSuggestions();
+            });
             
             // 清理可能过期的 localStorage 状态（防止阻塞新消息）
             try {

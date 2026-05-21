@@ -12,6 +12,7 @@
   const elHost = document.getElementById("host");
   const elPort = document.getElementById("port");
   const elPath = document.getElementById("path");
+  const elNodeKey = document.getElementById("nodeKey");
   const elPreview = document.getElementById("targetUrlPreview");
   const elNodeId = document.getElementById("nodeId");
   const elSubCount = document.getElementById("subCount");
@@ -65,6 +66,7 @@
         host: elHost ? elHost.value.trim() : "",
         port: elPort ? String(elPort.value).trim() : "",
         path: elPath ? elPath.value.trim() : "",
+        nodeKey: elNodeKey ? elNodeKey.value.trim() : "",
         nodeId: elNodeId ? elNodeId.value.trim() : "",
         subCount: elSubCount ? String(clampSubCount(elSubCount.value)) : defaults.subCount,
       };
@@ -101,6 +103,7 @@
     if (elHost) elHost.value = (saved && saved.host) || defaults.host;
     if (elPort) elPort.value = (saved && saved.port) || defaults.port;
     if (elPath) elPath.value = (saved && saved.path) || defaults.path;
+    if (elNodeKey) elNodeKey.value = (saved && saved.nodeKey) || "";
     if (elNodeId) elNodeId.value = (saved && saved.nodeId) || defaults.nodeId;
     if (elSubCount) elSubCount.value = (saved && saved.subCount) || defaults.subCount;
     if (elPayload) {
@@ -137,6 +140,7 @@
     const host = (elHost && elHost.value.trim()) || "";
     const port = (elPort && String(elPort.value).trim()) || "";
     const path = (elPath && elPath.value.trim()) || "";
+    const nodeKey = (elNodeKey && elNodeKey.value.trim()) || "";
     const payloadJson = (elPayload && elPayload.value) || "";
 
     if (!host) {
@@ -159,6 +163,7 @@
           host,
           port: Number(port || 80),
           path,
+          node_key: nodeKey,
           payload_json: payloadJson,
         }),
       });

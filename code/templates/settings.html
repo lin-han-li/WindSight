@@ -71,6 +71,15 @@
                     <input type="number" class="form-control" id="nodeTimeoutSeconds" min="1" max="86400" step="1" value="10" aria-label="节点离线判定时间">
                     <div class="form-text settings-help-text">节点超过该时间未上传数据时，系统判定为离线；保存后立即生效。</div>
                 </div>
+                <div class="settings-switch-row">
+                    <div>
+                        <label class="form-check-label settings-switch-label" for="uploadAuthRequired">上传认证校验</label>
+                        <div class="form-text settings-help-text">开启后要求 HMAC 签名或 legacy 节点密钥；关闭为调试模式，仅校验已注册节点 ID，存在伪造风险。</div>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="uploadAuthRequired" checked>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -201,6 +210,7 @@
     const elPollVal = document.getElementById('pollVal');
     const elAutoRefresh = document.getElementById('autoRefresh');
     const elNodeTimeoutSeconds = document.getElementById('nodeTimeoutSeconds');
+    const elUploadAuthRequired = document.getElementById('uploadAuthRequired');
     const elShowDebugLog = document.getElementById('showDebugLog');
     const elLogRetention = document.getElementById('logRetention');
     const elDeleteNodeSelect = document.getElementById('deleteNodeSelect');
@@ -269,6 +279,9 @@
             if (elNodeTimeoutSeconds && config.node_timeout_seconds !== undefined) {
                 elNodeTimeoutSeconds.value = String(config.node_timeout_seconds);
             }
+            if (elUploadAuthRequired) {
+                elUploadAuthRequired.checked = config.upload_auth_required === undefined ? true : !!config.upload_auth_required;
+            }
             if (elShowDebugLog && config.show_debug_log !== undefined) {
                 elShowDebugLog.checked = !!config.show_debug_log;
             }
@@ -294,6 +307,10 @@
             if (elNodeTimeoutSeconds && nodeTimeoutSeconds !== null) {
                 elNodeTimeoutSeconds.value = String(nodeTimeoutSeconds);
             }
+            const uploadAuthRequired = localStorage.getItem('uploadAuthRequired');
+            if (elUploadAuthRequired) {
+                elUploadAuthRequired.checked = uploadAuthRequired === null ? true : uploadAuthRequired === 'true';
+            }
             const showDebugLog = localStorage.getItem('showDebugLog');
             if (elShowDebugLog && showDebugLog !== null) {
                 elShowDebugLog.checked = showDebugLog === 'true';
@@ -312,6 +329,7 @@
         const pollInterval = parseInt(String(elPollInterval ? elPollInterval.value : '1000'), 10) || 1000;
         const autoRefresh = !!(elAutoRefresh && elAutoRefresh.checked);
         const nodeTimeoutSeconds = Math.min(86400, Math.max(1, parseInt(String(elNodeTimeoutSeconds ? elNodeTimeoutSeconds.value : '10'), 10) || 10));
+        const uploadAuthRequired = elUploadAuthRequired ? !!elUploadAuthRequired.checked : true;
         const showDebugLog = !!(elShowDebugLog && elShowDebugLog.checked);
         const logRetention = parseInt(String(elLogRetention ? elLogRetention.value : '30'), 10) || 30;
 
@@ -327,6 +345,7 @@
                     poll_interval: pollInterval,
                     auto_refresh: autoRefresh,
                     node_timeout_seconds: nodeTimeoutSeconds,
+                    upload_auth_required: uploadAuthRequired,
                     show_debug_log: showDebugLog,
                     log_retention: logRetention,
                 }),
@@ -335,6 +354,7 @@
             localStorage.setItem('pollInterval', String(pollInterval));
             localStorage.setItem('autoRefresh', String(autoRefresh));
             localStorage.setItem('nodeTimeoutSeconds', String(nodeTimeoutSeconds));
+            localStorage.setItem('uploadAuthRequired', String(uploadAuthRequired));
             localStorage.setItem('showDebugLog', String(showDebugLog));
             localStorage.setItem('logRetention', String(logRetention));
 

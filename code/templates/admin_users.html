@@ -4,7 +4,7 @@
 {% block page_title %}用户列表{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/user_tree.css') }}?v=20260520-hmac-auth">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/user_tree.css') }}?v=20260521-node-name-edit">
 {% endblock %}
 
 {% block content %}
@@ -45,10 +45,28 @@
 
         <section class="admin-node-detail-inline admin-console-pane">
             <div class="selected-node-band">
-                <div>
+                <div class="selected-node-summary">
                     <div class="panel-kicker">当前节点</div>
-                    <h3 id="selectedNodeTitle">请选择节点</h3>
+                    <div class="selected-node-title-row">
+                        <h3 id="selectedNodeTitle">请选择节点</h3>
+                        <button id="editNodeNameBtn" type="button" class="node-name-edit-trigger is-hidden">
+                            <i class="bi bi-pencil-square"></i>
+                            编辑名称
+                        </button>
+                    </div>
                     <p id="selectedNodeMeta">点击上方节点后查看所属发电机。</p>
+                    <form id="nodeNameEditForm" class="node-name-edit-form is-hidden">
+                        <label for="nodeNameEditInput">显示名称</label>
+                        <input id="nodeNameEditInput" type="text" maxlength="120" autocomplete="off" placeholder="留空则恢复为节点 ID">
+                        <button id="saveNodeNameBtn" type="submit" class="secondary-action">
+                            <i class="bi bi-check2"></i>
+                            保存
+                        </button>
+                        <button id="cancelNodeNameEditBtn" type="button" class="secondary-action">
+                            取消
+                        </button>
+                        <small>仅修改显示名称，节点 ID 不变。</small>
+                    </form>
                 </div>
                 <div id="selectedNodeKeyPanel" class="selected-node-key is-hidden">
                     <span>认证状态</span>
@@ -129,5 +147,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/user_tree.js') }}?v=20260520-hmac-auth"></script>
+<script src="{{ url_for('static', filename='js/user_tree.js') }}?v=20260521-node-name-edit"></script>
 {% endblock %}
