@@ -99,7 +99,6 @@
   const mapRenderState = {
     legendMode: "",
     summarySignature: "",
-    topologySignature: "",
     unavailableSignature: "",
   };
 
@@ -676,30 +675,6 @@
     return { usable: true, reason: "高德地图模式", locatedNodes, missingNodes };
   }
 
-  function mapModeSwitchHtml() {
-    return "";
-  }
-
-  function bindMapModeButtons(scope = dom.nodeMapChart) {
-    if (!scope) {
-      return;
-    }
-    scope.querySelectorAll("[data-map-mode]").forEach((button) => {
-      if (button.dataset.mapModeBound === "1") {
-        return;
-      }
-      button.dataset.mapModeBound = "1";
-      button.addEventListener("click", () => {
-        if (state.mapMode === "amap") {
-          return;
-        }
-        state.mapMode = "amap";
-        renderMapChart();
-        requestAnimationFrame(resizeTopologyMap);
-      });
-    });
-  }
-
   function normalizeAmapServiceHost(value) {
     const host = String(value || "").trim();
     if (!host) {
@@ -821,29 +796,6 @@
     ].join("||");
   }
 
-  function buildTopologyRenderSignature(nodes, options = {}) {
-    return [
-      "topology",
-      options.modeText || "",
-      options.detailText || "",
-      state.selectedNodeId || "",
-      nodes
-        .map((node) =>
-          [
-            node.nodeId,
-            node.displayName,
-            node.zoneLabel,
-            node.status,
-            node.turbineCount,
-            node.x,
-            node.y,
-            node.accentColor,
-          ].join(":")
-        )
-        .join("|"),
-    ].join("||");
-  }
-
   function buildUnavailableRenderSignature(nodes, reason) {
     return [
       "amap-unavailable",
@@ -903,8 +855,6 @@
       description: defaults.description || "风场边缘采集节点",
       mapX: undefined,
       mapY: undefined,
-      topologyX: undefined,
-      topologyY: undefined,
       geo: nodeGeo ? { lng: nodeGeo[0], lat: nodeGeo[1] } : null,
       accentColor: defaults.accentColor || "#2f6fed",
       status: getNodeStatus(node),
@@ -913,32 +863,6 @@
       turbineCount: node.turbine_count || turbines.length || 0,
       turbines,
     };
-  }
-
-  function assignAutoMapPosition(index, total) {
-    const safeTotal = Math.max(1, Number(total) || 1);
-    const columns = Math.ceil(Math.sqrt(safeTotal));
-    const rows = Math.ceil(safeTotal / columns);
-    const column = index % columns;
-    const row = Math.floor(index / columns);
-    const x = columns <= 1 ? 50 : 18 + (column * 64) / (columns - 1);
-    const y = rows <= 1 ? 50 : 20 + (row * 60) / (rows - 1);
-    return { mapX: Math.round(x), mapY: Math.round(y) };
-  }
-
-  function resolveTopologyPosition(node, index, total) {
-    const x = Number(node?.topologyX);
-    const y = Number(node?.topologyY);
-    if (Number.isFinite(x) && Number.isFinite(y)) {
-      return { x, y, configured: true };
-    }
-    const legacyX = Number(node?.mapX);
-    const legacyY = Number(node?.mapY);
-    if (Number.isFinite(legacyX) && Number.isFinite(legacyY)) {
-      return { x: legacyX, y: legacyY, configured: true };
-    }
-    const auto = assignAutoMapPosition(index, total);
-    return { x: auto.mapX, y: auto.mapY, configured: false };
   }
 
   function persistSelection() {
@@ -1583,172 +1507,28 @@
     mapRenderState.summarySignature = nextSignature;
   }
 
-  function buildTopologyNodes() {
-    const totalNodes = state.nodes.length;
-    return state.nodes.map((node, index) => {
-      const meta = resolveNodeMeta(node);
-      const position = resolveTopologyPosition(meta, index, totalNodes);
-      return {
-        ...meta,
-        x: position.x,
-        y: position.y,
-        configured: position.configured,
-      };
-    });
+  function buildMapNodes() {
+    return state.nodes.map((node) => resolveNodeMeta(node));
   }
 
-  function buildTopologyLinks(nodes) {
-    const zones = new Map();
-    nodes.forEach((node) => {
-      const key = node.zoneLabel || "default";
-      if (!zones.has(key)) {
-        zones.set(key, []);
-      }
-      zones.get(key).push(node);
-    });
-
-    const links = [];
-    zones.forEach((items) => {
-      const sorted = [...items].sort((a, b) => a.x - b.x || a.y - b.y);
-      for (let index = 0; index < sorted.length - 1; index += 1) {
-        links.push([sorted[index], sorted[index + 1]]);
-      }
-    });
-    if (!links.length && nodes.length > 1) {
-      const sorted = [...nodes].sort((a, b) => a.x - b.x || a.y - b.y);
-      for (let index = 0; index < sorted.length - 1; index += 1) {
-        links.push([sorted[index], sorted[index + 1]]);
-      }
-    }
-    return links;
-  }
-
-  function renderTopologyLegend(mode = "topology") {
+  function renderMapLegend() {
+    const mode = "amap";
     if (!dom.nodeMapFallback) {
       return;
     }
     if (mapRenderState.legendMode === mode && dom.nodeMapFallback.dataset.legendMode === mode) {
       return;
     }
-    const relationLabel = mode === "amap" ? "真实地图" : "风场关联";
     dom.nodeMapFallback.innerHTML = `
-      <div class="topology-legend">
+      <div class="map-legend">
         <span><i class="legend-dot is-online"></i>在线节点</span>
         <span><i class="legend-dot is-offline"></i>离线节点</span>
         <span><i class="legend-dot is-fault"></i>故障节点</span>
-        <span><i class="legend-line"></i>${relationLabel}</span>
+        <span><i class="legend-line"></i>高德地图</span>
       </div>
     `;
     dom.nodeMapFallback.dataset.legendMode = mode;
     mapRenderState.legendMode = mode;
-  }
-
-  function renderTopologyMap(options = {}) {
-    const element = dom.nodeMapChart;
-    if (!element) {
-      return;
-    }
-    amapState.renderToken += 1;
-    const nodes = options.nodes || buildTopologyNodes();
-    const nextSignature = buildTopologyRenderSignature(nodes, options);
-    if (
-      mapRenderState.topologySignature === nextSignature &&
-      element.querySelector(".topology-map-surface") &&
-      !element.classList.contains("is-amap-mode")
-    ) {
-      bindMapModeButtons(element);
-      return;
-    }
-
-    disposeAmapMap();
-    mapRenderState.unavailableSignature = "";
-    element.classList.remove("is-amap-mode");
-    const links = buildTopologyLinks(nodes);
-    renderTopologyLegend("topology");
-
-    if (!nodes.length) {
-      element.innerHTML = '<div class="topology-empty">暂无节点</div>';
-      mapRenderState.topologySignature = nextSignature;
-      return;
-    }
-
-    const linkSvg = links
-      .map(([from, to]) => {
-        const dx = Math.abs(Number(to.x) - Number(from.x));
-        const bend = Math.max(5, Math.min(14, dx * 0.22));
-        const c1x = Number(from.x) + bend;
-        const c2x = Number(to.x) - bend;
-        return `<path class="topology-link" d="M${from.x},${from.y} C${c1x},${from.y} ${c2x},${to.y} ${to.x},${to.y}" />`;
-      })
-      .join("");
-
-    const nodeHtml = nodes
-      .map((node, index) => {
-        const status = node.status || "offline";
-        const selectedClass = node.nodeId === state.selectedNodeId ? "is-selected" : "";
-        const statusClass = `is-${status}`;
-        const color = node.accentColor || getNodeVisualColor(node);
-        const count = Number(node.turbineCount) || 0;
-        const statusText = getStatusLabel(status);
-        const markerDelay = `${(index % 6) * -0.55}s`;
-        return `
-          <button
-            class="topology-node ${statusClass} ${selectedClass}"
-            type="button"
-            data-node-id="${escapeHtml(node.nodeId)}"
-            style="--node-x:${node.x}%;--node-y:${node.y}%;--node-color:${escapeHtml(color)};--marker-delay:${markerDelay};"
-            aria-label="${escapeHtml(node.displayName)}"
-          >
-            <span class="topology-node-visual" aria-hidden="true">
-              <span class="topology-node-core">
-                <span class="topology-node-code">${escapeHtml(formatNodeShortCode(node.nodeId))}</span>
-                <span class="topology-node-count">${count}</span>
-                <span class="topology-node-status"></span>
-              </span>
-              <span class="topology-node-shadow"></span>
-            </span>
-            <span class="topology-node-label">
-              <strong>${escapeHtml(node.displayName || node.nodeId)}</strong>
-              <small>${escapeHtml(node.zoneLabel || "--")} · ${escapeHtml(statusText)}</small>
-            </span>
-          </button>
-        `;
-      })
-      .join("");
-
-    element.innerHTML = `
-      <div class="topology-map-surface">
-        <svg class="topology-map-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-          <defs>
-            <linearGradient id="topologyLinkGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stop-color="rgba(0, 243, 255, 0.08)" />
-              <stop offset="45%" stop-color="rgba(0, 243, 255, 0.55)" />
-              <stop offset="100%" stop-color="rgba(47, 111, 237, 0.2)" />
-            </linearGradient>
-          </defs>
-          <path class="topology-corridor" d="M6,75 C21,60 30,66 43,52 C58,36 69,29 94,17" />
-          <path class="topology-corridor muted" d="M8,26 C24,34 36,18 52,26 C68,35 78,47 94,37" />
-          <path class="topology-corridor muted" d="M10,88 C29,79 45,84 62,68 C76,55 83,51 94,57" />
-          ${linkSvg}
-        </svg>
-        <div class="topology-map-meta">
-          <span>${escapeHtml(options.modeText || "地图")}</span>
-          <strong>${nodes.length} 个节点</strong>
-          <small>${escapeHtml(options.detailText || "手动选择")}</small>
-          ${mapModeSwitchHtml("topology")}
-        </div>
-        <div class="topology-node-layer">${nodeHtml}</div>
-      </div>
-    `;
-
-    element.querySelectorAll("[data-node-id]").forEach((button) => {
-      button.addEventListener("click", () => {
-        const nodeId = button.dataset.nodeId || "";
-        handleMapNodeClick(nodeId).catch((error) => console.error("[dashboard] map node select failed", error));
-      });
-    });
-    bindMapModeButtons(element);
-    mapRenderState.topologySignature = nextSignature;
   }
 
   function buildAmapMarkerContent(node, index = 0) {
@@ -1819,8 +1599,7 @@
     const missingNodes = Array.isArray(options.missingNodes) ? options.missingNodes : [];
     const totalNodes = Number(options.totalNodes || nodes.length + missingNodes.length);
     const needsShell = !amapState.map || !element.querySelector("[data-amap-canvas]");
-    renderTopologyLegend("amap");
-    mapRenderState.topologySignature = "";
+    renderMapLegend();
     mapRenderState.unavailableSignature = "";
     element.classList.add("is-amap-mode");
     if (needsShell) {
@@ -1831,14 +1610,12 @@
             <span>高德地图</span>
             <strong data-amap-node-count>${nodes.length} 个节点</strong>
             <small>真实坐标模式</small>
-            ${mapModeSwitchHtml("amap")}
           </div>
           <div data-amap-location-panel-host>
             ${renderAmapLocationPanel(nodes, missingNodes, totalNodes)}
           </div>
         </div>
       `;
-      bindMapModeButtons(element);
     } else {
       const countElement = element.querySelector("[data-amap-node-count]");
       if (countElement) {
@@ -1890,7 +1667,6 @@
     }
 
     if (amapState.nodeSignature === nextSignature && amapState.markers.length) {
-      bindMapModeButtons(element);
       return;
     }
 
@@ -1922,7 +1698,6 @@
       map.setZoomAndCenter(Math.max(getAmapDefaultZoom(), 12), getValidGeo(nodes[0]));
       amapState.fittedSignature = nextSignature;
     }
-    bindMapModeButtons(element);
   }
 
   function renderAmapUnavailable(nodes, reason) {
@@ -1935,14 +1710,12 @@
       mapRenderState.unavailableSignature === nextSignature &&
       element.querySelector(".amap-unavailable-shell")
     ) {
-      bindMapModeButtons(element);
       return;
     }
     amapState.renderToken += 1;
     disposeAmapMap();
-    mapRenderState.topologySignature = "";
-    renderTopologyLegend("topology");
-    element.classList.remove("is-amap-mode");
+    renderMapLegend();
+    element.classList.add("is-amap-mode");
     const emptyLocation = String(reason || "").includes("暂无可定位节点");
     const title = emptyLocation ? "暂无可定位节点" : "高德地图不可用";
     const note = emptyLocation
@@ -1953,20 +1726,16 @@
         <div class="amap-unavailable-card">
           <div class="amap-unavailable-title">${escapeHtml(title)}</div>
           <div class="amap-unavailable-reason">${escapeHtml(reason || "请检查地图配置")}</div>
-          <div class="amap-unavailable-actions">
-            ${mapModeSwitchHtml("amap")}
-          </div>
           <div class="amap-unavailable-note">${escapeHtml(note)}</div>
         </div>
         <div class="amap-unavailable-count">${nodes.length} 个节点</div>
       </div>
     `;
-    bindMapModeButtons(element);
     mapRenderState.unavailableSignature = nextSignature;
   }
 
   function renderMapChart() {
-    const nodes = buildTopologyNodes();
+    const nodes = buildMapNodes();
     const availability = getAmapAvailability(nodes);
     if (!availability.usable) {
       renderAmapUnavailable(nodes, availability.reason);
@@ -2571,14 +2340,14 @@
     chartStore.metrics.forEach((chart) => chart.clear());
   }
 
-  function resizeTopologyMap() {
+  function resizeNodeMap() {
     if (amapState.map?.resize) {
       amapState.map.resize();
     }
   }
 
   function resizeCharts() {
-    resizeTopologyMap();
+    resizeNodeMap();
     chartStore.turbineTree?.resize();
     chartStore.metrics.forEach((chart) => chart.resize());
   }
@@ -2894,7 +2663,7 @@
 
     requestAnimationFrame(() => {
       if (mapMode) {
-        resizeTopologyMap();
+        resizeNodeMap();
       }
       if (treeMode && chartStore.turbineTree) {
         chartStore.turbineTree.resize();
@@ -2943,7 +2712,7 @@
 
   function jumpToMap() {
     setView("map");
-    requestAnimationFrame(resizeTopologyMap);
+    requestAnimationFrame(resizeNodeMap);
   }
 
   function jumpToTreeView() {
