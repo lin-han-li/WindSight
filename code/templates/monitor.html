@@ -14,8 +14,8 @@
             <div class="card dashboard-card monitor-map-card">
                 <div class="card-header">
                     <div>
-                        <div class="panel-kicker">全局风场拓扑</div>
-                        <div class="dashboard-title">全局拓扑地图</div>
+                        <div class="panel-kicker">全局风场地图</div>
+                        <div class="dashboard-title">高德地图节点分布</div>
                         <div class="dashboard-subtitle">点击地图节点后，先进入该节点的发电机树，再选择具体发电机查看实时四图波形。</div>
                     </div>
                     <div class="map-summary" id="nodeMapSummary"></div>
@@ -25,7 +25,7 @@
                         <div id="nodeMapChart" class="iot-map-chart"></div>
                     </div>
                     <div class="fallback-shell">
-                        <div class="panel-kicker">拓扑图例</div>
+                        <div class="panel-kicker">地图图例</div>
                         <div id="nodeMapFallback" class="fallback-node-list"></div>
                     </div>
                 </div>
@@ -208,6 +208,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/node_map_config.js') }}?v=6"></script>
-<script src="{{ url_for('static', filename='js/dashboard.js') }}?v=29"></script>
+<script src="{{ url_for('static', filename='js/node_map_config.js') }}?v=7"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}?v=30"></script>
 {% endblock %}

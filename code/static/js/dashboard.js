@@ -14,7 +14,6 @@
   const storageNodeKey = "selectedNodeId";
   const storageTurbineKey = "selectedTurbineCode";
   const storageViewKey = `windsightDrillView:${pageKind}`;
-  const mapModeStorageKey = "windsightNodeMapMode";
   let pollIntervalMs = 3000;
   const defaultLimit = 600;
   const maxLimit = 20000;
@@ -48,7 +47,7 @@
     uploadIds: new Set(),
     pollTimer: null,
     view: usesDrilldownView ? "map" : "chart",
-    mapMode: window.localStorage.getItem(mapModeStorageKey) === "topology" ? "topology" : "amap",
+    mapMode: "amap",
     metricZoom: null,
     syncingMetricZoom: false,
     historyEditOrder: [],
@@ -677,18 +676,8 @@
     return { usable: true, reason: "高德地图模式", locatedNodes, missingNodes };
   }
 
-  function mapModeSwitchHtml(activeMode = state.mapMode) {
-    const current = activeMode === "topology" ? "topology" : "amap";
-    return `
-      <span class="map-mode-switch" role="group" aria-label="地图模式">
-        <button class="map-mode-button ${current === "amap" ? "is-active" : ""}" type="button" data-map-mode="amap">高德地图</button>
-        <button class="map-mode-button ${current === "topology" ? "is-active" : ""}" type="button" data-map-mode="topology">拓扑图</button>
-      </span>
-    `;
-  }
-
-  function persistMapMode() {
-    window.localStorage.setItem(mapModeStorageKey, state.mapMode);
+  function mapModeSwitchHtml() {
+    return "";
   }
 
   function bindMapModeButtons(scope = dom.nodeMapChart) {
@@ -701,12 +690,10 @@
       }
       button.dataset.mapModeBound = "1";
       button.addEventListener("click", () => {
-        const nextMode = button.dataset.mapMode === "topology" ? "topology" : "amap";
-        if (state.mapMode === nextMode) {
+        if (state.mapMode === "amap") {
           return;
         }
-        state.mapMode = nextMode;
-        persistMapMode();
+        state.mapMode = "amap";
         renderMapChart();
         requestAnimationFrame(resizeTopologyMap);
       });
@@ -819,7 +806,16 @@
       nodes
         .map((node) => {
           const geo = getValidGeo(node) || [];
-          return [node.nodeId, geo[0], geo[1], node.status, node.turbineCount, node.accentColor].join(":");
+          return [
+            node.nodeId,
+            node.displayName,
+            node.zoneLabel,
+            geo[0],
+            geo[1],
+            node.status,
+            node.turbineCount,
+            node.accentColor,
+          ].join(":");
         })
         .join("|"),
     ].join("||");
@@ -896,22 +892,21 @@
     const node = typeof nodeOrId === "string" ? getNodeRecord(nodeOrId) || { node_id: nodeOrId } : nodeOrId || {};
     const nodeId = node.node_id || "";
     const defaults = nodeMapConfig.defaults || {};
-    const configNodes = nodeMapConfig.nodes || {};
-    const aliasId = nodeId.startsWith("WIND_") ? nodeId.replace("WIND_", "WIN_") : nodeId.startsWith("WIN_") ? nodeId.replace("WIN_", "WIND_") : nodeId;
-    const preset = configNodes[nodeId] || configNodes[aliasId] || {};
     const turbines = normalizeTurbines(node.turbines || []);
     const nodeGeo = getValidGeo(node);
+    const hasGeo = !!nodeGeo;
+    const registeredName = String(node.display_name || "").trim();
     return {
       nodeId,
-      displayName: preset.displayName || node.node_id || "未命名节点",
-      zoneLabel: preset.zoneLabel || defaults.zoneLabel || "未标定区域",
-      description: preset.description || defaults.description || "风场边缘采集节点",
-      mapX: preset.mapX,
-      mapY: preset.mapY,
-      topologyX: preset.topologyX ?? preset.mapX,
-      topologyY: preset.topologyY ?? preset.mapY,
-      geo: nodeGeo ? { lng: nodeGeo[0], lat: nodeGeo[1] } : (preset.geo || null),
-      accentColor: preset.accentColor || defaults.accentColor || "#2f6fed",
+      displayName: registeredName || node.node_id || "未命名节点",
+      zoneLabel: hasGeo ? "已定位区域" : "未定位区域",
+      description: defaults.description || "风场边缘采集节点",
+      mapX: undefined,
+      mapY: undefined,
+      topologyX: undefined,
+      topologyY: undefined,
+      geo: nodeGeo ? { lng: nodeGeo[0], lat: nodeGeo[1] } : null,
+      accentColor: defaults.accentColor || "#2f6fed",
       status: getNodeStatus(node),
       online: !!node.online,
       lastUpload: node.last_upload || "",
@@ -1571,15 +1566,12 @@
     const total = state.nodes.length;
     const online = state.nodes.filter((node) => getNodeStatus(node) === "online").length;
     const fault = state.nodes.filter((node) => getNodeStatus(node) === "fault").length;
-    const configured = state.nodes.filter((node) => {
-      const meta = resolveNodeMeta(node);
-      return Number.isFinite(Number(meta.topologyX)) || Number.isFinite(Number(meta.mapX));
-    }).length;
+    const configured = state.nodes.filter((node) => !!getValidGeo(resolveNodeMeta(node))).length;
     const chips = [
       { label: "总节点", value: total },
       { label: "在线", value: online },
       { label: "故障", value: fault },
-      { label: "已布图", value: configured },
+      { label: "已定位", value: configured },
     ];
     const nextSignature = chips.map((chip) => `${chip.label}:${chip.value}`).join("|");
     if (mapRenderState.summarySignature === nextSignature) {
@@ -1740,7 +1732,7 @@
           ${linkSvg}
         </svg>
         <div class="topology-map-meta">
-          <span>${escapeHtml(options.modeText || "拓扑图")}</span>
+          <span>${escapeHtml(options.modeText || "地图")}</span>
           <strong>${nodes.length} 个节点</strong>
           <small>${escapeHtml(options.detailText || "手动选择")}</small>
           ${mapModeSwitchHtml("topology")}
@@ -1955,7 +1947,7 @@
     const title = emptyLocation ? "暂无可定位节点" : "高德地图不可用";
     const note = emptyLocation
       ? "请在左侧展开用户和节点，点击节点旁的定位按钮设置经纬度；设置后即可显示真实高德地图。"
-      : "需要节省额度时请选择“拓扑图”；需要查看真实地理位置时再切回“高德地图”。";
+      : "当前页面只保留高德地图模式，请检查网络、Key 配置或安全域名。";
     element.innerHTML = `
       <div class="amap-unavailable-shell">
         <div class="amap-unavailable-card">
@@ -1975,11 +1967,6 @@
 
   function renderMapChart() {
     const nodes = buildTopologyNodes();
-    if (state.mapMode === "topology") {
-      renderTopologyMap({ nodes, modeText: "拓扑图", detailText: "手动选择" });
-      return;
-    }
-
     const availability = getAmapAvailability(nodes);
     if (!availability.usable) {
       renderAmapUnavailable(nodes, availability.reason);
