@@ -46,9 +46,20 @@ class ProtocolParserTests(unittest.TestCase):
         with self.assertRaises(ProtocolValidationError):
             parse_turbine_upload({"node_id": "WIN_001", "sub": "1", "001": [1, 2, 3]})
 
+    def test_accept_sub_at_200_limit(self):
+        payload = {"node_id": "WIN_001", "sub": "200"}
+        for index in range(1, 201):
+            payload[f"{index:03d}"] = [1, 2, 3, 4]
+
+        parsed = parse_turbine_upload(payload)
+
+        self.assertEqual(parsed.turbine_count, 200)
+        self.assertEqual(len(parsed.turbines), 200)
+        self.assertIn("200", parsed.turbines)
+
     def test_reject_sub_over_limit(self):
         with self.assertRaises(ProtocolValidationError):
-            parse_turbine_upload({"node_id": "WIN_001", "sub": "65", "001": [1, 2, 3, 4]})
+            parse_turbine_upload({"node_id": "WIN_001", "sub": "201", "001": [1, 2, 3, 4]})
 
     def test_reject_non_numeric_value(self):
         with self.assertRaises(ProtocolValidationError):

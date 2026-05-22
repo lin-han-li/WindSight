@@ -74,7 +74,7 @@
 
   function safeSubCount() {
     const parsed = parseInt(String(els.subCount.value || "4"), 10);
-    const value = Math.max(1, Math.min(64, Number.isFinite(parsed) ? parsed : 4));
+    const value = Math.max(1, Math.min(200, Number.isFinite(parsed) ? parsed : 4));
     els.subCount.value = String(value);
     return value;
   }
@@ -133,7 +133,7 @@
     const sub = parseInt(String(payload.sub || "0"), 10);
     if (!nodeId) {
       setPill(els.jsonState, "缺 node_id", "warn");
-    } else if (!Number.isFinite(sub) || sub < 1 || sub > 64) {
+    } else if (!Number.isFinite(sub) || sub < 1 || sub > 200) {
       setPill(els.jsonState, "sub 越界", "warn");
     } else {
       setPill(els.jsonState, "JSON 可发送", "ok");

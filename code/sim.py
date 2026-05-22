@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 
 import requests
 
-MAX_TURBINE_COUNT = 64
+MAX_TURBINE_COUNT = 200
 DEFAULT_TURBINE_COUNT = 32
 
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-MAX_TURBINE_COUNT = 64
+MAX_TURBINE_COUNT = 200
 RESERVED_KEYS = {"node_id", "sub"}
 SENSOR_MIN_VOLTAGE = 0.0
 SENSOR_MAX_VOLTAGE = 5.0

@@ -9,7 +9,7 @@ WindSight is a Flask + Flask-SocketIO + SQLAlchemy(SQLite) monitoring system for
 Required fields:
 
 - `node_id`: node name, string
-- `sub`: turbine count, integer/string, range `1..64`
+- `sub`: turbine count, integer/string, range `1..200`
 - `001..NNN`: one key per turbine, zero-padded and continuous from `001` to `sub`
 
 Each turbine value must be a 4-item raw sensor-voltage array. Every raw value
