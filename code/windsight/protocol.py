@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass
 
 MAX_TURBINE_COUNT = 200
 RESERVED_KEYS = {"node_id", "sub"}
+TURBINE_CODE_RE = re.compile(r"^\d{3}$")
 SENSOR_MIN_VOLTAGE = 0.0
 SENSOR_MAX_VOLTAGE = 5.0
 FULL_SCALE_BY_METRIC = {
@@ -47,6 +49,10 @@ class ParsedUpload:
 
 def build_turbine_codes(count: int):
     return [f"{i:03d}" for i in range(1, count + 1)]
+
+
+def _sort_turbine_codes(codes):
+    return sorted(codes, key=lambda code: int(code))
 
 
 def _parse_int(value, field_name: str):
@@ -96,19 +102,28 @@ def parse_turbine_upload(payload) -> ParsedUpload:
     if turbine_count < 1 or turbine_count > MAX_TURBINE_COUNT:
         raise ProtocolValidationError(f"sub must be between 1 and {MAX_TURBINE_COUNT}")
 
-    expected_codes = build_turbine_codes(turbine_count)
-    actual_codes = sorted(str(key) for key in payload.keys() if key not in RESERVED_KEYS)
+    raw_codes = [str(key) for key in payload.keys() if key not in RESERVED_KEYS]
+    invalid_codes = [code for code in raw_codes if not TURBINE_CODE_RE.fullmatch(code)]
+    if invalid_codes:
+        raise ProtocolValidationError(f"unexpected turbine keys: {', '.join(sorted(invalid_codes))}")
 
-    missing_codes = [code for code in expected_codes if code not in payload]
-    if missing_codes:
-        raise ProtocolValidationError(f"missing turbine keys: {', '.join(missing_codes)}")
+    out_of_range_codes = [
+        code for code in raw_codes if int(code) < 1 or int(code) > MAX_TURBINE_COUNT
+    ]
+    if out_of_range_codes:
+        raise ProtocolValidationError(
+            f"turbine keys must be between 001 and {MAX_TURBINE_COUNT:03d}: "
+            f"{', '.join(_sort_turbine_codes(out_of_range_codes))}"
+        )
 
-    extra_codes = [code for code in actual_codes if code not in expected_codes]
-    if extra_codes:
-        raise ProtocolValidationError(f"unexpected turbine keys: {', '.join(extra_codes)}")
+    turbine_codes = _sort_turbine_codes(raw_codes)
+    if len(turbine_codes) != turbine_count:
+        raise ProtocolValidationError(
+            f"sub must match turbine key count: sub={turbine_count}, keys={len(turbine_codes)}"
+        )
 
     turbines = {}
-    for code in expected_codes:
+    for code in turbine_codes:
         turbines[code] = _parse_turbine_sample(code, payload.get(code))
 
     return ParsedUpload(

@@ -129,7 +129,7 @@ def _error_hint(status_code: int | None, error: str = "") -> str:
     if status_code in (401, 403):
         return "权限失败：请确认节点已注册，并填写正确的签名凭证或旧版 X-WindSight-Node-Key。"
     if status_code == 400:
-        return "请求格式失败：请检查 node_id、sub、001..NNN 风机键和四指标数组。"
+        return "请求格式失败：请检查 node_id、sub、001..200 风机键和四指标数组。"
     if status_code and status_code >= 500:
         return "目标服务异常：请检查 WindSight 后端日志。"
     if error:

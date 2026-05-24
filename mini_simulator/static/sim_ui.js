@@ -110,14 +110,11 @@
   function summarizePayload(payload) {
     const nodeId = String(payload.node_id || "").trim() || "-";
     const sub = parseInt(String(payload.sub || "0"), 10) || 0;
-    const turbineKeys = Object.keys(payload).filter((key) => /^\d{3}$/.test(key)).sort();
-    const missing = [];
-    for (let i = 1; i <= sub; i += 1) {
-      const key = String(i).padStart(3, "0");
-      if (!Object.prototype.hasOwnProperty.call(payload, key)) missing.push(key);
-    }
+    const turbineKeys = Object.keys(payload)
+      .filter((key) => /^\d{3}$/.test(key))
+      .sort((left, right) => Number(left) - Number(right));
     if (!sub) return `node_id=${nodeId}，缺少有效 sub`;
-    if (missing.length) return `node_id=${nodeId}，sub=${sub}，缺少 ${missing.slice(0, 3).join(", ")}`;
+    if (turbineKeys.length !== sub) return `node_id=${nodeId}，sub=${sub}，实际通道 ${turbineKeys.length}`;
     return `node_id=${nodeId}，sub=${sub}，风机键 ${turbineKeys.length}/${sub}`;
   }
 
@@ -135,6 +132,16 @@
       setPill(els.jsonState, "缺 node_id", "warn");
     } else if (!Number.isFinite(sub) || sub < 1 || sub > 200) {
       setPill(els.jsonState, "sub 越界", "warn");
+    } else if (Object.keys(payload).some((key) => key !== "node_id" && key !== "sub" && !/^\d{3}$/.test(key))) {
+      setPill(els.jsonState, "通道键错误", "warn");
+    } else if (
+      Object.keys(payload)
+        .filter((key) => /^\d{3}$/.test(key))
+        .some((key) => Number(key) < 1 || Number(key) > 200)
+    ) {
+      setPill(els.jsonState, "通道越界", "warn");
+    } else if (Object.keys(payload).filter((key) => /^\d{3}$/.test(key)).length !== sub) {
+      setPill(els.jsonState, "sub 不匹配", "warn");
     } else {
       setPill(els.jsonState, "JSON 可发送", "ok");
     }
@@ -281,7 +288,7 @@
       return "权限失败：请确认节点已在 WindSight 注册，并填写正确的签名凭证或旧版 X-WindSight-Node-Key。";
     }
     if (code === 400) {
-      return "请求被拒绝：请检查 node_id、sub、001..NNN 风机键和四指标数组。";
+      return "请求被拒绝：请检查 node_id、sub、001..200 风机键和四指标数组。";
     }
     if (data?.error) {
       return `连接失败：${data.error}`;

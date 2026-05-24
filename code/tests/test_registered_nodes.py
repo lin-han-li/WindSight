@@ -244,6 +244,51 @@ class RegisteredNodeTests(unittest.TestCase):
             node = RegisteredNode.query.filter_by(node_id="WIN_101").first()
             self.assertIsNotNone(node.last_seen_at)
 
+    def test_upload_accepts_absolute_turbine_key_packets(self):
+        with app.app_context():
+            self._register_node_row(self.alice_id, "WIN_101", "RIGHT-KEY")
+
+        first_payload = {"node_id": "WIN_101", "sub": "30"}
+        for index in range(1, 31):
+            first_payload[f"{index:03d}"] = [1, 2, 3, 4]
+        response = self.client.post(
+            "/api/upload",
+            json=first_payload,
+            headers={"X-WindSight-Node-Key": "RIGHT-KEY"},
+        )
+        self.assertEqual(response.status_code, 200)
+
+        next_payload = {"node_id": "WIN_101", "sub": "6"}
+        for index in range(31, 37):
+            next_payload[f"{index:03d}"] = [1, 2, 3, 4]
+        response = self.client.post(
+            "/api/upload",
+            json=next_payload,
+            headers={"X-WindSight-Node-Key": "RIGHT-KEY"},
+        )
+        self.assertEqual(response.status_code, 200)
+
+        with app.app_context():
+            latest_upload = NodeUpload.query.order_by(NodeUpload.id.desc()).first()
+            self.assertEqual(latest_upload.turbine_count, 6)
+            self.assertEqual(latest_upload.turbine_codes(), ["031", "032", "033", "034", "035", "036"])
+            distinct_codes = {
+                row[0]
+                for row in db.session.query(TurbineMeasurement.turbine_code)
+                .filter_by(node_id="WIN_101")
+                .distinct()
+                .all()
+            }
+            self.assertEqual(len(distinct_codes), 36)
+
+        self._login_user_id(self.alice_id)
+        response = self.client.get("/api/my/registered_nodes")
+        self.assertEqual(response.status_code, 200)
+        listed = response.get_json()["nodes"][0]
+        self.assertEqual(listed["turbine_count"], 36)
+        self.assertEqual(listed["turbines"][0], "001")
+        self.assertEqual(listed["turbines"][-1], "036")
+
     def test_upload_auth_required_toggle_allows_node_id_only_debug_mode(self):
         with app.app_context():
             self._register_node_row(self.alice_id, "WIN_101", "RIGHT-KEY")

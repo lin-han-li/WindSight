@@ -65,5 +65,6 @@ Build layout follows the Codex Gateway pattern:
 ## Notes
 
 - the simulator keeps free-form JSON editing
-- the "sample payload" button generates `001..sub` turbine keys automatically
+- the "sample payload" button generates `001..sub` turbine keys automatically,
+  while manually edited payloads may send any absolute turbine keys in `001..200`
 - default `node_id` is `WIN_001`

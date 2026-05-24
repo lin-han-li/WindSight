@@ -1342,10 +1342,13 @@
     }
     const markOnline = !!options.markOnline;
     const updateLastUpload = !!options.updateLastUpload;
+    const current = state.nodeMap.get(row.node_id) || {};
+    const rowTurbines = Object.keys(row.turbines || {});
+    const turbines = normalizeTurbines([...(current.turbines || []), ...rowTurbines]);
     const patch = {
       node_id: row.node_id,
-      turbines: Object.keys(row.turbines || {}),
-      turbine_count: Object.keys(row.turbines || {}).length,
+      turbines,
+      turbine_count: turbines.length || rowTurbines.length,
     };
     if (markOnline) {
       patch.online = true;
@@ -1363,13 +1366,14 @@
     if (node && normalizeTurbines(node.turbines || []).length > 0) {
       return normalizeTurbines(node.turbines || []);
     }
+    const seen = [];
     for (let index = state.uploads.length - 1; index >= 0; index -= 1) {
       const row = state.uploads[index];
       if (row && row.node_id === nodeId) {
-        return normalizeTurbines(Object.keys(row.turbines || {}));
+        seen.push(...Object.keys(row.turbines || {}));
       }
     }
-    return [];
+    return normalizeTurbines(seen);
   }
 
   function buildTurbineGroups(turbineCodes, groupSize = 8) {

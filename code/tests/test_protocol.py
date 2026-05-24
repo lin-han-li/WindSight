@@ -46,6 +46,44 @@ class ProtocolParserTests(unittest.TestCase):
         with self.assertRaises(ProtocolValidationError):
             parse_turbine_upload({"node_id": "WIN_001", "sub": "1", "001": [1, 2, 3]})
 
+    def test_accept_packet_that_does_not_start_at_001(self):
+        payload = {
+            "node_id": "WIN_001",
+            "sub": "6",
+            "031": [1, 2, 3, 4],
+            "032": [1, 2, 3, 4],
+            "033": [1, 2, 3, 4],
+            "034": [1, 2, 3, 4],
+            "035": [1, 2, 3, 4],
+            "036": [1, 2, 3, 4],
+        }
+
+        parsed = parse_turbine_upload(payload)
+
+        self.assertEqual(parsed.turbine_count, 6)
+        self.assertEqual(parsed.turbine_codes(), ["031", "032", "033", "034", "035", "036"])
+        self.assertIn("036", parsed.turbines)
+
+    def test_reject_sub_that_does_not_match_packet_key_count(self):
+        with self.assertRaises(ProtocolValidationError):
+            parse_turbine_upload(
+                {
+                    "node_id": "WIN_001",
+                    "sub": "6",
+                    "031": [1, 2, 3, 4],
+                    "032": [1, 2, 3, 4],
+                    "033": [1, 2, 3, 4],
+                }
+            )
+
+    def test_reject_turbine_key_outside_range(self):
+        with self.assertRaises(ProtocolValidationError):
+            parse_turbine_upload({"node_id": "WIN_001", "sub": "1", "201": [1, 2, 3, 4]})
+
+    def test_reject_non_turbine_payload_key(self):
+        with self.assertRaises(ProtocolValidationError):
+            parse_turbine_upload({"node_id": "WIN_001", "sub": "1", "031": [1, 2, 3, 4], "foo": 1})
+
     def test_accept_sub_at_200_limit(self):
         payload = {"node_id": "WIN_001", "sub": "200"}
         for index in range(1, 201):

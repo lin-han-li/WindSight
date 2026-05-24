@@ -741,12 +741,40 @@ def _load_latest_upload(node_id: str):
     )
 
 
+def _sort_turbine_codes(codes):
+    normalized = {str(code).strip() for code in (codes or []) if str(code).strip()}
+    return sorted(normalized, key=lambda code: (int(code) if code.isdigit() else 10**9, code))
+
+
+def _merge_turbine_codes(*code_groups):
+    merged = []
+    for codes in code_groups:
+        if codes:
+            merged.extend(codes)
+    return _sort_turbine_codes(merged)
+
+
+def _load_node_turbine_codes(node_id: str):
+    rows = (
+        db.session.query(TurbineMeasurement.turbine_code)
+        .filter(TurbineMeasurement.node_id == node_id)
+        .distinct()
+        .all()
+    )
+    return _sort_turbine_codes(row[0] for row in rows)
+
+
 def _build_node_item(node_id: str, latest_upload, now_ts: float):
     info = active_nodes.get(node_id) or {}
     online = _is_online(info, now_ts)
     last_utc = info.get("last_upload_utc") or (latest_upload.timestamp if latest_upload else None)
-    turbine_codes = info.get("turbines") or (latest_upload.turbine_codes() if latest_upload else [])
-    turbine_count = info.get("turbine_count") or (latest_upload.turbine_count if latest_upload else 0)
+    stored_codes = _load_node_turbine_codes(node_id) if latest_upload else []
+    turbine_codes = _merge_turbine_codes(
+        info.get("turbines"),
+        latest_upload.turbine_codes() if latest_upload else [],
+        stored_codes,
+    )
+    turbine_count = len(turbine_codes) or info.get("turbine_count") or (latest_upload.turbine_count if latest_upload else 0)
     return {
         "node_id": node_id,
         "online": bool(online),
@@ -778,12 +806,13 @@ def _get_filtered_rows(node_id: str, limit: int, start_utc, end_utc):
 
 
 def _update_active_node_cache(node_id: str, upload_row):
-    turbine_codes = upload_row.turbine_codes()
+    current_info = active_nodes.get(node_id) or {}
+    turbine_codes = _merge_turbine_codes(current_info.get("turbines"), upload_row.turbine_codes())
     first_code = turbine_codes[0] if turbine_codes else None
     active_nodes[node_id] = {
         "timestamp": _now_ts(),
         "last_upload_utc": upload_row.timestamp,
-        "turbine_count": upload_row.turbine_count,
+        "turbine_count": len(turbine_codes) or upload_row.turbine_count,
         "turbines": turbine_codes,
         "last_values": upload_row.turbines_dict().get(first_code) if first_code else {},
     }
@@ -795,6 +824,10 @@ def _emit_upload_events(node_id: str, upload_row):
 
     row_data = upload_row.to_row_dict()
     now_ts = _now_ts()
+    turbine_codes = _merge_turbine_codes(
+        (active_nodes.get(node_id) or {}).get("turbines"),
+        upload_row.turbine_codes(),
+    )
     socketio_instance.emit(
         "node_data_update",
         {"node_id": node_id, "data": row_data},
@@ -813,7 +846,8 @@ def _emit_upload_events(node_id: str, upload_row):
             "node_id": node_id,
             "online": True,
             "timestamp": now_ts,
-            "turbine_count": upload_row.turbine_count,
+            "turbine_count": len(turbine_codes) or upload_row.turbine_count,
+            "turbines": turbine_codes,
         },
         namespace="/",
     )
@@ -1692,6 +1726,11 @@ def devices_compat():
             info = active_nodes.get(node_id) or {}
             latest_upload = _load_latest_upload(node_id)
             last_ts = registered_node.last_seen_at or (latest_upload.timestamp if latest_upload else None)
+            turbine_codes = _merge_turbine_codes(
+                info.get("turbines"),
+                latest_upload.turbine_codes() if latest_upload else [],
+                _load_node_turbine_codes(node_id) if latest_upload else [],
+            )
             devices.append(
                 {
                     "device_id": node_id,
@@ -1699,7 +1738,8 @@ def devices_compat():
                     "status": "online" if _is_online(info, now_ts) else "offline",
                     "last_heartbeat": iso_beijing(last_ts) if last_ts else None,
                     "turbine_count": int(
-                        info.get("turbine_count")
+                        len(turbine_codes)
+                        or info.get("turbine_count")
                         or (latest_upload.turbine_count if latest_upload else 0)
                         or 0
                     ),
