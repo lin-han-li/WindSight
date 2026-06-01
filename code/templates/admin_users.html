@@ -4,7 +4,7 @@
 {% block page_title %}用户列表{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/user_tree.css') }}?v=20260521-user-delete-safe">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/user_tree.css') }}?v=20260527-upload-interval">
 {% endblock %}
 
 {% block content %}
@@ -66,6 +66,16 @@
                             取消
                         </button>
                         <small>仅修改显示名称，节点 ID 不变。</small>
+                    </form>
+                    <form id="nodeUploadIntervalForm" class="node-upload-interval-form is-hidden">
+                        <label for="nodeUploadIntervalInput">上传周期</label>
+                        <input id="nodeUploadIntervalInput" type="number" min="5" max="86400" step="1" inputmode="numeric">
+                        <span id="nodeUploadIntervalHint">--</span>
+                        <button id="saveNodeUploadIntervalBtn" type="submit" class="secondary-action">
+                            <i class="bi bi-check2"></i>
+                            保存周期
+                        </button>
+                        <small>保存后会在下一次上传响应中下发给网关。</small>
                     </form>
                 </div>
                 <div id="selectedNodeKeyPanel" class="selected-node-key is-hidden">
@@ -164,5 +174,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/user_tree.js') }}?v=20260521-user-delete-safe"></script>
+<script src="{{ url_for('static', filename='js/user_tree.js') }}?v=20260527-upload-interval"></script>
 {% endblock %}

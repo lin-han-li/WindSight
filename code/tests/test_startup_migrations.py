@@ -69,12 +69,26 @@ class StartupMigrationTests(unittest.TestCase):
                     """
                 )
             )
+            db.session.execute(
+                text(
+                    """
+                    INSERT INTO registered_nodes (
+                        node_id, owner_user_id, node_key_hash, display_name, is_active
+                    ) VALUES ('WIN_OLD', 1, 'hash', 'Old Node', 1)
+                    """
+                )
+            )
             db.session.commit()
 
             self.assertTrue(migrate_registered_node_geo_columns())
             columns = self._columns("registered_nodes")
             self.assertIn("geo_lng", columns)
             self.assertIn("geo_lat", columns)
+            self.assertIn("upload_interval_seconds", columns)
+            interval = db.session.execute(
+                text("SELECT upload_interval_seconds FROM registered_nodes WHERE node_id = 'WIN_OLD'")
+            ).scalar_one()
+            self.assertEqual(interval, 60)
             self.assertFalse(migrate_registered_node_geo_columns())
 
 

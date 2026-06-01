@@ -49,6 +49,10 @@ UPLOAD_SIGNATURE_ALGORITHM = "HMAC-SHA256"
 UPLOAD_TIMESTAMP_WINDOW_SECONDS = int(os.environ.get("WINDSIGHT_UPLOAD_SIGNATURE_WINDOW_SECONDS", "300"))
 UPLOAD_NONCE_TTL_SECONDS = UPLOAD_TIMESTAMP_WINDOW_SECONDS + 60
 ALLOW_LEGACY_NODE_KEY_UPLOAD = os.environ.get("WINDSIGHT_ALLOW_LEGACY_NODE_KEY_UPLOAD", "1").strip() != "0"
+DEFAULT_UPLOAD_INTERVAL_SECONDS = 60
+MIN_UPLOAD_INTERVAL_SECONDS = 5
+MAX_UPLOAD_INTERVAL_SECONDS = 86400
+UPLOAD_GAP_THRESHOLD_MULTIPLIER = 1.5
 USER_CONFIG_DEFAULTS = {
     "poll_interval": 3000,
     "auto_refresh": True,
@@ -84,6 +88,33 @@ def _validate_node_id(value: str) -> tuple[bool, str]:
 def _normalize_node_display_name(value, fallback_node_id: str) -> str:
     display_name = str(value or "").strip()
     return display_name[:120] or fallback_node_id
+
+
+def _normalize_upload_interval_seconds(value) -> int:
+    try:
+        interval = int(value)
+    except (TypeError, ValueError):
+        raise ValueError("upload_interval_seconds must be an integer between 5 and 86400") from None
+    if interval < MIN_UPLOAD_INTERVAL_SECONDS or interval > MAX_UPLOAD_INTERVAL_SECONDS:
+        raise ValueError("upload_interval_seconds must be an integer between 5 and 86400")
+    return interval
+
+
+def _node_upload_interval_seconds(registered_node_or_node_id) -> int:
+    if isinstance(registered_node_or_node_id, RegisteredNode):
+        raw_value = getattr(registered_node_or_node_id, "upload_interval_seconds", None)
+    else:
+        node_id = _normalize_node_id(registered_node_or_node_id)
+        registered_node = RegisteredNode.query.filter_by(node_id=node_id, is_active=True).first() if node_id else None
+        raw_value = getattr(registered_node, "upload_interval_seconds", None)
+    try:
+        return _normalize_upload_interval_seconds(raw_value if raw_value is not None else DEFAULT_UPLOAD_INTERVAL_SECONDS)
+    except ValueError:
+        return DEFAULT_UPLOAD_INTERVAL_SECONDS
+
+
+def _node_gap_threshold_seconds(upload_interval_seconds: int) -> float:
+    return round(float(upload_interval_seconds) * UPLOAD_GAP_THRESHOLD_MULTIPLIER, 3)
 
 
 def _utcnow() -> datetime:
@@ -536,6 +567,7 @@ def _registered_node_to_dict(
             "is_registered": True,
             "geo": geo,
             "geo_configured": bool(geo),
+            "upload_interval_seconds": _node_upload_interval_seconds(registered_node),
         }
     )
     if include_owner:
@@ -805,6 +837,26 @@ def _get_filtered_rows(node_id: str, limit: int, start_utc, end_utc):
     return rows
 
 
+def _upload_rows_to_dicts(node_id: str, rows):
+    upload_interval = _node_upload_interval_seconds(node_id)
+    gap_threshold = _node_gap_threshold_seconds(upload_interval)
+    result = []
+    previous_ts = None
+    for row in rows:
+        item = row.to_row_dict()
+        item["expected_interval_seconds"] = upload_interval
+        item["gap_threshold_seconds"] = gap_threshold
+        item["gap_from_previous_seconds"] = None
+        item["is_gap_after_previous"] = False
+        if previous_ts and row.timestamp:
+            gap_seconds = round((row.timestamp - previous_ts).total_seconds(), 3)
+            item["gap_from_previous_seconds"] = gap_seconds
+            item["is_gap_after_previous"] = gap_seconds > gap_threshold
+        previous_ts = row.timestamp
+        result.append(item)
+    return result
+
+
 def _update_active_node_cache(node_id: str, upload_row):
     current_info = active_nodes.get(node_id) or {}
     turbine_codes = _merge_turbine_codes(current_info.get("turbines"), upload_row.turbine_codes())
@@ -896,7 +948,16 @@ def upload_node_data():
 
         _update_active_node_cache(node_id, row)
         _emit_upload_events(node_id, row)
-        return jsonify({"status": "success", "upload_id": row.id, "auth": auth_info}), 200
+        return jsonify(
+            {
+                "status": "success",
+                "upload_id": row.id,
+                "auth": auth_info,
+                "device_config": {
+                    "upload_interval_seconds": _node_upload_interval_seconds(registered_node),
+                },
+            }
+        ), 200
     except Exception as exc:
         db.session.rollback()
         logger.exception("[/api/upload] failed: %s", exc)
@@ -1069,11 +1130,18 @@ def create_my_registered_node():
             return jsonify({"success": False, "error": "node_id already registered"}), 409
 
         display_name = str(payload.get("display_name") or "").strip()[:120] or node_id
+        upload_interval_seconds = DEFAULT_UPLOAD_INTERVAL_SECONDS
+        if "upload_interval_seconds" in payload:
+            try:
+                upload_interval_seconds = _normalize_upload_interval_seconds(payload.get("upload_interval_seconds"))
+            except ValueError as exc:
+                return jsonify({"success": False, "error": str(exc)}), 400
         node_key = RegisteredNode.generate_node_key()
         registered_node = RegisteredNode(
             node_id=node_id,
             owner_user_id=current_user.id,
             display_name=display_name,
+            upload_interval_seconds=upload_interval_seconds,
             is_active=True,
         )
         registered_node.set_node_key(node_key)
@@ -1185,12 +1253,18 @@ def update_my_registered_node(node_id):
             return jsonify({"success": False, "error": "registered node not found"}), 404
 
         payload = request.get_json(silent=True) or {}
-        registered_node.display_name = _normalize_node_display_name(
-            payload.get("display_name"),
-            registered_node.node_id,
-        )
+        if "display_name" in payload:
+            registered_node.display_name = _normalize_node_display_name(
+                payload.get("display_name"),
+                registered_node.node_id,
+            )
+        if "upload_interval_seconds" in payload:
+            registered_node.upload_interval_seconds = _normalize_upload_interval_seconds(payload.get("upload_interval_seconds"))
         db.session.commit()
         return jsonify({"success": True, "node": _registered_node_to_dict(registered_node, include_key=True)}), 200
+    except ValueError as exc:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(exc)}), 400
     except Exception as exc:
         db.session.rollback()
         logger.exception("[PATCH /api/my/registered_nodes/%s] failed: %s", node_id, exc)
@@ -1462,15 +1536,21 @@ def admin_update_registered_node(user_id: int, node_id):
             return jsonify({"success": False, "error": "registered node not found"}), 404
 
         payload = request.get_json(silent=True) or {}
-        registered_node.display_name = _normalize_node_display_name(
-            payload.get("display_name"),
-            registered_node.node_id,
-        )
+        if "display_name" in payload:
+            registered_node.display_name = _normalize_node_display_name(
+                payload.get("display_name"),
+                registered_node.node_id,
+            )
+        if "upload_interval_seconds" in payload:
+            registered_node.upload_interval_seconds = _normalize_upload_interval_seconds(payload.get("upload_interval_seconds"))
         db.session.commit()
         return (
             jsonify({"success": True, "node": _registered_node_to_dict(registered_node, include_owner=True, include_auth=True)}),
             200,
         )
+    except ValueError as exc:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(exc)}), 400
     except Exception as exc:
         db.session.rollback()
         logger.exception(
@@ -1537,7 +1617,16 @@ def get_node_data():
             return jsonify({"success": False, "error": "invalid time range"}), 400
 
         rows = _get_filtered_rows(node_id, limit, start_utc, end_utc)
-        return jsonify({"success": True, "node_id": node_id, "data": [row.to_row_dict() for row in rows]}), 200
+        upload_interval = _node_upload_interval_seconds(node_id)
+        return jsonify(
+            {
+                "success": True,
+                "node_id": node_id,
+                "expected_interval_seconds": upload_interval,
+                "gap_threshold_seconds": _node_gap_threshold_seconds(upload_interval),
+                "data": _upload_rows_to_dicts(node_id, rows),
+            }
+        ), 200
     except Exception as exc:
         logger.exception("[/api/node_data] failed: %s", exc)
         return jsonify({"success": False, "error": str(exc)}), 500
@@ -1561,7 +1650,16 @@ def get_data():
             return jsonify({"status": "error", "error": "invalid time range"}), 400
 
         rows = _get_filtered_rows(node_id, limit, start_utc, end_utc)
-        return jsonify({"status": "success", "node_id": node_id, "data": [row.to_row_dict() for row in rows]}), 200
+        upload_interval = _node_upload_interval_seconds(node_id)
+        return jsonify(
+            {
+                "status": "success",
+                "node_id": node_id,
+                "expected_interval_seconds": upload_interval,
+                "gap_threshold_seconds": _node_gap_threshold_seconds(upload_interval),
+                "data": _upload_rows_to_dicts(node_id, rows),
+            }
+        ), 200
     except Exception as exc:
         logger.exception("[/api/data] failed: %s", exc)
         return jsonify({"status": "error", "error": str(exc)}), 500

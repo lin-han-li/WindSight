@@ -513,7 +513,8 @@ body[data-theme="light"] .node-group-chip {
     background: rgba(19, 216, 255, 0.08);
 }
 
-.node-name-edit-form {
+.node-name-edit-form,
+.node-upload-interval-form {
     display: grid;
     grid-template-columns: auto minmax(180px, 340px) auto auto minmax(160px, 1fr);
     align-items: center;
@@ -522,13 +523,17 @@ body[data-theme="light"] .node-group-chip {
 }
 
 .node-name-edit-form label,
-.node-name-edit-form small {
+.node-name-edit-form small,
+.node-upload-interval-form label,
+.node-upload-interval-form span,
+.node-upload-interval-form small {
     color: var(--tree-muted);
     font-size: 12px;
     font-weight: 800;
 }
 
-.node-name-edit-form input {
+.node-name-edit-form input,
+.node-upload-interval-form input {
     width: 100%;
     height: 38px;
     min-width: 0;
@@ -540,12 +545,14 @@ body[data-theme="light"] .node-group-chip {
     outline: none;
 }
 
-.node-name-edit-form input:focus {
+.node-name-edit-form input:focus,
+.node-upload-interval-form input:focus {
     border-color: var(--tree-accent);
     box-shadow: 0 0 0 3px rgba(19, 216, 255, 0.12);
 }
 
-body[data-theme="light"] .node-name-edit-form input {
+body[data-theme="light"] .node-name-edit-form input,
+body[data-theme="light"] .node-upload-interval-form input {
     background: #f8fbff;
 }
 
@@ -2037,7 +2044,8 @@ body[data-theme="light"] .my-device-page .turbine-item.my-turbine-cell.is-active
         width: 100%;
     }
 
-    .node-name-edit-form {
+    .node-name-edit-form,
+    .node-upload-interval-form {
         grid-template-columns: 1fr;
         width: 100%;
     }
@@ -2051,7 +2059,8 @@ body[data-theme="light"] .my-device-page .turbine-item.my-turbine-cell.is-active
         justify-content: center;
     }
 
-    .node-name-edit-form .secondary-action {
+    .node-name-edit-form .secondary-action,
+    .node-upload-interval-form .secondary-action {
         width: 100%;
     }
 

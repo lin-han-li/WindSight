@@ -79,6 +79,7 @@ class RegisteredNode(db.Model):
     display_name = db.Column(db.String(120))
     geo_lng = db.Column(db.Float)
     geo_lat = db.Column(db.Float)
+    upload_interval_seconds = db.Column(db.Integer, default=60, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     last_seen_at = db.Column(db.DateTime)
     is_active = db.Column(db.Boolean, default=True, nullable=False)

@@ -4,7 +4,7 @@
 {% block page_title %}数据概览{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_explorer.css') }}?v=20260521-amap-only">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_explorer.css') }}?v=20260527-upload-gap">
 {% endblock %}
 
 {% block content %}
@@ -99,6 +99,7 @@
                     </div>
                     <div class="ops-context-meta">
                         <span class="ops-status-chip" id="chartStatusChip">等待接入</span>
+                        <span class="ops-status-chip ops-gap-chip" id="chartUploadIntervalChip">上传周期 --</span>
                         <span class="ops-last-time">最近数据 <strong id="chartLastDataTime">--</strong></span>
                         <button id="btnBackToTree" class="monitor-back-button" type="button">
                             <i class="bi bi-arrow-left"></i>
@@ -226,5 +227,5 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/node_map_config.js') }}?v=7"></script>
-<script src="{{ url_for('static', filename='js/dashboard.js') }}?v=31"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}?v=32"></script>
 {% endblock %}

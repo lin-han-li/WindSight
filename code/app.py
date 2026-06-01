@@ -323,6 +323,9 @@ def migrate_registered_node_columns() -> bool:
     if "geo_lat" not in registered_node_columns:
         db.session.execute(text("ALTER TABLE registered_nodes ADD COLUMN geo_lat FLOAT"))
         migrated = True
+    if "upload_interval_seconds" not in registered_node_columns:
+        db.session.execute(text("ALTER TABLE registered_nodes ADD COLUMN upload_interval_seconds INTEGER NOT NULL DEFAULT 60"))
+        migrated = True
     if migrated:
         db.session.commit()
     return migrated

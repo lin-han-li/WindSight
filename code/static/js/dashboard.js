@@ -22,6 +22,8 @@
   const socket = isMonitorPage && typeof io === "function" ? io() : null;
   root.classList.toggle("is-wave-only", waveOnlyPage);
   root.classList.toggle("is-map-only", isMapPage);
+  const defaultUploadIntervalSeconds = 60;
+  const uploadGapThresholdMultiplier = 1.5;
 
   const runtimeConfig = {
     autoRefresh: true,
@@ -77,6 +79,7 @@
     chartNodeChip: document.getElementById("chartNodeChip"),
     chartTurbineChip: document.getElementById("chartTurbineChip"),
     chartStatusChip: document.getElementById("chartStatusChip"),
+    chartUploadIntervalChip: document.getElementById("chartUploadIntervalChip"),
     chartLastDataTime: document.getElementById("chartLastDataTime"),
   };
 
@@ -305,6 +308,58 @@
   function formatValue(value) {
     const number = safeNumber(value);
     return number === null ? "--" : number.toFixed(2);
+  }
+
+  function normalizeUploadIntervalSeconds(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) {
+      return defaultUploadIntervalSeconds;
+    }
+    return Math.min(86400, Math.max(5, Math.round(number)));
+  }
+
+  function formatDurationSeconds(seconds) {
+    const value = Math.max(0, Math.round(Number(seconds) || 0));
+    if (value >= 3600 && value % 3600 === 0) return `${value / 3600} 小时`;
+    if (value >= 60 && value % 60 === 0) return `${value / 60} 分钟`;
+    if (value >= 60) return `${Math.floor(value / 60)} 分 ${value % 60} 秒`;
+    return `${value} 秒`;
+  }
+
+  function selectedUploadIntervalSeconds() {
+    const node = getNodeRecord(state.selectedNodeId);
+    if (node?.upload_interval_seconds !== undefined) {
+      return normalizeUploadIntervalSeconds(node.upload_interval_seconds);
+    }
+    const rowWithExpected = state.uploads.find((row) => row?.expected_interval_seconds !== undefined);
+    return normalizeUploadIntervalSeconds(rowWithExpected?.expected_interval_seconds);
+  }
+
+  function parseRowTimestampMs(row) {
+    const timestamp = row?.timestamp;
+    if (!timestamp) return null;
+    const parsed = Date.parse(timestamp);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function rowGapInfo(row, rowIndex) {
+    const interval = normalizeUploadIntervalSeconds(row?.expected_interval_seconds ?? selectedUploadIntervalSeconds());
+    const threshold = Number(row?.gap_threshold_seconds ?? interval * uploadGapThresholdMultiplier);
+    let gap = Number(row?.gap_from_previous_seconds);
+    if (!Number.isFinite(gap) && rowIndex > 0) {
+      const previousMs = parseRowTimestampMs(state.uploads[rowIndex - 1]);
+      const currentMs = parseRowTimestampMs(row);
+      if (previousMs !== null && currentMs !== null) {
+        gap = (currentMs - previousMs) / 1000;
+      }
+    }
+    const hasGap = row?.is_gap_after_previous === true || (Number.isFinite(gap) && gap > threshold);
+    return {
+      interval,
+      threshold,
+      gap: Number.isFinite(gap) ? gap : null,
+      hasGap,
+    };
   }
 
   function setMetricCardValue(metric, value) {
@@ -862,6 +917,7 @@
       lastUpload: node.last_upload || "",
       turbineCount: node.turbine_count || turbines.length || 0,
       turbines,
+      uploadIntervalSeconds: normalizeUploadIntervalSeconds(node.upload_interval_seconds),
     };
   }
 
@@ -1355,6 +1411,9 @@
     }
     if (updateLastUpload) {
       patch.last_upload = row.timestamp || "";
+    }
+    if (row.expected_interval_seconds !== undefined) {
+      patch.upload_interval_seconds = normalizeUploadIntervalSeconds(row.expected_interval_seconds);
     }
     upsertNode({
       ...patch,
@@ -2202,10 +2261,32 @@
     const axisColor = palette.axisText;
     const times = state.uploads.map((row) => row.timestamp || "");
     const xMax = Math.max(times.length - 1, 1);
-    const seriesData = state.uploads.map((row, rowIndex) => {
+    const seriesData = [];
+    const anomalyData = [];
+    state.uploads.forEach((row, rowIndex) => {
       const turbine = row?.turbines?.[state.selectedTurbineCode];
       const value = turbine ? turbine[metric.key] : null;
-      return [rowIndex, safeNumber(value)];
+      const metricValue = safeNumber(value);
+      const gapInfo = rowGapInfo(row, rowIndex);
+      if (gapInfo.hasGap) {
+        seriesData.push({
+          value: [Math.max(0, rowIndex - 0.001), null],
+          rowIndex,
+          isGapBreak: true,
+        });
+      }
+      const point = {
+        value: [rowIndex, metricValue],
+        rowIndex,
+        isGapAfterPrevious: gapInfo.hasGap,
+        gapSeconds: gapInfo.gap,
+        expectedIntervalSeconds: gapInfo.interval,
+        gapThresholdSeconds: gapInfo.threshold,
+      };
+      seriesData.push(point);
+      if (gapInfo.hasGap && metricValue !== null) {
+        anomalyData.push(point);
+      }
     });
 
     return {
@@ -2224,13 +2305,24 @@
             ? "box-shadow: 0 16px 28px rgba(0, 0, 0, 0.32); border-radius: 12px;"
             : "box-shadow: 0 14px 24px rgba(116, 142, 172, 0.16); border-radius: 12px;",
         formatter(params) {
-          const point = Array.isArray(params) ? params[0] : params;
+          const list = Array.isArray(params) ? params : [params];
+          const point =
+            list.find((item) => item?.data && item.data.isGapAfterPrevious && Array.isArray(item.value)) ||
+            list.find((item) => item?.data && !item.data.isGapBreak && Array.isArray(item.value)) ||
+            list[0];
+          const data = point?.data || {};
           const value = Array.isArray(point?.value) ? point.value : [point?.dataIndex, point?.value];
-          const rowIndex = Math.round(Number(value?.[0]));
+          const rowIndex = Number.isInteger(data.rowIndex) ? data.rowIndex : Math.round(Number(value?.[0]));
           const metricValue = Number(value?.[1]);
           const time = times[rowIndex] || "--";
           const textValue = Number.isFinite(metricValue) ? metricValue.toFixed(2) : "--";
-          return `${time}<br/>${metric.label}: ${textValue} ${metric.unit}`;
+          const lines = [`${time}`, `${metric.label}: ${textValue} ${metric.unit}`];
+          if (data.isGapAfterPrevious && Number.isFinite(Number(data.gapSeconds))) {
+            lines.push(
+              `<span style="color:#ef4444">上传断档：间隔 ${formatDurationSeconds(data.gapSeconds)}，超过阈值 ${formatDurationSeconds(data.gapThresholdSeconds)}</span>`
+            );
+          }
+          return lines.join("<br/>");
         },
       },
       grid: {
@@ -2335,6 +2427,22 @@
             ]),
           },
           data: seriesData,
+        },
+        {
+          type: "scatter",
+          name: "上传断档",
+          symbol: "diamond",
+          symbolSize: 11,
+          z: 6,
+          itemStyle: {
+            color: "#ef4444",
+            borderColor: "#ffffff",
+            borderWidth: 1,
+          },
+          emphasis: {
+            scale: 1.4,
+          },
+          data: anomalyData,
         },
       ],
     };
@@ -2621,6 +2729,14 @@
     setText(dom.chartNodeChip, node ? node.displayName : "未选择节点");
     setText(dom.chartTurbineChip, state.selectedTurbineCode ? `发电机 ${state.selectedTurbineCode}` : "未选择发电机");
     setText(dom.chartStatusChip, node ? `节点${getStatusLabel(node.status)}` : "等待接入");
+    setText(
+      dom.chartUploadIntervalChip,
+      node
+        ? `上传周期 ${formatDurationSeconds(node.uploadIntervalSeconds)} / 断档 ${formatDurationSeconds(
+            node.uploadIntervalSeconds * uploadGapThresholdMultiplier
+          )}`
+        : "上传周期 --"
+    );
     setText(dom.chartLastDataTime, latestTime);
   }
 

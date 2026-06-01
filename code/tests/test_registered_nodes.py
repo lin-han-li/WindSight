@@ -111,11 +111,12 @@ class RegisteredNodeTests(unittest.TestCase):
         headers = self._hmac_headers(payload, credential, raw_body=raw_body, **header_overrides)
         return self.client.post("/api/upload", data=raw_body, headers=headers, content_type="application/json")
 
-    def _register_node_row(self, owner_user_id, node_id, node_key="NODE-KEY", display_name=None):
+    def _register_node_row(self, owner_user_id, node_id, node_key="NODE-KEY", display_name=None, upload_interval_seconds=60):
         node = RegisteredNode(
             node_id=node_id,
             owner_user_id=owner_user_id,
             display_name=display_name or node_id,
+            upload_interval_seconds=upload_interval_seconds,
             is_active=True,
         )
         node.set_node_key(node_key)
@@ -174,6 +175,7 @@ class RegisteredNodeTests(unittest.TestCase):
         self.assertEqual(data["node"]["credential"]["key_id"], data["credential"]["key_id"])
         self.assertTrue(data["node"]["credential"]["secret"])
         self.assertEqual(data["node"]["credential"]["status"], NodeCredential.STATUS_ACTIVE)
+        self.assertEqual(data["node"]["upload_interval_seconds"], 60)
 
         response = self.client.post("/api/my/registered_nodes", json={"node_id": "WIN_101"})
         self.assertEqual(response.status_code, 409)
@@ -193,6 +195,7 @@ class RegisteredNodeTests(unittest.TestCase):
         self.assertTrue(listed["node_key_available"])
         self.assertEqual(listed["credential"]["key_id"], data["credential"]["key_id"])
         self.assertTrue(listed["credential"]["secret_visible"])
+        self.assertEqual(listed["upload_interval_seconds"], 60)
 
     def test_upload_rejects_unregistered_missing_and_wrong_key(self):
         response = self.client.post("/api/upload", json=self._payload("WIN_404"))
@@ -236,7 +239,9 @@ class RegisteredNodeTests(unittest.TestCase):
             headers={"X-WindSight-Node-Key": "RIGHT-KEY"},
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.get_json()["status"], "success")
+        data = response.get_json()
+        self.assertEqual(data["status"], "success")
+        self.assertEqual(data["device_config"]["upload_interval_seconds"], 60)
 
         with app.app_context():
             self.assertEqual(NodeUpload.query.count(), 1)
@@ -388,6 +393,49 @@ class RegisteredNodeTests(unittest.TestCase):
         with app.app_context():
             self.assertEqual(RegisteredNode.query.filter_by(node_id="WIN_A01").first().node_id, "WIN_A01")
             self.assertEqual(RegisteredNode.query.filter_by(node_id="WIN_B01").first().display_name, "Bob Field")
+
+    def test_user_and_admin_update_registered_node_upload_interval(self):
+        with app.app_context():
+            self._register_node_row(self.alice_id, "WIN_A01", "A-KEY")
+            self._register_node_row(self.bob_id, "WIN_B01", "B-KEY")
+
+        self._login_user_id(self.alice_id)
+        response = self.client.patch(
+            "/api/my/registered_nodes/WIN_A01",
+            json={"upload_interval_seconds": 120},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["node"]["upload_interval_seconds"], 120)
+
+        response = self.client.patch(
+            "/api/my/registered_nodes/WIN_A01",
+            json={"upload_interval_seconds": 4},
+        )
+        self.assertEqual(response.status_code, 400)
+
+        response = self.client.patch(
+            "/api/my/registered_nodes/WIN_B01",
+            json={"upload_interval_seconds": 90},
+        )
+        self.assertEqual(response.status_code, 404)
+
+        self._login_user_id(self.admin_id)
+        response = self.client.patch(
+            f"/api/admin/users/{self.bob_id}/registered_nodes/WIN_B01",
+            json={"upload_interval_seconds": 90},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["node"]["upload_interval_seconds"], 90)
+
+        response = self.client.patch(
+            f"/api/admin/users/{self.alice_id}/registered_nodes/WIN_B01",
+            json={"upload_interval_seconds": 60},
+        )
+        self.assertEqual(response.status_code, 404)
+
+        with app.app_context():
+            self.assertEqual(RegisteredNode.query.filter_by(node_id="WIN_A01").first().upload_interval_seconds, 120)
+            self.assertEqual(RegisteredNode.query.filter_by(node_id="WIN_B01").first().upload_interval_seconds, 90)
 
     def test_upload_accepts_hmac_signature_and_records_nonce(self):
         _, credential = self._register_node_via_api("WIN_H01")
@@ -756,6 +804,29 @@ class RegisteredNodeTests(unittest.TestCase):
             "/api/data_meta?node_id=WIN_A01&mode=count&start=2026-05-17T08:03:00&end=2026-05-17T08:01:00"
         )
         self.assertEqual(response.status_code, 400)
+
+    def test_data_marks_upload_gap_against_node_interval(self):
+        base_utc = datetime(2026, 5, 17, 0, 0, 0)
+        with app.app_context():
+            self._register_node_row(self.alice_id, "WIN_A01", "A-KEY", upload_interval_seconds=60)
+            self._insert_upload("WIN_A01", timestamp=base_utc)
+            self._insert_upload("WIN_A01", timestamp=base_utc + timedelta(seconds=60))
+            self._insert_upload("WIN_A01", timestamp=base_utc + timedelta(seconds=160))
+
+        self._login_user_id(self.alice_id)
+        response = self.client.get("/api/data?node_id=WIN_A01&limit=10")
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["expected_interval_seconds"], 60)
+        self.assertEqual(payload["gap_threshold_seconds"], 90.0)
+        rows = payload["data"]
+        self.assertEqual(len(rows), 3)
+        self.assertFalse(rows[0]["is_gap_after_previous"])
+        self.assertFalse(rows[1]["is_gap_after_previous"])
+        self.assertTrue(rows[2]["is_gap_after_previous"])
+        self.assertEqual(rows[2]["gap_from_previous_seconds"], 100.0)
+        self.assertEqual(rows[2]["expected_interval_seconds"], 60)
+        self.assertEqual(rows[2]["gap_threshold_seconds"], 90.0)
 
 
 if __name__ == "__main__":

@@ -4302,6 +4302,12 @@ body.windsight-shell .dashboard-page.page-overview .ops-last-time strong {
   font-weight: 900;
 }
 
+body.windsight-shell .dashboard-page.page-monitor .ops-gap-chip,
+body.windsight-shell .dashboard-page.page-overview .ops-gap-chip {
+  border-color: color-mix(in srgb, #ef4444 34%, var(--ops-border));
+  color: var(--ops-text);
+}
+
 body.windsight-shell .dashboard-page.page-monitor .ops-control-bar,
 body.windsight-shell .dashboard-page.page-overview .ops-control-bar {
   display: flex;

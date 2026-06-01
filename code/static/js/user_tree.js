@@ -24,6 +24,10 @@
         nodeNameEditInput: document.getElementById("nodeNameEditInput"),
         saveNodeNameBtn: document.getElementById("saveNodeNameBtn"),
         cancelNodeNameEditBtn: document.getElementById("cancelNodeNameEditBtn"),
+        nodeUploadIntervalForm: document.getElementById("nodeUploadIntervalForm"),
+        nodeUploadIntervalInput: document.getElementById("nodeUploadIntervalInput"),
+        nodeUploadIntervalHint: document.getElementById("nodeUploadIntervalHint"),
+        saveNodeUploadIntervalBtn: document.getElementById("saveNodeUploadIntervalBtn"),
         selectedNodeKeyPanel: document.getElementById("selectedNodeKeyPanel"),
         selectedNodeKeyText: document.getElementById("selectedNodeKeyText"),
         selectedCredentialKeyId: document.getElementById("selectedCredentialKeyId"),
@@ -91,6 +95,26 @@
 
     function displayNameForNode(node) {
         return node?.display_name || node?.node_id || "";
+    }
+
+    function uploadIntervalForNode(node) {
+        const value = Number(node?.upload_interval_seconds || 60);
+        if (!Number.isFinite(value)) return 60;
+        return Math.min(86400, Math.max(5, Math.round(value)));
+    }
+
+    function formatDurationSeconds(seconds) {
+        const value = Math.max(0, Math.round(Number(seconds) || 0));
+        if (value >= 3600 && value % 3600 === 0) return `${value / 3600} 小时`;
+        if (value >= 60 && value % 60 === 0) return `${value / 60} 分钟`;
+        if (value >= 60) return `${Math.floor(value / 60)} 分 ${value % 60} 秒`;
+        return `${value} 秒`;
+    }
+
+    function updateUploadIntervalHint() {
+        if (!els.nodeUploadIntervalInput || !els.nodeUploadIntervalHint) return;
+        const interval = uploadIntervalForNode({ upload_interval_seconds: els.nodeUploadIntervalInput.value });
+        els.nodeUploadIntervalHint.textContent = `${formatDurationSeconds(interval)}，断档阈值 ${formatDurationSeconds(interval * 1.5)}`;
     }
 
     function setButtonBusy(button, busyHtml) {
@@ -375,6 +399,7 @@
             if (els.selectedNodeMeta) els.selectedNodeMeta.textContent = "点击节点后查看所属发电机。";
             if (els.editNodeNameBtn) els.editNodeNameBtn.classList.add("is-hidden");
             if (els.nodeNameEditForm) els.nodeNameEditForm.classList.add("is-hidden");
+            if (els.nodeUploadIntervalForm) els.nodeUploadIntervalForm.classList.add("is-hidden");
             if (els.rotateNodeKeyBtn) els.rotateNodeKeyBtn.classList.add("is-hidden");
             if (els.forceRevokeCredentialBtn) els.forceRevokeCredentialBtn.classList.add("is-hidden");
             renderSelectedNodeKey(null);
@@ -387,7 +412,8 @@
         const statusText = node.online ? "在线" : "离线";
         if (els.selectedNodeTitle) els.selectedNodeTitle.textContent = name;
         if (els.selectedNodeMeta) {
-            els.selectedNodeMeta.textContent = `${statusText} · ID: ${node.node_id} · ${Number(node.turbine_count || 0)} 台发电机 · 最近上报 ${node.last_seen_at || node.last_upload || "--"}`;
+            const uploadInterval = uploadIntervalForNode(node);
+            els.selectedNodeMeta.textContent = `${statusText} · ID: ${node.node_id} · ${Number(node.turbine_count || 0)} 台发电机 · 上传周期 ${formatDurationSeconds(uploadInterval)} · 最近上报 ${node.last_seen_at || node.last_upload || "--"}`;
         }
         if (els.editNodeNameBtn) {
             els.editNodeNameBtn.classList.toggle("is-hidden", state.nodeNameEditing);
@@ -397,6 +423,13 @@
         }
         if (state.nodeNameEditing && els.nodeNameEditInput && document.activeElement !== els.nodeNameEditInput) {
             els.nodeNameEditInput.value = node.display_name || "";
+        }
+        if (els.nodeUploadIntervalForm) {
+            els.nodeUploadIntervalForm.classList.remove("is-hidden");
+        }
+        if (els.nodeUploadIntervalInput && document.activeElement !== els.nodeUploadIntervalInput) {
+            els.nodeUploadIntervalInput.value = String(uploadIntervalForNode(node));
+            updateUploadIntervalHint();
         }
         if (els.rotateNodeKeyBtn && mode === "my") {
             els.rotateNodeKeyBtn.classList.remove("is-hidden");
@@ -585,6 +618,32 @@
         } catch (error) {
             restore('<i class="bi bi-check2"></i>保存');
             toast(error.message || "节点显示名称保存失败", "error");
+        }
+    }
+
+    async function saveNodeUploadInterval(event) {
+        event.preventDefault();
+        if (!state.selectedNode || !els.nodeUploadIntervalInput) return;
+        const endpoint = nodeNameUpdateEndpoint();
+        if (!endpoint) return;
+        const interval = Number.parseInt(els.nodeUploadIntervalInput.value, 10);
+        if (!Number.isFinite(interval) || interval < 5 || interval > 86400) {
+            toast("上传周期必须是 5 到 86400 秒之间的整数", "warning");
+            updateUploadIntervalHint();
+            return;
+        }
+        const restore = setButtonBusy(els.saveNodeUploadIntervalBtn, '<i class="bi bi-arrow-repeat"></i>保存中');
+        try {
+            const data = await requestJson(endpoint, {
+                method: "PATCH",
+                body: JSON.stringify({ upload_interval_seconds: interval }),
+            });
+            applyUpdatedNode(data.node);
+            restore('<i class="bi bi-check2"></i>保存周期');
+            toast("上传周期已保存，下次上传响应会下发给网关", "success");
+        } catch (error) {
+            restore('<i class="bi bi-check2"></i>保存周期');
+            toast(error.message || "上传周期保存失败", "error");
         }
     }
 
@@ -1084,6 +1143,9 @@
         els.editNodeNameBtn?.addEventListener("click", openNodeNameEditor);
         els.nodeNameEditForm?.addEventListener("submit", saveNodeName);
         els.cancelNodeNameEditBtn?.addEventListener("click", closeNodeNameEditor);
+        els.nodeUploadIntervalForm?.addEventListener("submit", saveNodeUploadInterval);
+        els.nodeUploadIntervalInput?.addEventListener("input", updateUploadIntervalHint);
+        els.nodeUploadIntervalInput?.addEventListener("change", updateUploadIntervalHint);
         els.refreshNodesBtn?.addEventListener("click", () => loadMyNodes());
         els.refreshUsersBtn?.addEventListener("click", () => loadAdminUsers());
         els.adminDeleteSelectedUserBtn?.addEventListener("click", () => {
