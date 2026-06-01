@@ -53,6 +53,7 @@ DEFAULT_UPLOAD_INTERVAL_SECONDS = 60
 MIN_UPLOAD_INTERVAL_SECONDS = 5
 MAX_UPLOAD_INTERVAL_SECONDS = 86400
 UPLOAD_GAP_THRESHOLD_MULTIPLIER = 1.5
+MIN_UPLOAD_GAP_THRESHOLD_SECONDS = 120
 USER_CONFIG_DEFAULTS = {
     "poll_interval": 3000,
     "auto_refresh": True,
@@ -114,7 +115,7 @@ def _node_upload_interval_seconds(registered_node_or_node_id) -> int:
 
 
 def _node_gap_threshold_seconds(upload_interval_seconds: int) -> float:
-    return round(float(upload_interval_seconds) * UPLOAD_GAP_THRESHOLD_MULTIPLIER, 3)
+    return round(max(MIN_UPLOAD_GAP_THRESHOLD_SECONDS, float(upload_interval_seconds) * UPLOAD_GAP_THRESHOLD_MULTIPLIER), 3)
 
 
 def _utcnow() -> datetime:
@@ -778,6 +779,19 @@ def _sort_turbine_codes(codes):
     return sorted(normalized, key=lambda code: (int(code) if code.isdigit() else 10**9, code))
 
 
+def _normalize_turbine_code_param(value):
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    if raw.isdigit():
+        number = int(raw)
+        if 1 <= number <= 999:
+            return f"{number:03d}"
+    if re.fullmatch(r"\d{3}", raw):
+        return raw
+    raise ValueError("turbine must be a 3-digit code")
+
+
 def _merge_turbine_codes(*code_groups):
     merged = []
     for codes in code_groups:
@@ -828,8 +842,17 @@ def _apply_time_filters(query, start_utc, end_utc):
     return query
 
 
-def _get_filtered_rows(node_id: str, limit: int, start_utc, end_utc):
+def _apply_turbine_filter(query, turbine_code: str | None):
+    if not turbine_code:
+        return query
+    return query.join(TurbineMeasurement, NodeUpload.id == TurbineMeasurement.upload_id).filter(
+        TurbineMeasurement.turbine_code == turbine_code
+    )
+
+
+def _get_filtered_rows(node_id: str, limit: int, start_utc, end_utc, turbine_code: str | None = None):
     query = _apply_time_filters(_base_upload_query(node_id), start_utc, end_utc)
+    query = _apply_turbine_filter(query, turbine_code)
     if start_utc:
         return query.order_by(NodeUpload.timestamp.asc(), NodeUpload.id.asc()).limit(limit).all()
     rows = query.order_by(NodeUpload.timestamp.desc(), NodeUpload.id.desc()).limit(limit).all()
@@ -1611,22 +1634,26 @@ def get_node_data():
             return jsonify({"success": False, "error": "node access denied"}), 403
 
         limit = max(1, min(int(request.args.get("limit", 600)), MAX_HISTORY_LIMIT))
+        turbine_code = _normalize_turbine_code_param(request.args.get("turbine") or request.args.get("turbine_code"))
         start_utc = parse_client_datetime_to_utc(request.args.get("start") or request.args.get("start_time"))
         end_utc = parse_client_datetime_to_utc(request.args.get("end") or request.args.get("end_time"))
         if start_utc and end_utc and start_utc > end_utc:
             return jsonify({"success": False, "error": "invalid time range"}), 400
 
-        rows = _get_filtered_rows(node_id, limit, start_utc, end_utc)
+        rows = _get_filtered_rows(node_id, limit, start_utc, end_utc, turbine_code)
         upload_interval = _node_upload_interval_seconds(node_id)
         return jsonify(
             {
                 "success": True,
                 "node_id": node_id,
+                "turbine": turbine_code,
                 "expected_interval_seconds": upload_interval,
                 "gap_threshold_seconds": _node_gap_threshold_seconds(upload_interval),
                 "data": _upload_rows_to_dicts(node_id, rows),
             }
         ), 200
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
     except Exception as exc:
         logger.exception("[/api/node_data] failed: %s", exc)
         return jsonify({"success": False, "error": str(exc)}), 500
@@ -1644,22 +1671,26 @@ def get_data():
             return jsonify({"status": "error", "error": "node access denied"}), 403
 
         limit = max(1, min(int(request.args.get("limit", 600)), MAX_HISTORY_LIMIT))
+        turbine_code = _normalize_turbine_code_param(request.args.get("turbine") or request.args.get("turbine_code"))
         start_utc = parse_client_datetime_to_utc(request.args.get("start") or request.args.get("start_time"))
         end_utc = parse_client_datetime_to_utc(request.args.get("end") or request.args.get("end_time"))
         if start_utc and end_utc and start_utc > end_utc:
             return jsonify({"status": "error", "error": "invalid time range"}), 400
 
-        rows = _get_filtered_rows(node_id, limit, start_utc, end_utc)
+        rows = _get_filtered_rows(node_id, limit, start_utc, end_utc, turbine_code)
         upload_interval = _node_upload_interval_seconds(node_id)
         return jsonify(
             {
                 "status": "success",
                 "node_id": node_id,
+                "turbine": turbine_code,
                 "expected_interval_seconds": upload_interval,
                 "gap_threshold_seconds": _node_gap_threshold_seconds(upload_interval),
                 "data": _upload_rows_to_dicts(node_id, rows),
             }
         ), 200
+    except ValueError as exc:
+        return jsonify({"status": "error", "error": str(exc)}), 400
     except Exception as exc:
         logger.exception("[/api/data] failed: %s", exc)
         return jsonify({"status": "error", "error": str(exc)}), 500
@@ -1680,12 +1711,14 @@ def data_meta():
         if mode not in ("nth", "nth_before", "count"):
             return jsonify({"status": "error", "error": "mode must be nth, nth_before or count"}), 400
 
+        turbine_code = _normalize_turbine_code_param(request.args.get("turbine") or request.args.get("turbine_code"))
         start_utc = parse_client_datetime_to_utc(request.args.get("start") or request.args.get("start_time"))
         end_utc = parse_client_datetime_to_utc(request.args.get("end") or request.args.get("end_time"))
         if start_utc and end_utc and start_utc > end_utc:
             return jsonify({"status": "error", "error": "invalid time range"}), 400
 
         query = _apply_time_filters(NodeUpload.query.filter_by(node_id=node_id), start_utc, end_utc)
+        query = _apply_turbine_filter(query, turbine_code)
         total_count = int(query.count())
 
         if mode == "count":
@@ -1695,6 +1728,7 @@ def data_meta():
                 {
                     "status": "success",
                     "node_id": node_id,
+                    "turbine": turbine_code,
                     "mode": "count",
                     "count": total_count,
                     "start": iso_beijing(start_utc, with_seconds=True, with_ms=True),
@@ -1714,6 +1748,7 @@ def data_meta():
                 {
                     "status": "success",
                     "node_id": node_id,
+                    "turbine": turbine_code,
                     "mode": "nth_before",
                     "requested": requested,
                     "count": total_count,
@@ -1733,6 +1768,7 @@ def data_meta():
             {
                 "status": "success",
                 "node_id": node_id,
+                "turbine": turbine_code,
                 "mode": "nth",
                 "requested": requested,
                 "count": total_count,
@@ -1741,6 +1777,8 @@ def data_meta():
                 "last_ts": iso_beijing(last_row.timestamp, with_seconds=True, with_ms=True) if last_row else None,
             }
         ), 200
+    except ValueError as exc:
+        return jsonify({"status": "error", "error": str(exc)}), 400
     except Exception as exc:
         logger.exception("[/api/data_meta] failed: %s", exc)
         return jsonify({"status": "error", "error": str(exc)}), 500

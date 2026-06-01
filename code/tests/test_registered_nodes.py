@@ -812,21 +812,82 @@ class RegisteredNodeTests(unittest.TestCase):
             self._insert_upload("WIN_A01", timestamp=base_utc)
             self._insert_upload("WIN_A01", timestamp=base_utc + timedelta(seconds=60))
             self._insert_upload("WIN_A01", timestamp=base_utc + timedelta(seconds=160))
+            self._insert_upload("WIN_A01", timestamp=base_utc + timedelta(seconds=281))
 
         self._login_user_id(self.alice_id)
         response = self.client.get("/api/data?node_id=WIN_A01&limit=10")
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertEqual(payload["expected_interval_seconds"], 60)
-        self.assertEqual(payload["gap_threshold_seconds"], 90.0)
+        self.assertEqual(payload["gap_threshold_seconds"], 120.0)
         rows = payload["data"]
-        self.assertEqual(len(rows), 3)
+        self.assertEqual(len(rows), 4)
         self.assertFalse(rows[0]["is_gap_after_previous"])
         self.assertFalse(rows[1]["is_gap_after_previous"])
-        self.assertTrue(rows[2]["is_gap_after_previous"])
+        self.assertFalse(rows[2]["is_gap_after_previous"])
         self.assertEqual(rows[2]["gap_from_previous_seconds"], 100.0)
+        self.assertTrue(rows[3]["is_gap_after_previous"])
+        self.assertEqual(rows[3]["gap_from_previous_seconds"], 121.0)
         self.assertEqual(rows[2]["expected_interval_seconds"], 60)
-        self.assertEqual(rows[2]["gap_threshold_seconds"], 90.0)
+        self.assertEqual(rows[2]["gap_threshold_seconds"], 120.0)
+
+    def test_data_filters_split_packet_rows_by_turbine_before_gap_detection(self):
+        base_utc = datetime(2026, 5, 17, 0, 0, 0)
+
+        def insert_split_packet(timestamp, codes):
+            payload = {"node_id": "WIN_A01", "sub": str(len(codes))}
+            for code in codes:
+                payload[code] = [2.5, 2.0, 1.5, 1.0]
+            row = NodeUpload(
+                node_id="WIN_A01",
+                turbine_count=len(codes),
+                timestamp=timestamp,
+                raw_payload=json.dumps(payload, ensure_ascii=False),
+            )
+            for index, code in enumerate(codes, start=1):
+                row.measurements.append(
+                    TurbineMeasurement(
+                        node_id="WIN_A01",
+                        turbine_code=code,
+                        turbine_index=index,
+                        timestamp=timestamp,
+                        voltage=125.0,
+                        current=2.0,
+                        speed=750.0,
+                        temperature=20.0,
+                    )
+                )
+            db.session.add(row)
+
+        with app.app_context():
+            self._register_node_row(self.alice_id, "WIN_A01", "A-KEY", upload_interval_seconds=60)
+            insert_split_packet(base_utc, ["001", "002"])
+            insert_split_packet(base_utc + timedelta(seconds=10), ["031", "032"])
+            insert_split_packet(base_utc + timedelta(seconds=50), ["031", "032"])
+            insert_split_packet(base_utc + timedelta(seconds=70), ["001", "002"])
+            insert_split_packet(base_utc + timedelta(seconds=191), ["001", "002"])
+            db.session.commit()
+
+        self._login_user_id(self.alice_id)
+        response = self.client.get("/api/data?node_id=WIN_A01&turbine=001&limit=10")
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["turbine"], "001")
+        self.assertEqual(payload["gap_threshold_seconds"], 120.0)
+        rows = payload["data"]
+        self.assertEqual(len(rows), 3)
+        self.assertTrue(all("001" in row["turbines"] for row in rows))
+        self.assertFalse(rows[0]["is_gap_after_previous"])
+        self.assertFalse(rows[1]["is_gap_after_previous"])
+        self.assertEqual(rows[1]["gap_from_previous_seconds"], 70.0)
+        self.assertTrue(rows[2]["is_gap_after_previous"])
+        self.assertEqual(rows[2]["gap_from_previous_seconds"], 121.0)
+
+        response = self.client.get(
+            "/api/data_meta?node_id=WIN_A01&turbine=001&mode=count&start=2026-05-17T08:00:00&end=2026-05-17T08:05:00"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["count"], 3)
 
 
 if __name__ == "__main__":

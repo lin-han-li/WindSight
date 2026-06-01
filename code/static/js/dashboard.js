@@ -24,6 +24,7 @@
   root.classList.toggle("is-map-only", isMapPage);
   const defaultUploadIntervalSeconds = 60;
   const uploadGapThresholdMultiplier = 1.5;
+  const minChannelGapThresholdSeconds = 120;
 
   const runtimeConfig = {
     autoRefresh: true,
@@ -342,12 +343,15 @@
     return Number.isFinite(parsed) ? parsed : null;
   }
 
-  function rowGapInfo(row, rowIndex) {
+  function rowGapInfo(row, rowIndex, rows = state.uploads) {
     const interval = normalizeUploadIntervalSeconds(row?.expected_interval_seconds ?? selectedUploadIntervalSeconds());
-    const threshold = Number(row?.gap_threshold_seconds ?? interval * uploadGapThresholdMultiplier);
+    const threshold = Math.max(
+      minChannelGapThresholdSeconds,
+      Number(row?.gap_threshold_seconds ?? interval * uploadGapThresholdMultiplier)
+    );
     let gap = Number(row?.gap_from_previous_seconds);
     if (!Number.isFinite(gap) && rowIndex > 0) {
-      const previousMs = parseRowTimestampMs(state.uploads[rowIndex - 1]);
+      const previousMs = parseRowTimestampMs(rows[rowIndex - 1]);
       const currentMs = parseRowTimestampMs(row);
       if (previousMs !== null && currentMs !== null) {
         gap = (currentMs - previousMs) / 1000;
@@ -556,6 +560,9 @@
     const params = new URLSearchParams();
     params.set("node_id", state.selectedNodeId);
     params.set("mode", mode);
+    if (state.selectedTurbineCode) {
+      params.set("turbine", state.selectedTurbineCode);
+    }
     if (fields.limit) {
       params.set("limit", String(fields.limit));
     }
@@ -951,7 +958,8 @@
   }
 
   function getMetricXExtent() {
-    return { min: 0, max: Math.max(state.uploads.length - 1, 1) };
+    const rows = state.selectedTurbineCode ? rowsForSelectedTurbine() : state.uploads;
+    return { min: 0, max: Math.max(rows.length - 1, 1) };
   }
 
   function getMetricYExtent(metricKey) {
@@ -1544,6 +1552,14 @@
       }
     }
     return null;
+  }
+
+  function rowsForSelectedTurbine() {
+    const turbineCode = String(state.selectedTurbineCode || "").trim();
+    if (!turbineCode) {
+      return [];
+    }
+    return state.uploads.filter((row) => !!row?.turbines?.[turbineCode]);
   }
 
   function renderMapSummary() {
@@ -2259,15 +2275,16 @@
   function buildMetricOption(metric, index) {
     const palette = getThemePalette();
     const axisColor = palette.axisText;
-    const times = state.uploads.map((row) => row.timestamp || "");
+    const chartRows = rowsForSelectedTurbine();
+    const times = chartRows.map((row) => row.timestamp || "");
     const xMax = Math.max(times.length - 1, 1);
     const seriesData = [];
     const anomalyData = [];
-    state.uploads.forEach((row, rowIndex) => {
+    chartRows.forEach((row, rowIndex) => {
       const turbine = row?.turbines?.[state.selectedTurbineCode];
       const value = turbine ? turbine[metric.key] : null;
       const metricValue = safeNumber(value);
-      const gapInfo = rowGapInfo(row, rowIndex);
+      const gapInfo = rowGapInfo(row, rowIndex, chartRows);
       if (gapInfo.hasGap) {
         seriesData.push({
           value: [Math.max(0, rowIndex - 0.001), null],
@@ -2513,6 +2530,9 @@
     const params = new URLSearchParams();
     params.set("node_id", state.selectedNodeId);
     params.set("limit", String(currentLimit()));
+    if (state.selectedTurbineCode) {
+      params.set("turbine", state.selectedTurbineCode);
+    }
     if (dom.historyStart?.value) {
       params.set("start", dom.historyStart.value);
     }
@@ -2653,6 +2673,11 @@
       return;
     }
     updateNodeFromRow(row, { markOnline: true, updateLastUpload: true });
+    if (state.selectedTurbineCode && !row?.turbines?.[state.selectedTurbineCode]) {
+      renderSelectionSummary();
+      renderTurbineTree();
+      return;
+    }
     state.uploads.push(row);
     state.uploadIds.add(rowKey);
     const limit = currentLimit();
@@ -2733,7 +2758,7 @@
       dom.chartUploadIntervalChip,
       node
         ? `上传周期 ${formatDurationSeconds(node.uploadIntervalSeconds)} / 断档 ${formatDurationSeconds(
-            node.uploadIntervalSeconds * uploadGapThresholdMultiplier
+            Math.max(minChannelGapThresholdSeconds, node.uploadIntervalSeconds * uploadGapThresholdMultiplier)
           )}`
         : "上传周期 --"
     );
@@ -2860,11 +2885,7 @@
     if (!state.selectedNodeId) {
       return;
     }
-    if (!isMonitorPage) {
-      await loadHistory();
-    } else {
-      requestAnimationFrame(() => chartStore.metrics.forEach((chart) => chart.resize()));
-    }
+    await loadHistory();
   }
 
   async function confirmHistoryFilters() {
