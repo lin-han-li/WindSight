@@ -1,0 +1,20 @@
+[Unit]
+Description=Wanwu Shuju universal data platform
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=wanwu
+Group=wanwu
+WorkingDirectory=/opt/wanwu-shuju/current/server
+EnvironmentFile=/etc/wanwu-shuju/wanwu-shuju.env
+ExecStart=/opt/wanwu-shuju/venv/bin/gunicorn --worker-class eventlet --workers 1 --bind 127.0.0.1:8088 --timeout 120 --graceful-timeout 30 --access-logfile - --error-logfile - app:app
+Restart=always
+RestartSec=5
+TimeoutStopSec=45
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
