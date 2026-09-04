@@ -7,6 +7,9 @@
 | WindSight 风力发电机演示版 | [`wind-turbine-demo/`](./wind-turbine-demo/) | 节点、风机、固定四指标监测与历史回放 |
 | 万物数驱通用数据平台 | [`wanwu-data-platform/`](./wanwu-data-platform/) | 任意设备 JSON、动态字段、语义单位、实时与历史曲线 |
 
+## 分支说明
+
+当前页面属于 `codex/two-projects-release`，用于分别获取两个独立项目。原始 WindSight 工程和原有模拟器仍完整保留在 [`main`](https://github.com/lin-han-li/WindSight/tree/main)，其目录路径不变。详细切换和获取方法见 [`分支说明.md`](./分支说明.md)。
 ## 快速开始
 
 克隆仓库后，进入对应项目目录并阅读 `使用说明.md`：
