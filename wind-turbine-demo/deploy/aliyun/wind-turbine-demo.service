@@ -1,0 +1,21 @@
+[Unit]
+Description=WindSight wind turbine demonstration service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=winddemo
+Group=winddemo
+WorkingDirectory=/opt/wind-turbine-demo/current/server
+EnvironmentFile=/etc/wind-turbine-demo/wind-turbine-demo.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/wind-turbine-demo/venv/bin/gunicorn --worker-class eventlet --workers 1 --bind 127.0.0.1:8081 --timeout 120 --graceful-timeout 30 --access-logfile - --error-logfile - app:app
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=45
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

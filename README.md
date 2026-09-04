@@ -19,5 +19,7 @@ cd WindSight
 - 风电协议与模拟器：`wind-turbine-demo/使用说明.md`
 - 任意传感器 JSON：`wanwu-data-platform/使用说明.md`
 - 服务器部署、节点认证和完整上报协议：[`部署与终端节点上传协议.md`](./部署与终端节点上传协议.md)
+- 风电版 Alibaba Cloud Linux 3 部署模板：[`wind-turbine-demo/deploy/aliyun/`](./wind-turbine-demo/deploy/aliyun/)
+- 万物数驱 Alibaba Cloud Linux 3 部署模板：[`wanwu-data-platform/deploy/aliyun/`](./wanwu-data-platform/deploy/aliyun/)
 
 两个项目不共享数据库、端口、虚拟环境或环境变量。仓库不包含密码、云端访问凭据、SSH 配置、数据库、日志或虚拟环境。
