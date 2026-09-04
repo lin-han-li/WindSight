@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}历史回放 · 万物数驱{% endblock %}
+{% block page_title %}数据概览{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_explorer.css') }}?v=20260601-split-packet-gap">
+{% endblock %}
+
+{% block content %}
+<div id="dashboardPage" class="dashboard-page page-overview" data-page-kind="overview">
+    <div class="monitor-shell">
+        <section id="map-view" class="monitor-view is-active" aria-hidden="false">
+            <div class="card dashboard-card monitor-map-card">
+                <div class="card-header">
+                    <div>
+                        <div class="panel-kicker">节点地图</div>
+                        <div class="dashboard-title">历史分析入口地图</div>
+                        <div class="dashboard-subtitle">地图层只负责定位节点，点击后先进入该节点的发电机树，不把地图和历史分析面板堆叠在同一界面。</div>
+                    </div>
+                    <div class="map-summary" id="nodeMapSummary"></div>
+                </div>
+                <div class="card-body">
+                    <div class="iot-map-frame light-frame">
+                        <div id="nodeMapChart" class="iot-map-chart"></div>
+                    </div>
+                    <div class="fallback-shell">
+                        <div class="panel-kicker">地图图例</div>
+                        <div id="nodeMapFallback" class="fallback-node-list"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="tree-view" class="monitor-view" aria-hidden="true">
+            <div class="tree-stage">
+                <section class="card dashboard-card tree-summary-card">
+                    <div class="card-header">
+                        <div>
+                            <div class="panel-kicker">当前目标</div>
+                            <div class="dashboard-title">节点摘要</div>
+                            <div class="dashboard-subtitle">第二层用于确认当前节点并选择发电机，历史时间筛选放到第三层波形页。</div>
+                        </div>
+                    </div>
+                    <div class="card-body tree-summary-body">
+                        <div class="selection-grid">
+                            <div class="selection-kv">
+                                <span class="selection-label">节点</span>
+                                <span class="selection-value" id="selectedNodeLabel">请先点击地图节点</span>
+                            </div>
+                            <div class="selection-kv">
+                                <span class="selection-label">区域</span>
+                                <span class="selection-value" id="selectedNodeZone">--</span>
+                            </div>
+                            <div class="selection-kv">
+                                <span class="selection-label">状态</span>
+                                <span class="selection-value" id="selectedNodeStatus">--</span>
+                            </div>
+                            <div class="selection-kv">
+                                <span class="selection-label">最近上报</span>
+                                <span class="selection-value" id="selectedNodeTime">--</span>
+                            </div>
+                            <div class="selection-kv">
+                                <span class="selection-label">发电机</span>
+                                <span class="selection-value" id="selectedTurbineLabel">请在树中选择</span>
+                            </div>
+                            <div class="selection-kv">
+                                <span class="selection-label">说明</span>
+                                <span class="selection-value" id="selectedNodeDescription">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card dashboard-card tree-browser-card">
+                    <div class="card-header">
+                        <div>
+                            <div class="panel-kicker">发电机树</div>
+                            <div class="dashboard-title">发电机树</div>
+                            <div class="dashboard-subtitle">先展开分组，再点击具体发电机进入第三层历史波形页。</div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="turbineTree" class="turbine-tree"></div>
+                    </div>
+                </section>
+            </div>
+        </section>
+
+        <section id="chart-view" class="monitor-view" aria-hidden="true">
+            <div class="chart-stage chart-stage-overview">
+                <section class="ops-context-bar" aria-label="当前历史分析对象">
+                    <div class="ops-context-main">
+                        <span class="ops-context-label">数据概览</span>
+                        <div class="ops-context-title-row">
+                            <strong id="chartNodeChip">未选择节点</strong>
+                            <span id="chartTurbineChip">未选择发电机</span>
+                        </div>
+                    </div>
+                    <div class="ops-context-meta">
+                        <span class="ops-status-chip" id="chartStatusChip">等待接入</span>
+                        <span class="ops-status-chip ops-gap-chip" id="chartUploadIntervalChip">上传周期 --</span>
+                        <span class="ops-last-time">最近数据 <strong id="chartLastDataTime">--</strong></span>
+                        <button id="btnBackToTree" class="monitor-back-button" type="button">
+                            <i class="bi bi-arrow-left"></i>
+                            <span>返回发电机树</span>
+                        </button>
+                    </div>
+                </section>
+
+                <section class="ops-control-bar overview-history-panel" aria-label="历史筛选条件">
+                    <div class="ops-control-primary">
+                        <div class="ops-control-group ops-control-frame">
+                            <label class="form-label" for="historyLimit">回放帧数</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="historyLimit" value="600" min="1" max="20000" step="1">
+                                <button class="btn btn-primary" id="btnReload" type="button">确认</button>
+                            </div>
+                        </div>
+                        <div class="ops-control-group">
+                            <label class="form-label" for="historyStart">开始时间</label>
+                            <input class="form-control" id="historyStart" type="datetime-local" step="1">
+                        </div>
+                        <div class="ops-control-group">
+                            <label class="form-label" for="historyEnd">结束时间</label>
+                            <input class="form-control" id="historyEnd" type="datetime-local" step="1">
+                        </div>
+                    </div>
+                    <div class="ops-control-secondary">
+                        <div class="history-link-hint" id="historyLinkHint" role="status" aria-live="polite"></div>
+                        <div class="range-actions ops-range-actions">
+                            <button class="btn btn-outline-secondary btn-sm" type="button" data-range-min="5">近 5 分钟</button>
+                            <button class="btn btn-outline-secondary btn-sm" type="button" data-range-min="30">近 30 分钟</button>
+                            <button class="btn btn-outline-secondary btn-sm" type="button" data-range-min="120">近 2 小时</button>
+                            <button class="btn btn-outline-secondary btn-sm" type="button" data-range-min="1440">近 24 小时</button>
+                            <button class="btn btn-outline-danger btn-sm" type="button" id="btnClearRange">清空时段</button>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="metric-summary-grid">
+                    <div class="card dashboard-card metric-summary-card metric-card-voltage">
+                        <div class="card-body">
+                            <div class="metric-meta">
+                                <span class="metric-dot metric-voltage"></span>
+                                <span>电压</span>
+                            </div>
+                            <div class="metric-value" id="cardValue-voltage">--</div>
+                            <div class="metric-hint" id="cardHint-voltage">等待选择发电机</div>
+                        </div>
+                    </div>
+                    <div class="card dashboard-card metric-summary-card metric-card-current">
+                        <div class="card-body">
+                            <div class="metric-meta">
+                                <span class="metric-dot metric-current"></span>
+                                <span>电流</span>
+                            </div>
+                            <div class="metric-value" id="cardValue-current">--</div>
+                            <div class="metric-hint" id="cardHint-current">等待选择发电机</div>
+                        </div>
+                    </div>
+                    <div class="card dashboard-card metric-summary-card metric-card-speed">
+                        <div class="card-body">
+                            <div class="metric-meta">
+                                <span class="metric-dot metric-speed"></span>
+                                <span>转速</span>
+                            </div>
+                            <div class="metric-value" id="cardValue-speed">--</div>
+                            <div class="metric-hint" id="cardHint-speed">等待选择发电机</div>
+                        </div>
+                    </div>
+                    <div class="card dashboard-card metric-summary-card metric-card-temperature">
+                        <div class="card-body">
+                            <div class="metric-meta">
+                                <span class="metric-dot metric-temperature"></span>
+                                <span>温度</span>
+                            </div>
+                            <div class="metric-value" id="cardValue-temperature">--</div>
+                            <div class="metric-hint" id="cardHint-temperature">等待选择发电机</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="detailPlaceholder" class="detail-placeholder light-placeholder">
+                    <div class="detail-placeholder-copy">
+                        <div class="panel-kicker">历史下钻</div>
+                        <div class="detail-placeholder-title">请先在左侧选择节点和发电机</div>
+                        <div class="detail-placeholder-text">左侧按用户、节点、发电机展开；选中发电机后，再选择数据概览，历史分析会结合时间范围加载对应的四张联动波形图。</div>
+                    </div>
+                </div>
+
+                <div id="detailCharts" class="detail-chart-grid is-hidden">
+                    <article class="card dashboard-card detail-chart-card detail-chart-voltage">
+                        <div class="chart-card-head">
+                            <span class="chart-badge metric-voltage"></span>
+                            <span>电压波形</span>
+                        </div>
+                        <div id="chartVoltage" class="chart-canvas"></div>
+                    </article>
+                    <article class="card dashboard-card detail-chart-card detail-chart-current">
+                        <div class="chart-card-head">
+                            <span class="chart-badge metric-current"></span>
+                            <span>电流波形</span>
+                        </div>
+                        <div id="chartCurrent" class="chart-canvas"></div>
+                    </article>
+                    <article class="card dashboard-card detail-chart-card detail-chart-speed">
+                        <div class="chart-card-head">
+                            <span class="chart-badge metric-speed"></span>
+                            <span>转速波形</span>
+                        </div>
+                        <div id="chartSpeed" class="chart-canvas"></div>
+                    </article>
+                    <article class="card dashboard-card detail-chart-card detail-chart-temperature">
+                        <div class="chart-card-head">
+                            <span class="chart-badge metric-temperature"></span>
+                            <span>温度波形</span>
+                        </div>
+                        <div id="chartTemperature" class="chart-canvas"></div>
+                    </article>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/node_map_config.js') }}?v=7"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}?v=33"></script>
+{% endblock %}

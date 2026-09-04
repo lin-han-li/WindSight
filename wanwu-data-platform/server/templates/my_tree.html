@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}我的数据源 · 万物数驱{% endblock %}
+{% block page_title %}我的设备树{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/user_tree.css') }}?v=20260527-upload-interval">
+{% endblock %}
+
+{% block content %}
+<div id="deviceTreeApp" class="device-tree-page my-device-page" data-mode="my">
+    <section class="device-page-head">
+        <div>
+            <div class="panel-kicker">节点自注册</div>
+            <h2>我的设备树</h2>
+            <p>先注册自己的采集节点，服务器只接收已注册节点携带正确签名凭证的上报数据。</p>
+        </div>
+        <div class="device-page-status" id="pageStatusText">等待加载节点</div>
+    </section>
+
+    <section class="node-register-strip">
+        <form id="nodeRegisterForm" class="node-register-form">
+            <label>
+                <span>节点 ID</span>
+                <input id="nodeIdInput" name="node_id" type="text" placeholder="例如 WIN_003" autocomplete="off" required>
+            </label>
+            <label>
+                <span>显示名称</span>
+                <input id="nodeNameInput" name="display_name" type="text" placeholder="例如 桂林尧山002" autocomplete="off">
+            </label>
+            <button type="submit" class="primary-action">
+                <i class="bi bi-plus-circle"></i>
+                注册节点
+            </button>
+        </form>
+        <div id="nodeKeyPanel" class="node-key-panel is-hidden">
+            <div>
+                <strong>节点认证凭证已生成</strong>
+                <span>签名凭证会在当前节点详情中长期可见，可复制到模拟器或设备配置。</span>
+            </div>
+            <textarea id="nodeKeyText" readonly></textarea>
+            <button id="copyNodeKeyBtn" type="button" class="secondary-action">
+                <i class="bi bi-copy"></i>
+                复制密钥
+            </button>
+        </div>
+    </section>
+
+    <section class="device-workbench">
+        <aside class="tree-panel">
+            <div class="section-title">
+                <span>节点树</span>
+                <button id="refreshNodesBtn" type="button" class="icon-action" title="刷新节点">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+            <div id="nodeTreeList" class="node-tree-list"></div>
+        </aside>
+
+        <main class="device-detail-panel">
+            <div class="selected-node-band">
+                <div class="selected-node-summary">
+                    <div class="panel-kicker">当前节点</div>
+                    <div class="selected-node-title-row">
+                        <h3 id="selectedNodeTitle">请选择节点</h3>
+                        <button id="editNodeNameBtn" type="button" class="node-name-edit-trigger is-hidden">
+                            <i class="bi bi-pencil-square"></i>
+                            编辑名称
+                        </button>
+                    </div>
+                    <p id="selectedNodeMeta">点击左侧节点后查看所属发电机。</p>
+                    <form id="nodeNameEditForm" class="node-name-edit-form is-hidden">
+                        <label for="nodeNameEditInput">显示名称</label>
+                        <input id="nodeNameEditInput" type="text" maxlength="120" autocomplete="off" placeholder="留空则恢复为节点 ID">
+                        <button id="saveNodeNameBtn" type="submit" class="secondary-action">
+                            <i class="bi bi-check2"></i>
+                            保存
+                        </button>
+                        <button id="cancelNodeNameEditBtn" type="button" class="secondary-action">
+                            取消
+                        </button>
+                        <small>仅修改显示名称，节点 ID 不变。</small>
+                    </form>
+                    <form id="nodeUploadIntervalForm" class="node-upload-interval-form is-hidden">
+                        <label for="nodeUploadIntervalInput">上传周期</label>
+                        <input id="nodeUploadIntervalInput" type="number" min="5" max="86400" step="1" inputmode="numeric">
+                        <span id="nodeUploadIntervalHint">--</span>
+                        <button id="saveNodeUploadIntervalBtn" type="submit" class="secondary-action">
+                            <i class="bi bi-check2"></i>
+                            保存周期
+                        </button>
+                        <small>保存后会在下一次上传响应中下发给网关。</small>
+                    </form>
+                </div>
+                <div id="selectedNodeKeyPanel" class="selected-node-key is-hidden">
+                    <span>签名认证凭证</span>
+                    <div class="credential-lines">
+                        <small id="selectedCredentialKeyId">key_id：--</small>
+                        <small id="selectedCredentialStatus">状态：--</small>
+                    </div>
+                    <textarea id="selectedNodeKeyText" readonly></textarea>
+                    <button id="copySelectedNodeKeyBtn" type="button" class="secondary-action">
+                        <i class="bi bi-copy"></i>
+                        复制配置
+                    </button>
+                </div>
+                <button id="rotateNodeKeyBtn" type="button" class="secondary-action is-hidden">
+                    <i class="bi bi-key"></i>
+                    重置签名凭证
+                </button>
+            </div>
+
+            <section class="turbine-section">
+                <div class="section-title">
+                    <span>所属发电机</span>
+                    <small id="turbineCountText">0 台</small>
+                </div>
+                <div id="turbineList" class="turbine-list"></div>
+            </section>
+        </main>
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/user_tree.js') }}?v=20260527-upload-interval"></script>
+{% endblock %}

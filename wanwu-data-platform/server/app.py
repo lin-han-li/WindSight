@@ -1,0 +1,536 @@
+"""
+万物数驱通用数据平台 - Flask 后端主程序
+
+本文件是应用的入口点，负责：
+1. 初始化Flask应用和各类扩展
+2. 注册蓝图（路由模块化）
+3. 配置日志和中间件
+4. 启动应用
+
+大部分业务逻辑已移至 windsight 模块，保持此文件简洁。
+"""
+import os
+import logging
+import threading
+import time
+import secrets
+import string
+from pathlib import Path
+from logging.handlers import RotatingFileHandler
+from flask import Flask
+from flask_cors import CORS
+from flask_socketio import SocketIO
+from flask_login import LoginManager
+from concurrent.futures import ThreadPoolExecutor
+from sqlalchemy import text
+
+# ==================== 工作目录固定（关键）====================
+# 说明：
+# - 用户可能从项目根目录执行：python code/app.py
+# - 若不固定工作目录，日志/配置/SQLite 相对路径会跑到“当前启动目录”，导致生成很多杂文件，甚至找不到 windsight.env
+# - 这里统一切换到 app.py 所在目录（即 code/）
+BASE_DIR = Path(__file__).resolve().parent
+try:
+    os.chdir(str(BASE_DIR))
+except Exception:
+    pass
+
+# ==================== 环境变量加载 ====================
+try:
+    from dotenv import load_dotenv
+    # 说明：部分环境（例如某些 IDE/全局忽略规则）会阻止创建/读取 .env。
+    # 为了让“配置文件激活”更稳定，这里支持按优先级加载：
+    # 1) 环境变量 WINDSIGHT_ENV_FILE 指定的文件
+    # 2) 项目根目录下的 windsight.env（推荐）
+    # 3) 默认的 .env（如果存在）
+    env_file = os.environ.get("WINDSIGHT_ENV_FILE")
+    if env_file and str(env_file).strip():
+        load_dotenv(str(env_file).strip())
+    else:
+        # 先尝试 windsight.env（不容易被忽略规则拦截）
+        load_dotenv(str(BASE_DIR / "windsight.env"))
+        # 再尝试默认 .env（如果存在）
+        load_dotenv(str(BASE_DIR / ".env"))
+        # 最后加载本地私有覆盖配置；该文件应被 .gitignore 忽略
+        load_dotenv(str(BASE_DIR / ".env.local"), override=True)
+except ImportError:
+    pass
+
+# ==================== 导入配置和模型 ====================
+from windsight.config import Config
+from windsight.models import NodeUpload, RegisteredNode, TelemetryMetric, TelemetryRecord, TurbineMeasurement, User, db
+
+# ==================== Flask应用初始化 ====================
+app = Flask(__name__)
+app.config.from_object(Config)
+
+# ==================== 模板热更新（避免“改了侧边栏但页面没变”）====================
+# 说明：
+# - 当前项目通常以 debug=False 运行（生产式启动），Jinja2 会缓存模板；
+# - 这会导致你修改 templates/base.html 后，浏览器刷新仍看不到变化，必须重启服务才会加载新模板。
+# - 这里提供一个开关：WINDSIGHT_TEMPLATE_AUTO_RELOAD=1 时启用模板自动重载（开发/联调更省心）。
+try:
+    _tpl_reload = os.environ.get("WINDSIGHT_TEMPLATE_AUTO_RELOAD", "1").strip() == "1"
+    app.config["TEMPLATES_AUTO_RELOAD"] = bool(_tpl_reload)
+    app.jinja_env.auto_reload = bool(_tpl_reload)
+except Exception:
+    pass
+
+# ==================== 日志系统初始化 ====================
+def setup_logging():
+    """配置结构化日志系统"""
+    os.makedirs('logs', exist_ok=True)
+    
+    log_level = getattr(logging, app.config['LOG_LEVEL'].upper(), logging.INFO)
+    
+    # 简化版格式用于控制台
+    simple_formatter = logging.Formatter('%(levelname)s: %(message)s')
+    detailed_formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s'
+    )
+    
+    # 文件处理器
+    file_handler = RotatingFileHandler(
+        app.config['LOG_FILE'],
+        maxBytes=10*1024*1024,  # 10MB
+        backupCount=10,
+        encoding='utf-8'
+    )
+    file_handler.setFormatter(detailed_formatter)
+    file_handler.setLevel(log_level)
+    
+    # 控制台处理器
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(simple_formatter)
+    console_handler.setLevel(logging.INFO)  # 改为INFO以便看到启动信息
+    
+    # 配置根日志记录器
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_level)
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
+    
+    # 配置Flask日志
+    app.logger.setLevel(log_level)
+    app.logger.addHandler(file_handler)
+    
+    # 禁用werkzeug访问日志
+    logging.getLogger('werkzeug').setLevel(logging.ERROR)
+    
+    app.logger.info("=" * 60)
+    app.logger.info("万物数驱日志系统已初始化")
+    app.logger.info(f"日志级别: {app.config['LOG_LEVEL']}")
+    app.logger.info(f"日志文件: {app.config['LOG_FILE']}")
+    app.logger.info("=" * 60)
+
+setup_logging()
+
+# ==================== 数据库初始化 ====================
+db.init_app(app)
+
+# ==================== CORS配置 ====================
+allowed_origins = app.config['ALLOWED_ORIGINS']
+if allowed_origins == '*':
+    CORS(app)
+    app.logger.warning("CORS: 允许所有来源（开发环境）")
+else:
+    origins_list = [origin.strip() for origin in allowed_origins.split(',')]
+    CORS(app, origins=origins_list)
+    app.logger.info(f"CORS: 限制为 {origins_list}")
+
+# ==================== Flask-SocketIO 初始化 ====================
+def _select_async_mode():
+    """
+    选择 SocketIO 异步模式（eventlet / gevent / threading）
+    
+    说明（非常重要）：
+    - 在 Windows + Python 3.12+（你当前是 3.14）环境下，eventlet 0.33.x 可能因标准库变更而无法导入/运行，
+      常见报错包括：
+      - ModuleNotFoundError: No module named 'distutils'
+      - AttributeError: module 'ssl' has no attribute 'wrap_socket'
+    - 因此默认采用“自动探测”，并提供 FORCE_ASYNC_MODE 环境变量用于强制指定。
+    
+    环境变量：
+    - FORCE_ASYNC_MODE=auto|eventlet|gevent|threading
+      - auto（默认）：按 eventlet -> gevent -> threading 顺序尝试
+      - eventlet/gevent/threading：强制使用；若失败将直接抛错，避免“悄悄回退”造成误判
+    """
+    import sys
+    force = os.environ.get('FORCE_ASYNC_MODE', 'auto').strip().lower()
+    app.logger.info(f"Python版本: {sys.version}")
+    app.logger.info(f"FORCE_ASYNC_MODE={force}")
+
+    def _try_eventlet():
+        import eventlet  # noqa: F401
+        # Windows + SQLAlchemy 场景下，thread 相关 monkey_patch 有概率导致锁语义差异，
+        # 进而触发 “cannot notify on un-acquired lock”。
+        # 这里禁用 thread patch，只保留 socket/select/time 等 I/O 相关 patch。
+        eventlet.monkey_patch(thread=False)
+        return 'eventlet'
+
+    def _try_gevent():
+        import gevent  # noqa: F401
+        return 'gevent'
+
+    if force in ('threading', 'gevent', 'eventlet'):
+        try:
+            if force == 'eventlet':
+                mode = _try_eventlet()
+            elif force == 'gevent':
+                mode = _try_gevent()
+            else:
+                mode = 'threading'
+            app.logger.info(f"异步模式(强制): {mode}")
+            return mode
+        except Exception as e:
+            # 强制模式失败：直接抛错，避免误以为已启用 eventlet/gevent
+            app.logger.exception(f"强制异步模式失败: {force} - {e}")
+            raise RuntimeError(
+                f"强制异步模式失败: {force}。"
+                f"当前Python={sys.version}。"
+                f"若要使用 eventlet，建议使用 Python 3.10/3.11 重新创建虚拟环境。"
+            ) from e
+
+    # auto：依次尝试
+    try:
+        mode = _try_eventlet()
+        app.logger.info("使用 eventlet 异步模式")
+        return mode
+    except Exception as e:
+        app.logger.warning(f"eventlet 不可用，回退尝试 gevent: {e}")
+
+    try:
+        mode = _try_gevent()
+        app.logger.info("使用 gevent 异步模式")
+        return mode
+    except Exception as e:
+        app.logger.warning(f"gevent 不可用，回退到 threading: {e}")
+        return 'threading'
+
+
+ASYNC_MODE = _select_async_mode()
+
+socketio_cors_origins = app.config['ALLOWED_ORIGINS']
+if socketio_cors_origins != '*':
+    socketio_cors_origins = [origin.strip() for origin in socketio_cors_origins.split(',')]
+
+socketio = SocketIO(
+    app,
+    cors_allowed_origins=socketio_cors_origins,
+    async_mode=ASYNC_MODE,
+    logger=False,
+    engineio_logger=False,
+    ping_timeout=app.config['SOCKET_PING_TIMEOUT'],
+    ping_interval=app.config['SOCKET_PING_INTERVAL'],
+    max_http_buffer_size=int(app.config['MAX_HTTP_BUFFER_SIZE']),
+    transports=['websocket', 'polling'],
+    allow_upgrades=True,
+    cookie=None,
+    max_connections=app.config['MAX_CONNECTIONS'],
+    compression=True,
+    cors_credentials=False
+)
+
+# ==================== Flask-Login 初始化 ====================
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'auth.login'
+login_manager.login_message = '请先登录以访问此页面。'
+login_manager.login_message_category = 'info'
+
+@login_manager.user_loader
+def load_user(user_id):
+    """Flask-Login 需要的用户加载函数"""
+    return db.session.get(User, int(user_id))
+
+
+def _config_float(value):
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed
+
+
+@app.context_processor
+def inject_runtime_config():
+    """向前端暴露非敏感运行时配置。"""
+    center_lng = _config_float(app.config.get("AMAP_DEFAULT_CENTER_LNG"))
+    center_lat = _config_float(app.config.get("AMAP_DEFAULT_CENTER_LAT"))
+    default_center = [center_lng, center_lat] if center_lng is not None and center_lat is not None else None
+    return {
+        "windsight_amap_config": {
+            "enabled": bool((app.config.get("AMAP_JS_KEY") or "").strip()),
+            "jsKey": (app.config.get("AMAP_JS_KEY") or "").strip(),
+            "securityCode": (app.config.get("AMAP_SECURITY_CODE") or "").strip(),
+            "securityServiceHost": (app.config.get("AMAP_SECURITY_SERVICE_HOST") or "").strip(),
+            "defaultCenter": default_center,
+            "defaultZoom": int(app.config.get("AMAP_DEFAULT_ZOOM") or 10),
+        }
+    }
+
+
+# ==================== 全局变量（节点管理） ====================
+active_nodes = {}
+node_commands = {}
+
+# ==================== 后台任务线程池 ====================
+db_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="DB-Worker")
+
+# ==================== 注册蓝图 ====================
+from windsight.routes.auth import auth_bp
+from windsight.routes.pages import pages_bp
+from windsight.routes.api import api_bp, init_api_blueprint
+
+# 初始化API蓝图
+init_api_blueprint(app, socketio, db_executor, active_nodes, node_commands)
+
+# 注册蓝图
+app.register_blueprint(auth_bp)
+app.register_blueprint(pages_bp)
+app.register_blueprint(api_bp)
+
+app.logger.info("所有路由蓝图已注册")
+
+# ==================== WebSocket事件初始化 ====================
+from windsight.socket_events import init_socket_events
+init_socket_events(socketio, active_nodes)
+app.logger.info("WebSocket事件处理器已初始化")
+
+
+def migrate_user_role_column() -> bool:
+    """Add the users.role column for databases created before role support."""
+    user_columns = {row[1] for row in db.session.execute(text("PRAGMA table_info(users)")).fetchall()}
+    if "role" in user_columns:
+        return False
+    db.session.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user'"))
+    db.session.commit()
+    return True
+
+
+def migrate_registered_node_columns() -> bool:
+    """Add registered node columns for existing installations."""
+    registered_node_columns = {
+        row[1] for row in db.session.execute(text("PRAGMA table_info(registered_nodes)")).fetchall()
+    }
+    migrated = False
+    if "node_key_plain" not in registered_node_columns:
+        db.session.execute(text("ALTER TABLE registered_nodes ADD COLUMN node_key_plain VARCHAR(255)"))
+        migrated = True
+    if "geo_lng" not in registered_node_columns:
+        db.session.execute(text("ALTER TABLE registered_nodes ADD COLUMN geo_lng FLOAT"))
+        migrated = True
+    if "geo_lat" not in registered_node_columns:
+        db.session.execute(text("ALTER TABLE registered_nodes ADD COLUMN geo_lat FLOAT"))
+        migrated = True
+    if "upload_interval_seconds" not in registered_node_columns:
+        db.session.execute(text("ALTER TABLE registered_nodes ADD COLUMN upload_interval_seconds INTEGER NOT NULL DEFAULT 60"))
+        migrated = True
+    if migrated:
+        db.session.commit()
+    return migrated
+
+
+# ==================== 数据库初始化 ====================
+def migrate_registered_node_geo_columns() -> bool:
+    """Backward-compatible wrapper for tests and older imports."""
+    return migrate_registered_node_columns()
+
+
+with app.app_context():
+    db.create_all()
+
+    try:
+        if migrate_user_role_column():
+            app.logger.info("用户表迁移完成：已添加 role 字段")
+    except Exception as e:
+        db.session.rollback()
+        app.logger.warning(f"用户表角色字段迁移失败：{e}")
+
+    try:
+        if migrate_registered_node_columns():
+            app.logger.info("Registered node table migration complete")
+    except Exception as e:
+        db.session.rollback()
+        app.logger.warning(f"Registered node field migration failed: {e}")
+
+    # Keep legacy node_data as backup. Startup cleanup only removes unrelated tables
+    # and optionally clears the new protocol tables.
+    try:
+        legacy_tables = ["devices", "datapoints", "work_orders", "fault_snapshots"]
+        for t in legacy_tables:
+            db.session.execute(text(f"DROP TABLE IF EXISTS {t}"))
+
+        do_reset = (os.environ.get("WINDSIGHT_CLEAN_DB_ON_START", "0").strip() == "1")
+        if do_reset:
+            db.session.execute(text("DELETE FROM turbine_measurements"))
+            db.session.execute(text("DELETE FROM node_uploads"))
+            db.session.execute(text("DELETE FROM telemetry_metrics"))
+            db.session.execute(text("DELETE FROM telemetry_records"))
+            db.session.execute(text("DELETE FROM system_config"))
+
+        db.session.commit()
+        if do_reset:
+            app.logger.info("数据库清理完成：已移除旧表并清空风机与通用遥测数据（保留 users 和 legacy node_data）")
+        else:
+            app.logger.info("数据库清理完成：已移除旧表（保留 legacy node_data 备份）")
+    except Exception as e:
+        db.session.rollback()
+        app.logger.warning(f"数据库清理失败（可忽略，不影响启动）：{e}")
+    
+    # 创建默认管理员账户（用于首次登录）
+    # 说明：
+    # - 为了便于演示/部署，这里支持“首次启动自动创建管理员”
+    # - 公开仓库不再写死默认密码，请通过环境变量指定；未指定则生成随机密码并打印到日志
+    default_admin_enabled = (os.environ.get("WINDSIGHT_DEFAULT_ADMIN_ENABLED", "1").strip() == "1")
+    default_admin_username = (os.environ.get("WINDSIGHT_DEFAULT_ADMIN_USERNAME", "WindSight") or "WindSight").strip()
+    default_admin_password = (os.environ.get("WINDSIGHT_DEFAULT_ADMIN_PASSWORD") or "").strip()
+
+    def _gen_password(min_len: int = 12) -> str:
+        """
+        生成一个满足常见密码策略的随机密码（至少包含：大写/小写/数字）。
+        说明：本项目默认不强制特殊字符，因此无需包含符号也可通过验证。
+        """
+        min_len = max(8, int(min_len or 12))
+        alphabet = string.ascii_letters + string.digits
+        pw = [
+            secrets.choice(string.ascii_uppercase),
+            secrets.choice(string.ascii_lowercase),
+            secrets.choice(string.digits),
+        ]
+        for _ in range(max(0, min_len - len(pw))):
+            pw.append(secrets.choice(alphabet))
+        secrets.SystemRandom().shuffle(pw)
+        return "".join(pw)
+
+    # 兼容迁移：历史版本使用 Edge_Wind 作为默认账号
+    admin = User.query.filter_by(username=default_admin_username).first()
+    legacy_admin = User.query.filter_by(username='Edge_Wind').first()
+
+    if default_admin_enabled and (not admin) and legacy_admin:
+        try:
+            legacy_admin.username = default_admin_username
+            legacy_admin.role = "admin"
+            db.session.commit()
+            app.logger.info(f"默认管理员账户已迁移（用户名已改为 {default_admin_username}，密码保持不变）")
+        except Exception as e:
+            db.session.rollback()
+            app.logger.warning(f"迁移默认管理员失败: {e}")
+
+    admin = User.query.filter_by(username=default_admin_username).first()
+    if default_admin_enabled and admin and admin.role != "admin":
+        try:
+            admin.role = "admin"
+            db.session.commit()
+            app.logger.info(f"默认管理员角色已更新为 admin：{default_admin_username}")
+        except Exception as e:
+            db.session.rollback()
+            app.logger.warning(f"更新默认管理员角色失败：{e}")
+
+    if default_admin_enabled and (not admin):
+        admin = User(username=default_admin_username, role="admin")
+        try:
+            # 若未指定默认密码，则生成随机密码（更适合公开仓库/生产部署）
+            if not default_admin_password:
+                min_len = int(app.config.get("PASSWORD_MIN_LENGTH", 12) or 12)
+                default_admin_password = _gen_password(min_len=min_len)
+                app.logger.warning(
+                    f"未设置 WINDSIGHT_DEFAULT_ADMIN_PASSWORD，已为首次启动生成随机管理员密码：{default_admin_password}"
+                )
+                app.logger.warning("请尽快登录后修改密码，或在 windsight.env 中设置固定管理员密码。")
+
+            admin.set_password(default_admin_password, app.config)
+            db.session.add(admin)
+            db.session.commit()
+            app.logger.info(f"默认管理员账户已创建（用户名：{default_admin_username}）")
+        except ValueError as e:
+            app.logger.warning(f"创建默认管理员失败: {e}")
+    else:
+        if default_admin_enabled:
+            app.logger.info(f"管理员账户已存在（{default_admin_username}）")
+        else:
+            app.logger.info("已关闭默认管理员自动创建（WINDSIGHT_DEFAULT_ADMIN_ENABLED=0）")
+
+app.logger.info("数据库初始化完成")
+
+# ==================== 后台定时任务 ====================
+def auto_cleanup_old_data():
+    from datetime import timedelta, datetime
+    
+    while True:
+        try:
+            time.sleep(86400)  # 24小时
+            
+            with app.app_context():
+                retention_days = app.config['DATA_RETENTION_DAYS']
+                
+                if retention_days <= 0:
+                    continue
+                
+                cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
+                
+                measurement_deleted = TurbineMeasurement.query.filter(
+                    TurbineMeasurement.timestamp < cutoff_date
+                ).delete(synchronize_session=False)
+                upload_deleted = NodeUpload.query.filter(
+                    NodeUpload.timestamp < cutoff_date
+                ).delete(synchronize_session=False)
+                telemetry_metric_deleted = TelemetryMetric.query.filter(
+                    TelemetryMetric.timestamp < cutoff_date
+                ).delete(synchronize_session=False)
+                telemetry_deleted = TelemetryRecord.query.filter(
+                    TelemetryRecord.timestamp < cutoff_date
+                ).delete(synchronize_session=False)
+                
+                db.session.commit()
+                app.logger.info(
+                    "[AutoCleanup] cleanup complete: node_uploads_deleted=%s turbine_measurements_deleted=%s telemetry_records_deleted=%s telemetry_metrics_deleted=%s",
+                    int(upload_deleted or 0),
+                    int(measurement_deleted or 0),
+                    int(telemetry_deleted or 0),
+                    int(telemetry_metric_deleted or 0),
+                )
+                
+        except Exception as e:
+            app.logger.error(f"[AutoCleanup] 失败: {str(e)}")
+            db.session.rollback()
+
+# 启动后台清理任务
+cleanup_thread = threading.Thread(target=auto_cleanup_old_data, daemon=True, name="AutoCleanup")
+cleanup_thread.start()
+app.logger.info("后台定时清理任务已启动")
+
+# ==================== 应用启动 ====================
+if __name__ == '__main__':
+    # 尝试多个端口
+    PORT = int(os.environ.get('PORT', 8080))  # 默认启动端口改为8080
+    
+    print("=" * 60)
+    print("万物数驱通用数据平台启动")
+    print(f"访问地址: http://localhost:{PORT}")
+    print(f"模式: {'开发' if app.debug else '生产'}")
+    print(f"异步: {ASYNC_MODE}")
+    print("=" * 60)
+    
+    app.logger.info(f"准备在端口 {PORT} 启动服务器...")
+    
+    try:
+        socketio.run(
+            app,
+            host='0.0.0.0',
+            port=PORT,
+            debug=False,
+            use_reloader=False,
+            log_output=False,
+            allow_unsafe_werkzeug=True
+        )
+    except OSError as e:
+        winerror = getattr(e, 'winerror', None)
+        if 'address already in use' in str(e).lower() or winerror == 10048:
+            print(f"\n错误: 端口 {PORT} 被占用（WinError 10048）！")
+            print("解决方法:")
+            print("1. 关闭/结束占用端口的程序（Windows 上 PID=4 的 System 通常无法结束）")
+            print("2. 或改用备用端口，例如: set PORT=8081")
+            app.logger.error(f"端口 {PORT} 被占用: {e}")
+        else:
+            raise

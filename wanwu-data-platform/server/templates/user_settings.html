@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}个人设置 · 万物数驱{% endblock %}
+{% block page_title %}个人系统设置{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settings_console.css') }}?v=20260517-user-settings-layout">
+{% endblock %}
+
+{% block content %}
+<div class="settings-console user-settings-console" data-scope="user">
+    <section class="settings-command-bar">
+        <div>
+            <div class="settings-page-label">个人控制台</div>
+            <h2 class="settings-page-title">个人系统设置</h2>
+            <p class="settings-page-desc">这里的显示设置和数据维护只影响当前账号，不会影响其他用户或管理员全局设置。</p>
+        </div>
+        <button class="btn btn-primary settings-save-button" type="button" id="btnSaveUserSettings">
+            <i class="bi bi-save me-2"></i>保存个人设置
+        </button>
+    </section>
+
+    <section class="settings-status-strip user-settings-status" aria-label="个人数据状态">
+        <div class="settings-status-item">
+            <span>我的节点</span>
+            <strong id="myTotalNodes">--</strong>
+        </div>
+        <div class="settings-status-item">
+            <span>在线节点</span>
+            <strong id="myActiveNodes">--</strong>
+        </div>
+        <div class="settings-status-item">
+            <span>上传帧数</span>
+            <strong id="myUploads">--</strong>
+        </div>
+        <div class="settings-status-item">
+            <span>风机明细</span>
+            <strong id="myMeasurements">--</strong>
+        </div>
+        <div class="settings-status-item settings-status-long">
+            <span>最近上报</span>
+            <strong id="myLatestUpload">--</strong>
+        </div>
+    </section>
+
+    <div class="settings-layout user-settings-layout">
+        <section class="settings-panel user-settings-preferences">
+            <div class="settings-panel-header">
+                <span class="settings-panel-icon settings-panel-icon-blue"><i class="bi bi-sliders"></i></span>
+                <div>
+                    <h3>显示与刷新</h3>
+                    <p>控制当前账号页面的数据刷新节奏和调试输出。</p>
+                </div>
+            </div>
+            <div class="settings-panel-body">
+                <div class="settings-field">
+                    <label class="form-label settings-label" for="userPollInterval">数据轮询间隔（ms）</label>
+                    <div class="settings-range-row">
+                        <input type="range" class="form-range" min="500" max="30000" step="500" id="userPollInterval" value="3000">
+                        <span class="settings-inline-value" id="userPollVal">3000ms</span>
+                    </div>
+                    <div class="form-text settings-help-text">仅影响当前账号的实时监测页面 HTTP 轮询。</div>
+                </div>
+                <div class="settings-switch-stack">
+                    <div class="settings-switch-row">
+                        <div>
+                            <label class="form-check-label settings-switch-label" for="userAutoRefresh">自动刷新</label>
+                            <div class="form-text settings-help-text">关闭后，页面只在手动刷新或切换节点时加载数据。</div>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="userAutoRefresh" checked>
+                        </div>
+                    </div>
+                    <div class="settings-switch-row">
+                        <div>
+                            <label class="form-check-label settings-switch-label" for="userShowDebugLog">显示调试日志</label>
+                            <div class="form-text settings-help-text">开启后在浏览器控制台输出当前账号页面的调试信息。</div>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="userShowDebugLog">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="settings-panel settings-panel-wide user-settings-maintenance">
+            <div class="settings-panel-header">
+                <span class="settings-panel-icon settings-panel-icon-orange"><i class="bi bi-database"></i></span>
+                <div>
+                    <h3>我的数据维护</h3>
+                    <p>只清理当前账号名下节点的新协议上传数据和风机明细。</p>
+                </div>
+            </div>
+            <div class="settings-panel-body">
+                <div class="settings-maintenance-grid">
+                    <div class="settings-field">
+                        <label class="form-label settings-label" for="userLogRetention">历史数据保留时长</label>
+                        <select class="form-select" id="userLogRetention">
+                            <option value="7">保留最近 7 天</option>
+                            <option value="30">保留最近 30 天</option>
+                            <option value="90">保留最近 90 天</option>
+                            <option value="180">保留最近 180 天</option>
+                            <option value="365">保留最近 1 年</option>
+                            <option value="-1">永久保存</option>
+                        </select>
+                        <div class="form-text settings-help-text">超过保留时长的数据可通过“清理我的过期数据”删除。</div>
+                    </div>
+                    <div class="settings-action-row">
+                        <button class="btn btn-outline-primary" type="button" id="btnCleanupMyOld">
+                            <i class="bi bi-clock-history me-1"></i>清理我的过期数据
+                        </button>
+                        <button class="btn btn-outline-danger" type="button" id="btnClearMyAll">
+                            <i class="bi bi-trash me-1"></i>清空我的全部数据
+                        </button>
+                    </div>
+                </div>
+
+                <div class="settings-divider"></div>
+
+                <div class="settings-field">
+                    <label class="form-label settings-label" for="myDataNodeSelect">按节点清理我的数据</label>
+                    <div class="input-group">
+                        <select class="form-select" id="myDataNodeSelect">
+                            <option value="">加载中...</option>
+                        </select>
+                        <button class="btn btn-outline-danger" type="button" id="btnClearMyNodeData">
+                            <i class="bi bi-trash3 me-1"></i>清理节点数据
+                        </button>
+                    </div>
+                    <div class="form-text settings-help-text">只能清理自己名下节点的数据。</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="settings-panel settings-panel-danger user-settings-danger">
+            <div class="settings-panel-header">
+                <span class="settings-panel-icon settings-panel-icon-danger"><i class="bi bi-shield-exclamation"></i></span>
+                <div>
+                    <h3>删除我的节点</h3>
+                    <p>删除节点后，该节点密钥立即失效，并同步删除该节点的历史上传数据。</p>
+                </div>
+            </div>
+            <div class="settings-panel-body">
+                <div class="settings-field">
+                    <label class="form-label settings-label" for="myDeleteNodeSelect">选择节点</label>
+                    <div class="input-group">
+                        <select class="form-select" id="myDeleteNodeSelect">
+                            <option value="">加载中...</option>
+                        </select>
+                        <button class="btn btn-outline-danger settings-danger-button" type="button" id="btnDeleteMyNode">
+                            <i class="bi bi-x-circle me-1"></i>删除节点
+                        </button>
+                    </div>
+                    <div class="form-text settings-help-text">此操作不可撤销，只能删除当前账号自己的节点。</div>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/user_settings.js') }}?v=20260517-user-settings"></script>
+{% endblock %}

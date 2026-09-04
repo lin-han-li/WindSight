@@ -1,20 +1,17 @@
-output/
-mini_simulator.zip
-
-# Local secrets and machine-specific config
+# Package-wide ignore rules
 .env
-.env.local
-.env.*.local
-code/.env
-code/.env.local
-code/windsight.env
-ALiYunFuWuQi/ssh_config
-
-# Python/generated files
+.env.*
+*.db
+*.db-wal
+*.db-shm
+*.log
 __pycache__/
 *.py[cod]
 venv/
 venv311/
-mini_one_node/venv/
-mini_server/venv/
-mini_simulator/venv/
+logs/
+instance/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

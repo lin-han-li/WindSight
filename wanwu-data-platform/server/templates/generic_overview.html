@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}历史回放 · 万物数驱{% endblock %}
+{% block page_title %}历史回放{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/generic_dashboard.css') }}?v=20260823-legacy-shell">
+{% endblock %}
+
+{% block content %}
+<div id="genericDashboard" class="generic-dashboard" data-page-mode="history">
+    <section class="generic-hero" aria-labelledby="genericPageTitle">
+        <div>
+            <div class="generic-eyebrow"><i class="bi bi-boxes"></i> 万物数驱</div>
+            <h2 id="genericPageTitle">历史回放</h2>
+            <p>按数据源、字段和时间范围检索任意 JSON 上报留下的数值轨迹。</p>
+        </div>
+        <div class="generic-live-status" id="telemetryConnectionStatus" role="status" aria-live="polite">
+            <span class="generic-status-dot is-pending"></span>
+            <span>正在连接数据通道</span>
+        </div>
+    </section>
+
+    <nav class="generic-mode-tabs" aria-label="数据视图切换">
+        <div class="generic-mode-tab-list">
+            <a class="generic-mode-tab" href="/monitor" data-telemetry-mode-link="realtime">
+                <i class="bi bi-activity"></i>
+                <span>实时数据</span>
+            </a>
+            <a class="generic-mode-tab is-active" href="/overview" data-telemetry-mode-link="history" aria-current="page">
+                <i class="bi bi-clock-history"></i>
+                <span>历史回放</span>
+            </a>
+        </div>
+        <div class="generic-mode-source-context" role="status" aria-live="polite">
+            <span>当前数据源</span>
+            <strong id="telemetryModeSource">尚未选择</strong>
+        </div>
+    </nav>
+
+    <section class="generic-panel generic-source-panel" aria-labelledby="telemetrySourceTitle">
+        <div class="generic-panel-heading">
+            <div>
+                <span class="generic-kicker">01 / 数据源</span>
+                <h3 id="telemetrySourceTitle">选择数据源</h3>
+                <p>选择需要回放的任意设备、业务或采集来源。</p>
+            </div>
+            <button class="btn btn-outline-secondary btn-sm generic-icon-button" id="refreshTelemetrySources" type="button" title="刷新数据源" aria-label="刷新数据源">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        </div>
+        <div class="generic-source-controls">
+            <label class="visually-hidden" for="telemetrySourceSelect">数据源</label>
+            <select id="telemetrySourceSelect" class="form-select" disabled>
+                <option value="">正在加载数据源…</option>
+            </select>
+            <div class="generic-source-details" id="telemetrySourceDetails">
+                <div class="generic-source-detail"><span>当前来源</span><strong id="telemetrySourceId">--</strong></div>
+                <div class="generic-source-detail"><span>最后数据</span><strong id="telemetrySourceLastSeen">--</strong></div>
+                <div class="generic-source-detail"><span>可用字段</span><strong id="telemetryFieldCount">0</strong></div>
+            </div>
+        </div>
+        <div class="generic-inline-empty" id="telemetrySourceEmpty" hidden>
+            <i class="bi bi-inboxes"></i>
+            <span>尚未发现数据源。设备首次上报后会自动出现在这里。</span>
+        </div>
+    </section>
+
+    <section class="generic-panel generic-fields-panel" aria-labelledby="telemetryFieldsTitle">
+        <div class="generic-panel-heading generic-panel-heading-inline">
+            <div>
+                <span class="generic-kicker">02 / 可视字段</span>
+                <h3 id="telemetryFieldsTitle">选择数值字段</h3>
+                <p>系统根据已存数据自动识别数值字段；可自由组合曲线。</p>
+            </div>
+            <div class="generic-field-actions">
+                <button class="btn btn-link btn-sm" id="selectAllTelemetryFields" type="button">全选</button>
+                <button class="btn btn-link btn-sm" id="clearTelemetryFields" type="button">清空</button>
+            </div>
+        </div>
+        <div class="generic-field-list" id="telemetryFieldList" aria-live="polite">
+            <div class="generic-fields-placeholder"><i class="bi bi-sliders"></i> 选择数据源后加载可视字段</div>
+        </div>
+    </section>
+
+    <section class="generic-panel generic-history-filter" aria-labelledby="telemetryHistoryTitle">
+        <div class="generic-panel-heading generic-panel-heading-inline">
+            <div>
+                <span class="generic-kicker">03 / 检索范围</span>
+                <h3 id="telemetryHistoryTitle">设置回放条件</h3>
+                <p>时间范围为空时，按最近记录回放。</p>
+            </div>
+            <button class="btn btn-primary" id="reloadTelemetryData" type="button"><i class="bi bi-search"></i> 查询历史</button>
+        </div>
+        <div class="generic-history-controls">
+            <label>开始时间
+                <input id="telemetryHistoryStart" class="form-control" type="datetime-local" step="1">
+            </label>
+            <label>结束时间
+                <input id="telemetryHistoryEnd" class="form-control" type="datetime-local" step="1">
+            </label>
+            <label>最多记录数
+                <input id="telemetryHistoryLimit" class="form-control" type="number" min="1" max="20000" step="1" value="1000">
+            </label>
+            <div class="generic-range-actions" role="group" aria-label="快捷时间范围">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-telemetry-range="5">近 5 分钟</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-telemetry-range="30">近 30 分钟</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-telemetry-range="120">近 2 小时</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-telemetry-range="1440">近 24 小时</button>
+                <button type="button" class="btn btn-link btn-sm" id="clearTelemetryRange">清空时段</button>
+            </div>
+        </div>
+    </section>
+
+    <section class="generic-summary" aria-label="当前记录摘要">
+        <div class="generic-summary-head">
+            <div>
+                <span class="generic-kicker">当前结果</span>
+                <h3>最新数值摘要</h3>
+            </div>
+            <span class="generic-timestamp" id="telemetryLatestTimestamp">--</span>
+        </div>
+        <div class="generic-metric-grid" id="telemetryMetricGrid">
+            <div class="generic-metrics-placeholder">选择数值字段并查询历史后，这里将显示最新值。</div>
+        </div>
+    </section>
+
+    <section class="generic-workspace" aria-label="历史数据详情">
+        <article class="generic-panel generic-chart-panel">
+            <div class="generic-panel-heading generic-panel-heading-inline">
+                <div>
+                    <span class="generic-kicker">历史趋势</span>
+                    <h3>字段曲线</h3>
+                    <p id="telemetryChartHint">设置回放条件后查询。</p>
+                </div>
+                <span class="generic-chart-records" id="telemetryChartRecordCount">0 条</span>
+            </div>
+            <div class="generic-chart-wrap">
+                <div id="telemetryChart" class="generic-chart" role="img" aria-label="历史数据字段曲线"></div>
+                <div id="telemetryChartEmpty" class="generic-chart-empty">
+                    <i class="bi bi-graph-up-arrow"></i>
+                    <strong>暂无可绘制数据</strong>
+                    <span>选择字段和时间范围后开始回放。</span>
+                </div>
+            </div>
+        </article>
+
+        <article class="generic-panel generic-json-panel">
+            <div class="generic-panel-heading generic-panel-heading-inline">
+                <div>
+                    <span class="generic-kicker">原始报文</span>
+                    <h3>JSON 查看器</h3>
+                    <p id="telemetryJsonHint">显示所选记录的原始数据。</p>
+                </div>
+                <button class="btn btn-outline-secondary btn-sm" id="copyTelemetryJson" type="button"><i class="bi bi-clipboard"></i> 复制</button>
+            </div>
+            <div class="generic-json-meta">
+                <span id="telemetryJsonRecordId">记录 --</span>
+                <span id="telemetryJsonTimestamp">--</span>
+            </div>
+            <pre id="telemetryJsonViewer" class="generic-json-viewer" tabindex="0">{\n  "message": "等待查询"\n}</pre>
+        </article>
+    </section>
+
+    <section class="generic-panel generic-records-panel" aria-labelledby="telemetryRecordsTitle">
+        <div class="generic-panel-heading generic-panel-heading-inline">
+            <div>
+                <span class="generic-kicker">查询结果</span>
+                <h3 id="telemetryRecordsTitle">记录列表</h3>
+                <p>点击任意记录查看该时刻收到的完整 JSON。</p>
+            </div>
+            <span class="generic-record-result" id="telemetryRecordState">等待查询</span>
+        </div>
+        <div class="generic-record-list" id="telemetryRecordList">
+            <div class="generic-records-placeholder">暂无记录</div>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/generic_dashboard.js') }}?v=20260823-legacy-shell"></script>
+{% endblock %}

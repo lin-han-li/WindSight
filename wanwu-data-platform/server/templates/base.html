@@ -1,0 +1,3104 @@
+<!DOCTYPE html>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}万物数驱{% endblock %}</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Google Fonts: Roboto Mono for numbers -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    <!-- ECharts 5.0 -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <!-- Socket.IO Client -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        (function() {
+            const THEME_STORAGE_KEY = 'windsightThemeMode';
+            let theme = 'dark'; // Default to industrial dark mode
+            try {
+                const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+                if (storedTheme === 'dark' || storedTheme === 'light') {
+                    theme = storedTheme;
+                }
+            } catch (error) {
+                console.warn('[theme] failed to read local theme preference', error);
+            }
+            document.documentElement.setAttribute('data-theme', theme);
+            window.__windsightTheme = theme;
+        })();
+    </script>
+    
+    <style>
+        :root {
+            --sidebar-dark: #1e293b;
+            --sidebar-dark-hover: #334155;
+            --sidebar-default-width: 260px;
+            --sidebar-min-width: 220px;
+            --sidebar-max-width: 560px;
+            --primary-blue: #2563eb;
+            --bg-light: #f8fafc;
+            --success-green: #10b981;
+            --warning-orange: #f59e0b;
+            --danger-red: #ef4444;
+            --text-gray: #64748b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #ffffff;
+            background-color: #ffffff;
+            overflow-x: hidden;
+            color: #1f2937;
+        }
+
+        body[data-user-role="admin"] {
+            --sidebar-default-width: 244px;
+        }
+
+        /* ========== 左侧导航栏 ========== */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: var(--sidebar-width, var(--sidebar-default-width, 260px));
+            height: 100vh;
+            background: var(--sidebar-dark);
+            color: white;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            transition: width 0.16s ease;
+        }
+
+        .sidebar-resize-handle {
+            position: absolute;
+            top: 0;
+            right: -4px;
+            width: 8px;
+            height: 100%;
+            z-index: 1002;
+            cursor: col-resize;
+            touch-action: none;
+        }
+
+        .sidebar-resize-handle::before {
+            content: "";
+            position: absolute;
+            top: 12px;
+            bottom: 12px;
+            left: 3px;
+            width: 2px;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.28);
+            opacity: 0;
+            transition: opacity 0.16s ease, background-color 0.16s ease;
+        }
+
+        .sidebar-resize-handle:hover::before,
+        .sidebar-resize-handle.is-active::before,
+        body.is-resizing-sidebar .sidebar-resize-handle::before {
+            opacity: 1;
+            background: rgba(37, 99, 235, 0.58);
+        }
+
+        body.is-resizing-sidebar,
+        body.is-resizing-sidebar * {
+            cursor: col-resize !important;
+            user-select: none !important;
+        }
+
+        body.is-resizing-sidebar .sidebar,
+        body.is-resizing-sidebar .main-content {
+            transition: none !important;
+        }
+
+        .sidebar-header {
+            padding: 24px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .sidebar-logo {
+            width: 40px;
+            height: 40px;
+            background: var(--primary-blue);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: bold;
+            color: white;
+        }
+
+        .sidebar-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .sidebar-subtitle {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-top: 2px;
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 20px 0;
+            overflow-y: auto;
+        }
+
+        .nav-item {
+            padding: 12px 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: rgba(255,255,255,0.7);
+            border-left: 3px solid transparent;
+            text-decoration: none;
+        }
+
+        /* 说明：侧边栏允许 3 个主菜单项（数据概览 / 系统概览 / 节点管理） */
+
+        .nav-item:hover {
+            background: var(--sidebar-dark-hover);
+            color: white;
+            border-left-color: var(--primary-blue);
+        }
+
+        .nav-item.active {
+            background: rgba(37, 99, 235, 0.2);
+            color: white;
+            border-left-color: var(--primary-blue);
+        }
+
+        .nav-item i {
+            width: 20px;
+            font-size: 18px;
+        }
+
+        .nav-group-label {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            padding: 12px 20px;
+            border: 0;
+            border-left: 3px solid transparent;
+            background: transparent;
+            color: rgba(255,255,255,0.7);
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .nav-group-label:hover {
+            background: var(--sidebar-dark-hover);
+            color: white;
+            border-left-color: var(--primary-blue);
+        }
+
+        .nav-group-label i:first-child {
+            width: 20px;
+            font-size: 18px;
+        }
+
+        .nav-group-label .nav-group-caret {
+            margin-left: auto;
+            font-size: 12px;
+            transition: transform 0.2s;
+        }
+
+        .nav-group.is-open .nav-group-caret {
+            transform: rotate(180deg);
+        }
+
+        .nav-submenu {
+            display: none;
+            padding: 4px 0 6px 26px;
+        }
+
+        .nav-group.is-open .nav-submenu {
+            display: block;
+        }
+
+        .nav-submenu .nav-item {
+            padding-top: 10px;
+            padding-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .nav-subtitle {
+            padding: 10px 20px 6px 20px;
+            color: rgba(255,255,255,0.42);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .nav-section-title {
+            padding: 12px 20px 6px 20px;
+            color: rgba(255,255,255,0.46);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+        }
+
+        .nav-sidebar-user-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 0 10px 8px 0;
+        }
+
+        .nav-user-link {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            width: 100%;
+            margin-left: 0;
+            padding: 9px 14px 9px 20px;
+            color: rgba(255,255,255,0.68);
+            border: 0;
+            border-left: 3px solid transparent;
+            border-radius: 0 10px 10px 0;
+            background: transparent;
+            text-decoration: none;
+            font-size: 13px;
+            font-family: inherit;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .nav-user-link:hover,
+        .nav-user-link.active {
+            color: white;
+            background: rgba(37, 99, 235, 0.18);
+            border-left-color: var(--primary-blue);
+        }
+
+        .nav-user-link small {
+            color: rgba(255,255,255,0.48);
+            font-size: 11px;
+            white-space: nowrap;
+        }
+
+        .nav-user-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 30px;
+            align-items: stretch;
+        }
+
+        .nav-user-row .nav-user-link {
+            min-width: 0;
+        }
+
+        .nav-user-toggle {
+            margin-right: 6px;
+            border: 0;
+            border-radius: 8px;
+            color: rgba(255,255,255,0.58);
+            background: transparent;
+            cursor: pointer;
+        }
+
+        .nav-user-toggle:hover {
+            color: white;
+            background: rgba(255,255,255,0.08);
+        }
+
+        .nav-user-toggle i {
+            transition: transform 0.18s;
+        }
+
+        .nav-user-block.is-open .nav-user-toggle i {
+            transform: rotate(180deg);
+        }
+
+        .nav-node-list {
+            display: none;
+            padding: 2px 10px 8px 18px;
+        }
+
+        .nav-user-block.is-open .nav-node-list {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .nav-node-block {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .nav-node-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 26px 26px 26px;
+            align-items: stretch;
+        }
+
+        .nav-node-link {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            width: 100%;
+            padding: 7px 10px 7px 18px;
+            border: 0;
+            border-left: 2px solid rgba(255,255,255,0.16);
+            border-radius: 0 8px 8px 0;
+            background: transparent;
+            color: rgba(255,255,255,0.58);
+            text-decoration: none;
+            font-size: 12px;
+            font-family: inherit;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .nav-node-link:hover,
+        .nav-node-link.active {
+            color: white;
+            border-left-color: var(--success-green);
+            background: rgba(16, 185, 129, 0.12);
+        }
+
+        .nav-node-link small {
+            color: rgba(255,255,255,0.42);
+            font-size: 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .nav-node-geo-status {
+            color: rgba(255,255,255,0.42);
+        }
+
+        .nav-node-geo-status.is-configured {
+            color: #38bdf8;
+        }
+
+        .nav-node-location,
+        .nav-node-map,
+        .nav-node-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 4px;
+            border: 0;
+            border-radius: 7px;
+            color: rgba(255,255,255,0.52);
+            background: transparent;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .nav-node-location:hover,
+        .nav-node-map:hover,
+        .nav-node-map.is-active,
+        .nav-node-toggle:hover {
+            color: white;
+            background: rgba(255,255,255,0.08);
+        }
+
+        .nav-node-toggle i {
+            transition: transform 0.18s;
+        }
+
+        .nav-node-block.is-open .nav-node-toggle i {
+            transform: rotate(180deg);
+        }
+
+        .nav-turbine-list {
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            padding: 4px 8px 8px 34px;
+        }
+
+        .nav-node-block.is-open .nav-turbine-list {
+            display: flex;
+        }
+
+        .nav-turbine-block {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .nav-turbine-link {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            min-height: 30px;
+            width: 100%;
+            padding: 5px 8px;
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 7px;
+            background: transparent;
+            color: rgba(255,255,255,0.50);
+            text-decoration: none;
+            font-size: 11px;
+            font-family: 'Roboto Mono', 'Microsoft YaHei', monospace;
+            cursor: pointer;
+        }
+
+        .nav-turbine-link:hover,
+        .nav-turbine-link.active {
+            color: white;
+            border-left-color: #38bdf8;
+            background: rgba(56, 189, 248, 0.12);
+        }
+
+        .nav-turbine-link small {
+            display: none;
+            color: rgba(255,255,255,0.40);
+            font-size: 10px;
+        }
+
+        .nav-telemetry-field-link {
+            gap: 8px;
+            justify-content: flex-start;
+        }
+
+        .nav-telemetry-field-label {
+            overflow: hidden;
+            min-width: 0;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .nav-turbine-link .nav-telemetry-field-unit {
+            display: inline;
+            flex: 0 0 auto;
+            color: rgba(255,255,255,0.44);
+            font-size: 10px;
+            white-space: nowrap;
+        }
+
+        .nav-turbine-link i {
+            font-size: 10px;
+            transition: transform 0.18s;
+        }
+
+        .nav-turbine-block.is-open .nav-turbine-link i {
+            transform: rotate(180deg);
+        }
+
+        .nav-function-list {
+            display: none;
+            grid-template-columns: 1fr;
+            gap: 3px;
+            padding: 1px 0 2px 10px;
+        }
+
+        .nav-turbine-block.is-open .nav-function-list {
+            display: grid;
+        }
+
+        .nav-function-link {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            min-height: 28px;
+            padding: 5px 8px;
+            border-left: 2px solid rgba(255,255,255,0.14);
+            border-radius: 0 7px 7px 0;
+            color: rgba(255,255,255,0.58);
+            text-decoration: none;
+            font-size: 12px;
+        }
+
+        .nav-function-link:hover,
+        .nav-function-link.is-active {
+            color: white;
+            border-left-color: var(--primary-blue);
+            background: rgba(37, 99, 235, 0.16);
+        }
+
+        .nav-sidebar-empty {
+            padding: 8px 18px 10px 20px;
+            color: rgba(255,255,255,0.42);
+            font-size: 12px;
+        }
+
+        .nav-user-list-section {
+            padding-top: 4px;
+        }
+
+        .nav-user-list-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            width: calc(100% - 16px);
+            margin: 0 8px 6px 0;
+            padding: 10px 14px 10px 20px;
+            border: 0;
+            border-left: 3px solid transparent;
+            border-radius: 0 10px 10px 0;
+            color: rgba(255,255,255,0.72);
+            background: transparent;
+            text-align: left;
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        .nav-user-list-toggle:hover,
+        .nav-user-list-section.is-open .nav-user-list-toggle {
+            color: white;
+            background: rgba(37, 99, 235, 0.16);
+            border-left-color: var(--primary-blue);
+        }
+
+        .nav-user-list-toggle i {
+            transition: transform 0.18s;
+        }
+
+        .nav-user-list-section.is-open .nav-user-list-toggle i {
+            transform: rotate(180deg);
+        }
+
+        .nav-user-list-section:not(.is-open) .nav-sidebar-user-list {
+            display: none;
+        }
+
+        .node-location-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 2500;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: rgba(15, 23, 42, 0.58);
+        }
+
+        .node-location-modal.is-open {
+            display: flex;
+        }
+
+        .node-location-dialog {
+            width: min(440px, 100%);
+            border: 1px solid rgba(148, 163, 184, 0.28);
+            border-radius: 14px;
+            background: #ffffff;
+            color: #0f172a;
+            box-shadow: 0 24px 80px rgba(15, 23, 42, 0.34);
+            overflow: hidden;
+        }
+
+        [data-theme="dark"] .node-location-dialog,
+        html[data-theme="dark"] .node-location-dialog {
+            border-color: rgba(56, 189, 248, 0.24);
+            background: #0f172a;
+            color: #e5f2ff;
+        }
+
+        .node-location-header,
+        .node-location-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 16px 18px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.24);
+        }
+
+        .node-location-footer {
+            border-top: 1px solid rgba(148, 163, 184, 0.24);
+            border-bottom: 0;
+            justify-content: flex-end;
+        }
+
+        .node-location-title {
+            font-size: 16px;
+            font-weight: 800;
+        }
+
+        .node-location-close {
+            width: 32px;
+            height: 32px;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: inherit;
+            cursor: pointer;
+        }
+
+        .node-location-close:hover {
+            background: rgba(148, 163, 184, 0.18);
+        }
+
+        .node-location-body {
+            padding: 18px;
+        }
+
+        .node-location-node {
+            margin-bottom: 14px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: rgba(37, 99, 235, 0.08);
+            color: inherit;
+            font-weight: 700;
+        }
+
+        .node-location-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .node-location-field label {
+            display: block;
+            margin-bottom: 6px;
+            color: #475569;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        [data-theme="dark"] .node-location-field label,
+        html[data-theme="dark"] .node-location-field label {
+            color: #a8c2dd;
+        }
+
+        .node-location-field input {
+            width: 100%;
+            height: 38px;
+            border: 1px solid rgba(148, 163, 184, 0.52);
+            border-radius: 8px;
+            padding: 0 10px;
+            background: #ffffff;
+            color: #0f172a;
+            outline: none;
+        }
+
+        [data-theme="dark"] .node-location-field input,
+        html[data-theme="dark"] .node-location-field input {
+            border-color: rgba(56, 189, 248, 0.24);
+            background: #111c2f;
+            color: #e5f2ff;
+        }
+
+        .node-location-error {
+            min-height: 20px;
+            margin-top: 10px;
+            color: #dc2626;
+            font-size: 13px;
+        }
+
+        .node-location-btn {
+            min-width: 86px;
+            height: 36px;
+            border: 1px solid rgba(148, 163, 184, 0.42);
+            border-radius: 8px;
+            padding: 0 14px;
+            background: #ffffff;
+            color: #0f172a;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .node-location-btn:hover {
+            background: #f1f5f9;
+        }
+
+        .node-location-btn.primary {
+            border-color: #2563eb;
+            background: #2563eb;
+            color: #ffffff;
+        }
+
+        .node-location-btn.danger {
+            border-color: rgba(220, 38, 38, 0.4);
+            color: #dc2626;
+        }
+
+        [data-theme="dark"] .node-location-btn,
+        html[data-theme="dark"] .node-location-btn {
+            border-color: rgba(56, 189, 248, 0.22);
+            background: #111c2f;
+            color: #e5f2ff;
+        }
+
+        [data-theme="dark"] .node-location-btn:hover,
+        html[data-theme="dark"] .node-location-btn:hover {
+            background: #17243a;
+        }
+
+        [data-theme="dark"] .node-location-btn.primary,
+        html[data-theme="dark"] .node-location-btn.primary {
+            background: #38bdf8;
+            border-color: #38bdf8;
+            color: #082f49;
+        }
+
+        [data-theme="dark"] .node-location-btn.danger,
+        html[data-theme="dark"] .node-location-btn.danger {
+            color: #fca5a5;
+        }
+
+        .sidebar-footer {
+            padding: 20px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            font-size: 12px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success-green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .project-info {
+            opacity: 0.7;
+            line-height: 1.6;
+        }
+
+        /* ========== 主内容区 ========== */
+        .main-content {
+            margin-left: var(--sidebar-width, var(--sidebar-default-width, 260px));
+            min-height: 100vh;
+            background: transparent;
+            transition: margin-left 0.16s ease;
+        }
+
+        /* 顶部栏 */
+        .topbar {
+            background: #ffffff;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 16px 32px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .topbar-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .page-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1f2937 !important;
+            letter-spacing: 1px;
+        }
+
+        .system-status-badge {
+            background: var(--success-green);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .topbar-center {
+            flex: 1;
+            max-width: 400px;
+            margin: 0 32px;
+        }
+
+        .search-box {
+            position: relative;
+            width: 100%;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 10px 16px 10px 40px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            background: #ffffff;
+            color: #1f2937;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .search-box input::placeholder {
+            color: #9ca3af;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            background: #ffffff;
+        }
+
+        .search-box i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6b7280;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* 搜索建议下拉框 */
+        .search-dropdown {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            display: none;
+            z-index: 9999;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 4px;
+        }
+
+        .search-dropdown.show {
+            display: block;
+        }
+
+        .search-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid #f5f5f5;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.15s ease;
+        }
+
+        .search-item:last-child {
+            border-bottom: none;
+        }
+
+        .search-item:hover,
+        .search-item.highlighted {
+            background: #f8f9fa;
+        }
+
+        .search-item-name {
+            font-size: 14px;
+            color: #1e293b;
+            font-weight: 500;
+            flex: 1;
+        }
+
+        .search-item-category {
+            font-size: 11px;
+            color: #94a3b8;
+            background: #f1f5f9;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-left: 12px;
+            white-space: nowrap;
+        }
+
+        .search-item-icon {
+            font-size: 12px;
+            color: var(--text-gray);
+            margin-right: 8px;
+        }
+
+        .search-section-header {
+            padding: 8px 16px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e5e7eb;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .search-empty {
+            padding: 24px;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 14px;
+        }
+
+        .topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .notification-icon {
+            position: relative;
+            cursor: pointer;
+            font-size: 20px;
+            color: var(--text-gray);
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            width: 8px;
+            height: 8px;
+            background: var(--danger-red);
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+
+        /* ========== 消息中心样式 ========== */
+        .nav-message-center {
+            position: relative;
+            cursor: pointer;
+            font-size: 20px;
+            color: var(--text-gray);
+            margin-right: 20px;
+            transition: color 0.2s ease;
+        }
+
+        .nav-message-center:hover {
+            color: var(--primary-blue);
+        }
+
+        .msg-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #ff4d4f;
+            color: white;
+            border-radius: 10px;
+            padding: 2px 6px;
+            font-size: 10px;
+            font-weight: 600;
+            min-width: 18px;
+            text-align: center;
+            display: none;
+            line-height: 14px;
+        }
+
+        .msg-badge.show {
+            display: block;
+        }
+
+        .msg-dropdown {
+            position: absolute;
+            top: calc(100% + 10px);
+            right: 0;
+            width: 320px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            display: none;
+            max-height: 400px;
+            overflow: hidden;
+            z-index: 9999;
+        }
+
+        .msg-dropdown.show {
+            display: block;
+        }
+
+        .msg-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid #f5f5f5;
+            font-size: 13px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            transition: background-color 0.15s ease;
+        }
+
+        .msg-item:last-child {
+            border-bottom: none;
+        }
+
+        .msg-item:hover {
+            background: #f8fafc;
+        }
+
+        .msg-item-icon {
+            font-size: 16px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .msg-item-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .msg-item-text {
+            color: #1e293b;
+            line-height: 1.5;
+            word-break: break-word;
+        }
+
+        .msg-time {
+            color: #94a3b8;
+            font-size: 11px;
+            margin-top: 4px;
+        }
+
+        .msg-item.online .msg-item-icon {
+            color: #10b981;
+        }
+
+        .msg-item.offline .msg-item-icon {
+            color: #f59e0b;
+        }
+
+        .msg-item.fault .msg-item-icon {
+            color: #ef4444;
+        }
+
+        .msg-item.info .msg-item-icon {
+            color: #3b82f6;
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--primary-blue);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+        }
+
+        .user-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .user-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: #1f2937;
+        }
+
+        .user-role {
+            font-size: 12px;
+            color: var(--text-gray);
+        }
+
+        /* 内容区域 */
+        .content-area {
+            padding: 32px;
+        }
+
+        /* 卡片样式 */
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 24px;
+        }
+
+        .card-header {
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 16px 24px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .card-body {
+            padding: 24px;
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s;
+            }
+
+            .sidebar-resize-handle {
+                display: none;
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+        }
+
+        /* ========== Toast 通知样式 ========== */
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .custom-toast {
+            background: #fff;
+            border-radius: 8px;
+            padding: 12px 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            margin-bottom: 10px;
+            border-left: 4px solid #28a745;
+            animation: slideIn 0.3s ease;
+            min-width: 300px;
+            max-width: 400px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .custom-toast.success {
+            border-left-color: #28a745;
+        }
+        
+        .custom-toast.warning {
+            border-left-color: #ffc107;
+        }
+        
+        .custom-toast.error {
+            border-left-color: #dc3545;
+        }
+        
+        .custom-toast.info {
+            border-left-color: #0dcaf0;
+        }
+        
+        .custom-toast-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        
+        .custom-toast-content {
+            flex: 1;
+        }
+        
+        .custom-toast-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 4px;
+            color: #1e293b;
+        }
+        
+        .custom-toast-message {
+            font-size: 13px;
+            color: #64748b;
+        }
+        
+        .custom-toast-close {
+            cursor: pointer;
+            color: #94a3b8;
+            font-size: 18px;
+            flex-shrink: 0;
+            padding: 4px;
+            line-height: 1;
+        }
+        
+        .custom-toast-close:hover {
+            color: #64748b;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+        
+        .custom-toast.fade-out {
+            animation: slideOut 0.3s ease forwards;
+        }
+    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/cyber_shell.css') }}?v=20260521-sidebar-resize-wide">
+
+    {% block extra_css %}{% endblock %}
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="windsight-shell" data-theme="dark" data-user-role="{{ current_user.role if current_user.is_authenticated else '' }}" data-user-id="{{ current_user.id if current_user.is_authenticated else '' }}" data-username="{{ current_user.username if current_user.is_authenticated else '' }}">
+    <script>
+        document.body.setAttribute('data-theme', document.documentElement.getAttribute('data-theme') || window.__windsightTheme || 'dark');
+    </script>
+    <!-- 左侧导航栏 -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">W</div>
+            <div>
+                <div class="sidebar-title">万物数驱</div>
+                <div class="sidebar-subtitle">通用数据平台</div>
+            </div>
+        </div>
+        <div class="sidebar-nav">
+            {% if current_user.is_authenticated and current_user.role == 'admin' %}
+            <div class="nav-section-title">后台控制</div>
+            <div class="nav-admin-links" id="adminToolsNavGroup">
+                <a href="/system_overview" class="nav-item nav-subitem" data-page="system_overview">
+                    <i class="bi bi-grid-3x3-gap"></i>
+                    <span>系统概览</span>
+                </a>
+                <a href="/admin/users" class="nav-item nav-subitem" data-page="admin_users">
+                    <i class="bi bi-people"></i>
+                    <span>用户管理</span>
+                </a>
+                <a href="/settings" class="nav-item nav-subitem" data-page="settings">
+                    <i class="bi bi-gear"></i>
+                    <span>系统设置</span>
+                </a>
+            </div>
+
+            <div class="nav-section-title">数据源导航</div>
+            <div class="nav-group" id="deviceSelectNavGroup">
+                <button class="nav-group-label" type="button">
+                    <i class="bi bi-hdd-network"></i>
+                    <span>数据源</span>
+                    <i class="bi bi-chevron-down nav-group-caret"></i>
+                </button>
+                <div class="nav-submenu">
+                    <div id="adminUserTreeNav" class="nav-sidebar-user-list">
+                        <div class="nav-sidebar-empty">正在加载用户...</div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="nav-section-title">数据工作区</div>
+            <div class="nav-group" id="myDeviceSelectNavGroup">
+                <button class="nav-group-label" type="button">
+                    <i class="bi bi-hdd-network"></i>
+                    <span>我的数据源</span>
+                    <i class="bi bi-chevron-down nav-group-caret"></i>
+                </button>
+                <div class="nav-submenu">
+                    <div id="myDeviceTreeNav" class="nav-sidebar-user-list">
+                        <div class="nav-sidebar-empty">正在加载节点...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="nav-section-title">数据源管理</div>
+            <a href="/my/tree" class="nav-item" data-page="my_tree">
+                <i class="bi bi-diagram-3"></i>
+                <span>我的数据源</span>
+            </a>
+            <a href="/settings" class="nav-item" data-page="settings">
+                <i class="bi bi-gear"></i>
+                <span>系统设置</span>
+            </a>
+            {% endif %}
+        </div>
+        <div class="sidebar-footer">
+            <div class="status-indicator">
+                <div class="status-dot"></div>
+                <span>数据源在线 (<span id="sidebar-online-count">0</span>/<span id="sidebar-total-count">0</span>)</span>
+            </div>
+            <div class="project-info">
+                <div><i class="bi bi-bezier2" style="margin-right: 6px;"></i>万物数驱通用数据平台</div>
+                <div style="margin-top: 8px;">任意 JSON 接入 + SQLite 存储 + 实时/历史可视化</div>
+            </div>
+        </div>
+        <div class="sidebar-resize-handle" id="sidebarResizeHandle" role="separator" aria-orientation="vertical" aria-label="Resize sidebar" title="Drag to resize sidebar. Double-click to reset."></div>
+    </div>
+
+    <!-- 主内容区 -->
+    <div class="main-content">
+        <!-- 顶部栏 -->
+        <div class="topbar">
+            <div class="topbar-left">
+                <h1 class="page-title">{% block page_title %}系统概览{% endblock %}</h1>
+                <div class="system-status-badge">
+                    <i class="bi bi-wifi"></i>
+                    <span>系统在线</span>
+                </div>
+            </div>
+            <div class="topbar-center">
+                <div class="search-box">
+                    <i class="bi bi-search"></i>
+                    <input type="text" id="globalSearchInput" placeholder="全局搜索..." autocomplete="off" />
+                    <div id="searchSuggestions" class="search-dropdown"></div>
+                </div>
+            </div>
+            <div class="topbar-right">
+                <button class="theme-toggle-btn" id="themeToggle" type="button" aria-pressed="false" title="切换主题">
+                    <span class="theme-toggle-icon"><i class="bi bi-moon-stars"></i></span>
+                    <span class="theme-toggle-label">暗色模式</span>
+                </button>
+                <!-- 消息中心（通知铃铛） -->
+                <div class="nav-message-center" id="messageBell">
+                    <i class="bi bi-bell"></i>
+                    <span class="msg-badge" id="msgCount">0</span>
+                    <div class="msg-dropdown" id="msgDropdown">
+                        <div class="p-2 border-bottom d-flex justify-content-between align-items-center" style="background: #f8fafc;">
+                            <strong style="font-size: 14px;">系统消息</strong>
+                            <a href="#" id="clearMsgs" style="font-size: 12px; color: #64748b; text-decoration: none;">清空全部</a>
+                        </div>
+                        <div id="msgListContent" style="max-height: 350px; overflow-y: auto;">
+                            <div class="text-center text-muted py-4" id="msgEmptyState">
+                                <i class="bi bi-inbox"></i><br>
+                                <small>暂无新消息</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="user-profile dropdown">
+                    <a class="dropdown-toggle" href="#" role="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false" style="text-decoration: none; color: inherit; display: flex; align-items: center; gap: 12px;">
+                        <div class="user-avatar">{{ current_user.username[0].upper() if current_user.is_authenticated else 'U' }}</div>
+                        <div class="user-info">
+                            <div class="user-name">{{ current_user.username if current_user.is_authenticated else 'Guest' }}</div>
+                            <div class="user-role">
+                                {% if current_user.is_authenticated and current_user.role == 'admin' %}
+                                    管理员
+                                {% elif current_user.is_authenticated %}
+                                    普通用户
+                                {% else %}
+                                    访客
+                                {% endif %}
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-down" style="font-size: 12px; color: var(--text-gray);"></i>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown" style="min-width: 200px;">
+                        <li><h6 class="dropdown-header">{{ current_user.username if current_user.is_authenticated else 'Guest' }}</h6></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}"><i class="bi bi-box-arrow-right me-2"></i>登出</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 内容区域 -->
+        <div class="content-area">
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+    
+    <!-- Toast 通知容器 -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <div id="nodeLocationModal" class="node-location-modal" hidden>
+        <div class="node-location-dialog" role="dialog" aria-modal="true" aria-labelledby="nodeLocationTitle">
+            <div class="node-location-header">
+                <div id="nodeLocationTitle" class="node-location-title">设置节点经纬度</div>
+                <button id="nodeLocationClose" class="node-location-close" type="button" aria-label="关闭">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="node-location-body">
+                <div id="nodeLocationNode" class="node-location-node">节点 --</div>
+                <div class="node-location-grid">
+                    <div class="node-location-field">
+                        <label for="nodeLocationLng">经度 lng</label>
+                        <input id="nodeLocationLng" type="number" inputmode="decimal" min="-180" max="180" step="0.000001" placeholder="例如 120.123456">
+                    </div>
+                    <div class="node-location-field">
+                        <label for="nodeLocationLat">纬度 lat</label>
+                        <input id="nodeLocationLat" type="number" inputmode="decimal" min="-90" max="90" step="0.000001" placeholder="例如 30.654321">
+                    </div>
+                </div>
+                <div id="nodeLocationError" class="node-location-error" aria-live="polite"></div>
+            </div>
+            <div class="node-location-footer">
+                <button id="nodeLocationClear" class="node-location-btn danger" type="button">清空坐标</button>
+                <button id="nodeLocationCancel" class="node-location-btn" type="button">取消</button>
+                <button id="nodeLocationSave" class="node-location-btn primary" type="button">保存坐标</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- 基础JavaScript -->
+    <script>
+        const THEME_STORAGE_KEY = 'windsightThemeMode';
+
+        function getThemeMode() {
+            return document.body?.dataset.theme || document.documentElement.dataset.theme || window.__windsightTheme || 'light';
+        }
+
+        function themeToggleMeta(theme) {
+            if (theme === 'dark') {
+                return {
+                    label: '浅色模式',
+                    icon: 'bi bi-sun',
+                    title: '切换到浅色模式',
+                };
+            }
+            return {
+                label: '暗色模式',
+                icon: 'bi bi-moon-stars',
+                title: '切换到暗色模式',
+            };
+        }
+
+        function updateThemeToggleButton(theme) {
+            const button = document.getElementById('themeToggle');
+            if (!button) return;
+            const meta = themeToggleMeta(theme);
+            const icon = button.querySelector('.theme-toggle-icon i');
+            const label = button.querySelector('.theme-toggle-label');
+            if (icon) {
+                icon.className = meta.icon;
+            }
+            if (label) {
+                label.textContent = meta.label;
+            }
+            button.title = meta.title;
+            button.setAttribute('aria-pressed', String(theme === 'dark'));
+            button.dataset.theme = theme;
+        }
+
+        function applyTheme(theme, options = {}) {
+            const nextTheme = theme === 'dark' ? 'dark' : 'light';
+            const persist = options.persist !== false;
+            const emit = options.emit !== false;
+
+            document.documentElement.setAttribute('data-theme', nextTheme);
+            if (document.body) {
+                document.body.setAttribute('data-theme', nextTheme);
+            }
+            window.__windsightTheme = nextTheme;
+            updateThemeToggleButton(nextTheme);
+
+            if (persist) {
+                try {
+                    localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+                } catch (error) {
+                    console.warn('[theme] failed to persist theme', error);
+                }
+            }
+
+            if (emit) {
+                window.dispatchEvent(new CustomEvent('windsight:themechange', {
+                    detail: { theme: nextTheme }
+                }));
+            }
+        }
+
+        function initThemeToggle() {
+            const button = document.getElementById('themeToggle');
+            applyTheme(window.__windsightTheme || getThemeMode(), { persist: false, emit: false });
+            if (!button) return;
+            button.addEventListener('click', function() {
+                const nextTheme = getThemeMode() === 'dark' ? 'light' : 'dark';
+                applyTheme(nextTheme);
+            });
+        }
+
+        // 侧边栏拖拽缩放
+        function initResizableSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            const handle = document.getElementById('sidebarResizeHandle');
+            if (!sidebar || !handle) return;
+
+            const minWidth = 220;
+            const maxWidth = 560;
+            const desktopMinWidth = 769;
+            const role = document.body.dataset.userRole === 'admin' ? 'admin' : 'user';
+            const defaultWidth = role === 'admin' ? 244 : 260;
+            const storageKey = `windsightSidebarWidth:${role}`;
+            let dragState = null;
+
+            function isDesktop() {
+                return window.innerWidth >= desktopMinWidth;
+            }
+
+            function clampWidth(value) {
+                const parsed = Number.parseInt(value, 10);
+                if (!Number.isFinite(parsed)) return defaultWidth;
+                return Math.min(maxWidth, Math.max(minWidth, parsed));
+            }
+
+            function readStoredWidth() {
+                try {
+                    const stored = localStorage.getItem(storageKey);
+                    if (stored === null) return defaultWidth;
+                    const parsed = Number.parseInt(stored, 10);
+                    if (!Number.isFinite(parsed) || parsed < minWidth || parsed > maxWidth) {
+                        localStorage.removeItem(storageKey);
+                        return defaultWidth;
+                    }
+                    return parsed;
+                } catch (error) {
+                    console.warn('[sidebar] failed to read width preference', error);
+                    return defaultWidth;
+                }
+            }
+
+            function applyWidth(width) {
+                const nextWidth = clampWidth(width);
+                document.body.style.setProperty('--sidebar-width', `${nextWidth}px`);
+                return nextWidth;
+            }
+
+            function persistWidth(width) {
+                try {
+                    localStorage.setItem(storageKey, String(clampWidth(width)));
+                } catch (error) {
+                    console.warn('[sidebar] failed to persist width preference', error);
+                }
+            }
+
+            function restoreWidth() {
+                if (!isDesktop()) {
+                    document.body.style.removeProperty('--sidebar-width');
+                    return;
+                }
+                applyWidth(readStoredWidth());
+            }
+
+            function stopResize(event) {
+                if (!dragState) return;
+                const width = sidebar.getBoundingClientRect().width || defaultWidth;
+                persistWidth(width);
+                document.body.classList.remove('is-resizing-sidebar');
+                handle.classList.remove('is-active');
+                try {
+                    if (event && event.pointerId !== undefined) {
+                        handle.releasePointerCapture(event.pointerId);
+                    }
+                } catch (error) {
+                    // Pointer capture can already be released by the browser.
+                }
+                dragState = null;
+            }
+
+            handle.addEventListener('pointerdown', function(event) {
+                if (!isDesktop()) return;
+                if (event.button !== undefined && event.button !== 0) return;
+                event.preventDefault();
+                dragState = {
+                    pointerId: event.pointerId,
+                    startX: event.clientX,
+                    startWidth: sidebar.getBoundingClientRect().width || readStoredWidth()
+                };
+                document.body.classList.add('is-resizing-sidebar');
+                handle.classList.add('is-active');
+                try {
+                    handle.setPointerCapture(event.pointerId);
+                } catch (error) {
+                    // Older touch stacks may not support pointer capture.
+                }
+            });
+
+            function resizeSidebar(event) {
+                if (!dragState) return;
+                event.preventDefault();
+                applyWidth(dragState.startWidth + event.clientX - dragState.startX);
+            }
+
+            handle.addEventListener('pointermove', resizeSidebar);
+            handle.addEventListener('pointerup', stopResize);
+            handle.addEventListener('pointercancel', stopResize);
+            handle.addEventListener('lostpointercapture', stopResize);
+            document.addEventListener('pointermove', resizeSidebar);
+            document.addEventListener('pointerup', stopResize);
+            document.addEventListener('pointercancel', stopResize);
+
+            handle.addEventListener('dblclick', function(event) {
+                if (!isDesktop()) return;
+                event.preventDefault();
+                try {
+                    localStorage.removeItem(storageKey);
+                } catch (error) {
+                    console.warn('[sidebar] failed to reset width preference', error);
+                }
+                applyWidth(defaultWidth);
+            });
+
+            window.addEventListener('resize', function() {
+                if (!isDesktop()) {
+                    dragState = null;
+                    document.body.classList.remove('is-resizing-sidebar');
+                    handle.classList.remove('is-active');
+                    document.body.style.removeProperty('--sidebar-width');
+                    return;
+                }
+                restoreWidth();
+            });
+
+            restoreWidth();
+        }
+
+        // 更新侧边栏节点状态
+        async function updateSidebarStatus() {
+            try {
+                const response = await fetch('/api/dashboard/stats');
+                const data = await response.json();
+                document.getElementById('sidebar-online-count').textContent = data.online_nodes || 0;
+                document.getElementById('sidebar-total-count').textContent = data.total_nodes || 0;
+            } catch (error) {
+                console.error('Failed to update sidebar status:', error);
+            }
+        }
+
+        function isDeviceWorkspacePath(path = window.location.pathname) {
+            return ['/monitor', '/overview', '/map'].includes(path);
+        }
+
+        function isAdminConsolePath(path = window.location.pathname) {
+            return ['/admin/users', '/system_overview', '/settings'].includes(path);
+        }
+
+        function applySidebarGroupDefaults() {
+            const currentPath = window.location.pathname;
+            const deviceGroup = document.getElementById('deviceSelectNavGroup') || document.getElementById('myDeviceSelectNavGroup');
+            const adminGroup = document.getElementById('adminToolsNavGroup');
+
+            if (deviceGroup) {
+                deviceGroup.classList.toggle('is-open', isDeviceWorkspacePath(currentPath));
+            }
+            if (adminGroup) {
+                adminGroup.classList.toggle('is-open', isAdminConsolePath(currentPath));
+            }
+        }
+
+        function setActiveAdminNav() {
+            const currentPath = window.location.pathname;
+            document.querySelectorAll('#adminToolsNavGroup .nav-item, a[data-page="my_tree"], a[data-page="settings"]').forEach(item => {
+                item.classList.remove('active');
+                const itemPath = (item.getAttribute('href') || '').split('?')[0];
+                if (itemPath === currentPath) {
+                    item.classList.add('active');
+                    const group = item.closest('.nav-group');
+                    if (group) group.classList.add('is-open');
+                }
+            });
+        }
+
+        function setActiveDeviceAction() {
+            if (!isDeviceWorkspacePath()) {
+                document.querySelectorAll('.nav-function-link.is-active').forEach(link => link.classList.remove('is-active'));
+            }
+        }
+
+        function initSidebarGroups() {
+            applySidebarGroupDefaults();
+            document.querySelectorAll('.nav-group-label').forEach(button => {
+                button.addEventListener('click', () => {
+                    const group = button.closest('.nav-group');
+                    if (group) group.classList.toggle('is-open');
+                });
+            });
+            document.getElementById('adminUserListToggle')?.addEventListener('click', () => {
+                document.getElementById('adminUserListSection')?.classList.toggle('is-open');
+            });
+        }
+
+        function escapeSidebarHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[char]));
+        }
+
+        const sidebarSelectionStorage = {
+            user: 'windsightSelectedUserId',
+            node: 'selectedNodeId',
+            turbine: 'selectedTurbineCode'
+        };
+        const sidebarCurrentUserRole = "{{ current_user.role if current_user.is_authenticated else '' }}";
+
+        function getStoredSidebarValue(key) {
+            try {
+                return window.localStorage.getItem(key) || '';
+            } catch (error) {
+                return '';
+            }
+        }
+
+        function setStoredSidebarValue(key, value) {
+            try {
+                if (value) {
+                    window.localStorage.setItem(key, value);
+                } else {
+                    window.localStorage.removeItem(key);
+                }
+            } catch (error) {
+                // localStorage may be unavailable in restricted browser modes.
+            }
+        }
+
+        function normalizeSidebarTurbineCode(value) {
+            const text = String(value ?? '').trim();
+            if (!text) return '';
+            return /^\d+$/.test(text) ? text.padStart(3, '0') : text;
+        }
+
+        function readSidebarSelectionContext() {
+            const devicePage = isDeviceWorkspacePath();
+            if (!devicePage) {
+                return {
+                    userId: '',
+                    nodeId: '',
+                    turbineCode: '',
+                    hasUser: false,
+                    hasNode: false,
+                    hasTurbine: false
+                };
+            }
+            const params = new URLSearchParams(window.location.search);
+            const hasUser = params.has('user_id');
+            const hasNode = params.has('select') || params.has('node_id');
+            const hasTurbine = params.has('turbine') || params.has('generator');
+            const urlNode = params.get('select') || params.get('node_id') || '';
+            const storedNode = getStoredSidebarValue(sidebarSelectionStorage.node);
+            const userId = sidebarCurrentUserRole === 'admin'
+                ? (hasUser ? (params.get('user_id') || '') : getStoredSidebarValue(sidebarSelectionStorage.user))
+                : '';
+            const nodeId = hasNode ? urlNode : (!hasUser ? storedNode : '');
+            const turbineCode = hasTurbine
+                ? normalizeSidebarTurbineCode(params.get('turbine') || params.get('generator') || '')
+                : (
+                    nodeId && (!hasUser || !hasNode || storedNode === nodeId)
+                        ? normalizeSidebarTurbineCode(getStoredSidebarValue(sidebarSelectionStorage.turbine))
+                        : ''
+                );
+            return {
+                userId,
+                nodeId,
+                turbineCode: nodeId ? turbineCode : '',
+                hasUser,
+                hasNode,
+                hasTurbine
+            };
+        }
+
+        function rememberSidebarSelectionContext() {
+            if (!isDeviceWorkspacePath()) {
+                return;
+            }
+            const params = new URLSearchParams(window.location.search);
+            const hasUser = params.has('user_id');
+            const hasNode = params.has('select') || params.has('node_id');
+            const hasTurbine = params.has('turbine') || params.has('generator');
+            const userId = params.get('user_id') || '';
+            const nodeId = params.get('select') || params.get('node_id') || '';
+            const turbineCode = normalizeSidebarTurbineCode(params.get('turbine') || params.get('generator') || '');
+            const storedNode = getStoredSidebarValue(sidebarSelectionStorage.node);
+
+            if (sidebarCurrentUserRole === 'admin' && hasUser) {
+                setStoredSidebarValue(sidebarSelectionStorage.user, userId);
+                if (!hasNode) {
+                    setStoredSidebarValue(sidebarSelectionStorage.node, '');
+                    setStoredSidebarValue(sidebarSelectionStorage.turbine, '');
+                }
+            }
+            if (hasNode) {
+                setStoredSidebarValue(sidebarSelectionStorage.node, nodeId);
+                if (!hasTurbine && storedNode && storedNode !== nodeId) {
+                    setStoredSidebarValue(sidebarSelectionStorage.turbine, '');
+                }
+            }
+            if (hasTurbine) {
+                setStoredSidebarValue(sidebarSelectionStorage.turbine, turbineCode);
+            }
+        }
+
+        function buildSidebarUrl(path, options = {}) {
+            const params = new URLSearchParams();
+            const userId = options.userId || '';
+            const nodeId = options.nodeId || '';
+            const turbineCode = normalizeSidebarTurbineCode(options.turbineCode || '');
+            const includeTurbine = options.includeTurbine !== false;
+
+            if (userId) {
+                params.set('user_id', userId);
+            }
+            if (nodeId) {
+                params.set('select', nodeId);
+            }
+            if (nodeId && turbineCode && includeTurbine) {
+                params.set('turbine', turbineCode);
+                if (path === '/monitor' || path === '/overview') {
+                    params.set('view', 'chart');
+                }
+            }
+
+            const query = params.toString();
+            return query ? `${path}?${query}` : path;
+        }
+
+        function updateContextPageLinks() {
+            const context = readSidebarSelectionContext();
+            document.querySelectorAll('[data-context-page]').forEach(link => {
+                const page = link.dataset.contextPage || '';
+                const path = page === 'overview' ? '/overview' : (page === 'map' ? '/map' : '/monitor');
+                link.href = buildSidebarUrl(path, {
+                    userId: context.userId,
+                    nodeId: context.nodeId,
+                    turbineCode: context.turbineCode,
+                    includeTurbine: page !== 'map'
+                });
+            });
+        }
+
+        function buildDeviceActionUrl(page, userId, nodeId, turbineCode) {
+            const pathMap = {
+                monitor: '/monitor',
+                overview: '/overview',
+                map: '/map'
+            };
+            const path = pathMap[page] || '/monitor';
+            return buildSidebarUrl(path, {
+                userId: String(userId || ''),
+                nodeId,
+                turbineCode,
+                includeTurbine: page !== 'map'
+            });
+        }
+
+        function renderSidebarTurbineActions(userId, nodeId, turbineCode) {
+            const currentPath = window.location.pathname;
+            const selectedContext = readSidebarSelectionContext();
+            const actions = [
+                { page: 'monitor', label: '实时数据台', icon: 'bi-activity', path: '/monitor' },
+                { page: 'overview', label: '数据概览', icon: 'bi-graph-up', path: '/overview' }
+            ];
+            return actions.map(action => {
+                const sameUser = !userId || !selectedContext.userId || selectedContext.userId === String(userId);
+                const sameNode = selectedContext.nodeId === nodeId;
+                const sameTurbine = selectedContext.turbineCode === turbineCode;
+                const active = currentPath === action.path
+                    && sameUser
+                    && sameNode
+                    && sameTurbine
+                    ? ' is-active'
+                    : '';
+                return `
+                    <a class="nav-function-link${active}" href="${buildDeviceActionUrl(action.page, userId, nodeId, turbineCode)}" data-sidebar-action-link data-sidebar-user-id="${escapeSidebarHtml(userId || '')}" data-sidebar-node-id="${escapeSidebarHtml(nodeId)}" data-sidebar-turbine-code="${escapeSidebarHtml(turbineCode)}">
+                        <i class="bi ${action.icon}"></i>
+                        <span>${action.label}</span>
+                    </a>
+                `;
+            }).join('');
+        }
+
+        function renderSidebarNodeMapLink(userId, node) {
+            const nodeId = node?.node_id || '';
+            const selectedContext = readSidebarSelectionContext();
+            const sameUser = !userId || !selectedContext.userId || selectedContext.userId === String(userId);
+            const active = window.location.pathname === '/map' && sameUser && selectedContext.nodeId === nodeId ? ' is-active' : '';
+            return `
+                <a class="nav-node-map${active}" href="${buildDeviceActionUrl('map', userId, nodeId, '')}" title="节点地图" data-sidebar-action-link data-sidebar-user-id="${escapeSidebarHtml(userId || '')}" data-sidebar-node-id="${escapeSidebarHtml(nodeId)}" data-sidebar-turbine-code="">
+                    <i class="bi bi-map"></i>
+                </a>
+            `;
+        }
+
+        function buildSidebarTurbineCodes(node) {
+            const rawCodes = Array.isArray(node?.turbines) ? node.turbines : [];
+            const codes = rawCodes
+                .map(item => normalizeSidebarTurbineCode(typeof item === 'object' ? (item.code || item.turbine_code || item.id) : item))
+                .filter(Boolean);
+            const uniqueCodes = Array.from(new Set(codes)).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN', { numeric: true }));
+            if (uniqueCodes.length > 0) return uniqueCodes;
+
+            const count = Math.max(0, Number(node?.turbine_count || 0));
+            return Array.from({ length: count }, (_, index) => String(index + 1).padStart(3, '0'));
+        }
+
+        function buildSidebarTelemetryFields(node) {
+            const rawFields = Array.isArray(node?.telemetry_fields) ? node.telemetry_fields : [];
+            const seen = new Set();
+            return rawFields.map((item, index) => {
+                const field = item && typeof item === 'object' ? item : { path: item };
+                const path = String(field.path || field.key || field.field || field.id || field.name || '').trim();
+                const label = String(field.label || field.display_name || field.name || path || `字段 ${index + 1}`).trim();
+                const unit = String(field.unit || field.symbol || '').trim();
+                return { path: path || label, label, unit };
+            }).filter(field => {
+                if (!field.path || seen.has(field.path)) return false;
+                seen.add(field.path);
+                return true;
+            });
+        }
+
+        function isSidebarTelemetrySource(node) {
+            const fields = buildSidebarTelemetryFields(node);
+            const reportedCount = Math.max(0, Number(node?.telemetry_field_count || 0));
+            return fields.length > 0 || reportedCount > 0;
+        }
+
+        function sidebarTelemetryFieldCount(node) {
+            const fields = buildSidebarTelemetryFields(node);
+            const reportedCount = Math.max(0, Number(node?.telemetry_field_count || 0));
+            return Math.max(fields.length, reportedCount);
+        }
+
+        function renderSidebarTelemetryFields(userId, node) {
+            const nodeId = node?.node_id || '';
+            const fields = buildSidebarTelemetryFields(node);
+            const count = sidebarTelemetryFieldCount(node);
+            if (!fields.length) {
+                return `<div class="nav-sidebar-empty">已发现 ${count} 个数据字段，请在实时数据台查看</div>`;
+            }
+            const currentPage = window.location.pathname === '/overview' ? 'overview' : 'monitor';
+            return fields.map(field => {
+                const unit = field.unit ? `<small class="nav-telemetry-field-unit">${escapeSidebarHtml(field.unit)}</small>` : '';
+                return `
+                    <a class="nav-turbine-link nav-telemetry-field-link" href="${buildDeviceActionUrl(currentPage, userId, nodeId, '')}" title="${escapeSidebarHtml(field.path)}" data-sidebar-action-link data-sidebar-user-id="${escapeSidebarHtml(userId || '')}" data-sidebar-node-id="${escapeSidebarHtml(nodeId)}" data-sidebar-turbine-code="">
+                        <span class="nav-telemetry-field-label">${escapeSidebarHtml(field.label)}</span>
+                        ${unit}
+                    </a>
+                `;
+            }).join('');
+        }
+
+        function getSidebarNodeGeo(node) {
+            const lng = Number(node?.geo?.lng);
+            const lat = Number(node?.geo?.lat);
+            if (!Number.isFinite(lng) || !Number.isFinite(lat) || lng < -180 || lng > 180 || lat < -90 || lat > 90) {
+                return null;
+            }
+            return { lng, lat };
+        }
+
+        function renderSidebarNodeMeta(node, count, telemetry = false) {
+            const geo = getSidebarNodeGeo(node);
+            const locationClass = geo ? ' is-configured' : '';
+            const locationText = geo ? '已定位' : '未定位';
+            return `
+                <span>${Number(count || 0)} ${telemetry ? '个字段' : '台'}</span>
+                <span class="nav-node-geo-status${locationClass}" data-sidebar-location-status>${locationText}</span>
+            `;
+        }
+
+        function renderSidebarLocationButton(userId, node) {
+            const nodeId = node?.node_id || '';
+            const nodeName = node?.display_name || nodeId;
+            const geo = getSidebarNodeGeo(node);
+            return `
+                <button class="nav-node-location" type="button" title="设置经纬度" data-sidebar-location-button data-sidebar-user-id="${escapeSidebarHtml(userId || '')}" data-sidebar-node-id="${escapeSidebarHtml(nodeId)}" data-sidebar-node-name="${escapeSidebarHtml(nodeName)}" data-sidebar-geo-lng="${geo ? escapeSidebarHtml(geo.lng) : ''}" data-sidebar-geo-lat="${geo ? escapeSidebarHtml(geo.lat) : ''}">
+                    <i class="bi bi-geo-alt"></i>
+                </button>
+            `;
+        }
+
+        const sidebarLocationState = {
+            userId: '',
+            nodeId: '',
+            nodeName: '',
+            trigger: null
+        };
+
+        function nodeLocationElements() {
+            return {
+                modal: document.getElementById('nodeLocationModal'),
+                node: document.getElementById('nodeLocationNode'),
+                lng: document.getElementById('nodeLocationLng'),
+                lat: document.getElementById('nodeLocationLat'),
+                error: document.getElementById('nodeLocationError'),
+                save: document.getElementById('nodeLocationSave'),
+                clear: document.getElementById('nodeLocationClear')
+            };
+        }
+
+        function closeSidebarLocationDialog() {
+            const { modal, error } = nodeLocationElements();
+            if (!modal) return;
+            modal.classList.remove('is-open');
+            modal.hidden = true;
+            if (error) error.textContent = '';
+            sidebarLocationState.userId = '';
+            sidebarLocationState.nodeId = '';
+            sidebarLocationState.nodeName = '';
+            sidebarLocationState.trigger = null;
+        }
+
+        function openSidebarLocationDialog(button) {
+            const elements = nodeLocationElements();
+            if (!elements.modal || !elements.lng || !elements.lat) return;
+            const nodeId = button.dataset.sidebarNodeId || '';
+            const nodeName = button.dataset.sidebarNodeName || nodeId;
+            sidebarLocationState.userId = button.dataset.sidebarUserId || '';
+            sidebarLocationState.nodeId = nodeId;
+            sidebarLocationState.nodeName = nodeName;
+            sidebarLocationState.trigger = button;
+            if (elements.node) {
+                elements.node.textContent = `${nodeName} (${nodeId})`;
+            }
+            elements.lng.value = button.dataset.sidebarGeoLng || '';
+            elements.lat.value = button.dataset.sidebarGeoLat || '';
+            if (elements.error) elements.error.textContent = '';
+            elements.modal.hidden = false;
+            elements.modal.classList.add('is-open');
+            requestAnimationFrame(() => elements.lng.focus());
+        }
+
+        function sidebarLocationEndpoint() {
+            const nodeId = encodeURIComponent(sidebarLocationState.nodeId || '');
+            if (sidebarCurrentUserRole === 'admin' && sidebarLocationState.userId) {
+                return `/api/admin/users/${encodeURIComponent(sidebarLocationState.userId)}/registered_nodes/${nodeId}/location`;
+            }
+            return `/api/my/registered_nodes/${nodeId}/location`;
+        }
+
+        function setSidebarNodeLocationState(nodeId, geo) {
+            document.querySelectorAll('.nav-node-block').forEach(block => {
+                if ((block.dataset.sidebarNodeId || '') !== nodeId) return;
+                const status = block.querySelector('[data-sidebar-location-status]');
+                if (status) {
+                    status.textContent = geo ? '已定位' : '未定位';
+                    status.classList.toggle('is-configured', !!geo);
+                }
+                block.querySelectorAll('[data-sidebar-location-button]').forEach(button => {
+                    button.dataset.sidebarGeoLng = geo ? String(geo.lng) : '';
+                    button.dataset.sidebarGeoLat = geo ? String(geo.lat) : '';
+                });
+            });
+        }
+
+        async function submitSidebarLocation(options = {}) {
+            const elements = nodeLocationElements();
+            if (!sidebarLocationState.nodeId || !elements.lng || !elements.lat) return;
+            if (elements.error) elements.error.textContent = '';
+            const clearing = options.clear === true;
+            const payload = clearing
+                ? { lng: '', lat: '' }
+                : { lng: elements.lng.value.trim(), lat: elements.lat.value.trim() };
+            try {
+                if (!clearing && (!payload.lng || !payload.lat)) {
+                    throw new Error('经度和纬度必须同时填写');
+                }
+                const response = await fetch(sidebarLocationEndpoint(), {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || '坐标保存失败');
+                }
+                const geo = getSidebarNodeGeo(result.node || {});
+                setSidebarNodeLocationState(sidebarLocationState.nodeId, geo);
+                closeSidebarLocationDialog();
+                if (typeof window.showToast === 'function') {
+                    window.showToast(clearing ? '节点坐标已清空' : '节点经纬度已保存', 'success');
+                }
+                if (window.location.pathname === '/map') {
+                    window.location.reload();
+                }
+            } catch (error) {
+                if (elements.error) {
+                    elements.error.textContent = error.message || '坐标保存失败';
+                }
+            }
+        }
+
+        function bindSidebarLocationButtons(root = document) {
+            root.querySelectorAll('[data-sidebar-location-button]').forEach(button => {
+                if (button.dataset.sidebarLocationBound === '1') return;
+                button.dataset.sidebarLocationBound = '1';
+                button.addEventListener('click', event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    openSidebarLocationDialog(button);
+                });
+            });
+        }
+
+        function initSidebarLocationDialog() {
+            document.getElementById('nodeLocationClose')?.addEventListener('click', closeSidebarLocationDialog);
+            document.getElementById('nodeLocationCancel')?.addEventListener('click', closeSidebarLocationDialog);
+            document.getElementById('nodeLocationSave')?.addEventListener('click', () => submitSidebarLocation());
+            document.getElementById('nodeLocationClear')?.addEventListener('click', () => submitSidebarLocation({ clear: true }));
+            document.getElementById('nodeLocationModal')?.addEventListener('click', event => {
+                if (event.target?.id === 'nodeLocationModal') {
+                    closeSidebarLocationDialog();
+                }
+            });
+            document.addEventListener('keydown', event => {
+                if (event.key === 'Escape') {
+                    closeSidebarLocationDialog();
+                }
+            });
+        }
+
+        function bindSidebarSelectionLinks(root = document) {
+            root.querySelectorAll('[data-sidebar-action-link]').forEach(link => {
+                link.addEventListener('click', () => {
+                    setStoredSidebarValue(sidebarSelectionStorage.user, link.dataset.sidebarUserId || '');
+                    setStoredSidebarValue(sidebarSelectionStorage.node, link.dataset.sidebarNodeId || '');
+                    setStoredSidebarValue(sidebarSelectionStorage.turbine, normalizeSidebarTurbineCode(link.dataset.sidebarTurbineCode || ''));
+                });
+            });
+            root.querySelectorAll('[data-sidebar-turbine-toggle]').forEach(button => {
+                button.addEventListener('click', event => {
+                    event.preventDefault();
+                    const block = button.closest('.nav-turbine-block');
+                    if (!block) return;
+                    const list = block.parentElement;
+                    list?.querySelectorAll('.nav-turbine-block.is-open').forEach(item => {
+                        if (item !== block) item.classList.remove('is-open');
+                    });
+                    block.classList.toggle('is-open');
+                    setStoredSidebarValue(sidebarSelectionStorage.user, button.dataset.sidebarUserId || '');
+                    setStoredSidebarValue(sidebarSelectionStorage.node, button.dataset.sidebarNodeId || '');
+                    setStoredSidebarValue(sidebarSelectionStorage.turbine, normalizeSidebarTurbineCode(button.dataset.sidebarTurbineCode || ''));
+                });
+            });
+            bindSidebarLocationButtons(root);
+        }
+
+        async function loadSidebarUserNodes(userId, block) {
+            const holder = block.querySelector('.nav-node-list');
+            if (!holder || holder.dataset.loaded === '1') return;
+            holder.innerHTML = '<div class="nav-sidebar-empty">正在加载节点...</div>';
+            try {
+                const response = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/registered_nodes`);
+                const result = await response.json();
+                const nodes = result.success ? (result.nodes || []) : [];
+                holder.dataset.loaded = '1';
+                if (!nodes.length) {
+                    holder.innerHTML = '<div class="nav-sidebar-empty">暂无注册节点</div>';
+                    return;
+                }
+                const selectedContext = readSidebarSelectionContext();
+                const selectedNode = selectedContext.nodeId;
+                const selectedTurbine = window.location.pathname === '/map' ? '' : selectedContext.turbineCode;
+                holder.innerHTML = nodes.map(node => {
+                    const nodeId = node.node_id || '';
+                    const active = selectedNode === nodeId ? ' active' : '';
+                    const open = selectedNode === nodeId ? ' is-open' : '';
+                    const telemetrySource = isSidebarTelemetrySource(node);
+                    const count = telemetrySource ? sidebarTelemetryFieldCount(node) : Number(node.turbine_count || 0);
+                    const turbineCodes = telemetrySource ? [] : buildSidebarTurbineCodes(node);
+                    const turbineHtml = telemetrySource
+                        ? renderSidebarTelemetryFields(userId, node)
+                        : turbineCodes.length
+                        ? turbineCodes.map(code => {
+                            const turbineActive = selectedNode === nodeId && selectedTurbine === code ? ' active' : '';
+                            const turbineOpen = selectedNode === nodeId && selectedTurbine === code ? ' is-open' : '';
+                            return `
+                                <div class="nav-turbine-block${turbineOpen}">
+                                    <button class="nav-turbine-link${turbineActive}" type="button" data-sidebar-turbine-toggle data-sidebar-user-id="${escapeSidebarHtml(userId || '')}" data-sidebar-node-id="${escapeSidebarHtml(nodeId)}" data-sidebar-turbine-code="${escapeSidebarHtml(code)}">
+                                        <span>数据字段 ${escapeSidebarHtml(code)}</span>
+                                        <i class="bi bi-chevron-down"></i>
+                                    </button>
+                                    <div class="nav-function-list">
+                                        ${renderSidebarTurbineActions(userId, nodeId, code)}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')
+                        : '<div class="nav-sidebar-empty">暂无数据字段</div>';
+                    return `
+                        <div class="nav-node-block${open}" data-sidebar-node-id="${escapeSidebarHtml(nodeId)}">
+                            <div class="nav-node-row">
+                                <button class="nav-node-link${active}" type="button" data-sidebar-node-toggle data-sidebar-user-id="${escapeSidebarHtml(userId || '')}" data-sidebar-node-id="${escapeSidebarHtml(nodeId)}">
+                                    <span>${escapeSidebarHtml(node.display_name || nodeId)}</span>
+                                    <small>${renderSidebarNodeMeta(node, count, telemetrySource)}</small>
+                                </button>
+                                ${renderSidebarLocationButton(userId, node)}
+                                ${renderSidebarNodeMapLink(userId, node)}
+                                <button class="nav-node-toggle" type="button" title="展开数据字段" data-sidebar-node-toggle data-sidebar-user-id="${escapeSidebarHtml(userId || '')}" data-sidebar-node-id="${escapeSidebarHtml(nodeId)}">
+                                    <i class="bi bi-chevron-down"></i>
+                                </button>
+                            </div>
+                            <div class="nav-turbine-list">${turbineHtml}</div>
+                        </div>
+                    `;
+                }).join('');
+                bindSidebarSelectionLinks(holder);
+                holder.querySelectorAll('.nav-node-block').forEach(nodeBlock => {
+                    nodeBlock.querySelectorAll('[data-sidebar-node-toggle]').forEach(toggle => toggle.addEventListener('click', event => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        const list = nodeBlock.parentElement;
+                        list?.querySelectorAll('.nav-node-block.is-open').forEach(item => {
+                            if (item !== nodeBlock) item.classList.remove('is-open');
+                        });
+                        nodeBlock.classList.toggle('is-open');
+                        setStoredSidebarValue(sidebarSelectionStorage.user, toggle.dataset.sidebarUserId || '');
+                        setStoredSidebarValue(sidebarSelectionStorage.node, toggle.dataset.sidebarNodeId || '');
+                        setStoredSidebarValue(sidebarSelectionStorage.turbine, '');
+                    }));
+                });
+            } catch (error) {
+                holder.innerHTML = '<div class="nav-sidebar-empty">节点加载失败</div>';
+            }
+        }
+
+        async function initMyDeviceTreeNav() {
+            const holder = document.getElementById('myDeviceTreeNav');
+            if (!holder) return;
+            holder.innerHTML = '<div class="nav-sidebar-empty">正在加载节点...</div>';
+            try {
+                const response = await fetch('/api/nodes');
+                const result = await response.json();
+                const nodes = result.success ? (result.nodes || []) : [];
+                if (!nodes.length) {
+                    holder.innerHTML = '<div class="nav-sidebar-empty">暂无注册节点</div>';
+                    return;
+                }
+                const selectedContext = readSidebarSelectionContext();
+                const selectedNode = selectedContext.nodeId;
+                const selectedTurbine = window.location.pathname === '/map' ? '' : selectedContext.turbineCode;
+                holder.innerHTML = nodes.map(node => {
+                    const nodeId = node.node_id || '';
+                    const active = selectedNode === nodeId ? ' active' : '';
+                    const open = selectedNode === nodeId ? ' is-open' : '';
+                    const telemetrySource = isSidebarTelemetrySource(node);
+                    const count = telemetrySource ? sidebarTelemetryFieldCount(node) : Number(node.turbine_count || 0);
+                    const turbineCodes = telemetrySource ? [] : buildSidebarTurbineCodes(node);
+                    const turbineHtml = telemetrySource
+                        ? renderSidebarTelemetryFields('', node)
+                        : turbineCodes.length
+                        ? turbineCodes.map(code => {
+                            const turbineActive = selectedNode === nodeId && selectedTurbine === code ? ' active' : '';
+                            const turbineOpen = selectedNode === nodeId && selectedTurbine === code ? ' is-open' : '';
+                            return `
+                                <div class="nav-turbine-block${turbineOpen}">
+                                    <button class="nav-turbine-link${turbineActive}" type="button" data-sidebar-turbine-toggle data-sidebar-node-id="${escapeSidebarHtml(nodeId)}" data-sidebar-turbine-code="${escapeSidebarHtml(code)}">
+                                        <span>数据字段 ${escapeSidebarHtml(code)}</span>
+                                        <i class="bi bi-chevron-down"></i>
+                                    </button>
+                                    <div class="nav-function-list">
+                                        ${renderSidebarTurbineActions('', nodeId, code)}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')
+                        : '<div class="nav-sidebar-empty">暂无数据字段</div>';
+                    return `
+                        <div class="nav-node-block${open}" data-sidebar-node-id="${escapeSidebarHtml(nodeId)}">
+                            <div class="nav-node-row">
+                                <button class="nav-node-link${active}" type="button" data-sidebar-node-toggle data-sidebar-node-id="${escapeSidebarHtml(nodeId)}">
+                                    <span>${escapeSidebarHtml(node.display_name || nodeId)}</span>
+                                    <small>${renderSidebarNodeMeta(node, count, telemetrySource)}</small>
+                                </button>
+                                ${renderSidebarLocationButton('', node)}
+                                ${renderSidebarNodeMapLink('', node)}
+                                <button class="nav-node-toggle" type="button" title="展开数据字段" data-sidebar-node-toggle data-sidebar-node-id="${escapeSidebarHtml(nodeId)}">
+                                    <i class="bi bi-chevron-down"></i>
+                                </button>
+                            </div>
+                            <div class="nav-turbine-list">${turbineHtml}</div>
+                        </div>
+                    `;
+                }).join('');
+                bindSidebarSelectionLinks(holder);
+                holder.querySelectorAll('.nav-node-block').forEach(nodeBlock => {
+                    nodeBlock.querySelectorAll('[data-sidebar-node-toggle]').forEach(toggle => toggle.addEventListener('click', event => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        const list = nodeBlock.parentElement;
+                        list?.querySelectorAll('.nav-node-block.is-open').forEach(item => {
+                            if (item !== nodeBlock) item.classList.remove('is-open');
+                        });
+                        nodeBlock.classList.toggle('is-open');
+                        setStoredSidebarValue(sidebarSelectionStorage.user, toggle.dataset.sidebarUserId || '');
+                        setStoredSidebarValue(sidebarSelectionStorage.node, toggle.dataset.sidebarNodeId || '');
+                        setStoredSidebarValue(sidebarSelectionStorage.turbine, '');
+                    }));
+                });
+            } catch (error) {
+                holder.innerHTML = '<div class="nav-sidebar-empty">节点加载失败</div>';
+            }
+        }
+
+        async function initAdminUserTreeNav() {
+            const holder = document.getElementById('adminUserTreeNav');
+            if (!holder) return;
+            const selectedUser = readSidebarSelectionContext().userId || '';
+            try {
+                const response = await fetch('/api/admin/users');
+                const result = await response.json();
+                const users = result.success ? (result.users || []) : [];
+                if (!users.length) {
+                    holder.innerHTML = '<div class="nav-sidebar-empty">暂无用户</div>';
+                    return;
+                }
+                holder.innerHTML = users.map(user => {
+                    const userId = String(user.id);
+                    const active = selectedUser === userId ? ' active' : '';
+                    const open = selectedUser === userId ? ' is-open' : '';
+                    return `
+                        <div class="nav-user-block${open}" data-sidebar-user-id="${escapeSidebarHtml(userId)}">
+                            <div class="nav-user-row">
+                                <button class="nav-user-link${active}" type="button" data-sidebar-user-toggle data-sidebar-user-id="${escapeSidebarHtml(userId)}">
+                                    <span>${escapeSidebarHtml(user.username)}</span>
+                                    <small>${Number(user.node_count || 0)} 个</small>
+                                </button>
+                                <button class="nav-user-toggle" type="button" title="展开节点" data-sidebar-user-toggle data-sidebar-user-id="${escapeSidebarHtml(userId)}">
+                                    <i class="bi bi-chevron-down"></i>
+                                </button>
+                            </div>
+                            <div class="nav-node-list"></div>
+                        </div>
+                    `;
+                }).join('');
+                bindSidebarSelectionLinks(holder);
+                holder.querySelectorAll('.nav-user-block').forEach(block => {
+                    const userId = block.dataset.sidebarUserId;
+                    block.querySelectorAll('[data-sidebar-user-toggle]').forEach(toggle => toggle.addEventListener('click', async (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        const list = block.parentElement;
+                        list?.querySelectorAll('.nav-user-block.is-open').forEach(item => {
+                            if (item !== block) item.classList.remove('is-open');
+                        });
+                        block.classList.toggle('is-open');
+                        setStoredSidebarValue(sidebarSelectionStorage.user, toggle.dataset.sidebarUserId || '');
+                        setStoredSidebarValue(sidebarSelectionStorage.node, '');
+                        setStoredSidebarValue(sidebarSelectionStorage.turbine, '');
+                        if (block.classList.contains('is-open')) {
+                            await loadSidebarUserNodes(userId, block);
+                        }
+                    }));
+                    if (block.classList.contains('is-open')) {
+                        loadSidebarUserNodes(userId, block);
+                    }
+                });
+            } catch (error) {
+                holder.innerHTML = '<div class="nav-sidebar-empty">用户加载失败</div>';
+            }
+        }
+
+        // ========== 全局搜索自动补全功能 ==========
+        let searchSuggestions = [];  // 存储所有建议项
+        let activeNodeSuggestions = [];  // 存储活动节点建议
+        let currentHighlightIndex = -1;  // 当前高亮索引
+
+        // 静态导航目标
+        const staticNavTargets = [
+            { name: '系统概览', url: '/system_overview', category: '页面', icon: 'bi-grid-3x3-gap' },
+            { name: '实时监测', url: '/monitor', category: '页面', icon: 'bi-activity' },
+            { name: '波形回放', url: '/overview', category: '页面', icon: 'bi-graph-up' },
+            { name: '地图概览', url: '/map', category: '页面', icon: 'bi-map' },
+            { name: '我的设备树', url: '/my/tree', category: '页面', icon: 'bi-diagram-3' },
+            { name: '用户列表', url: '/admin/users', category: '页面', icon: 'bi-people' },
+            { name: '系统设置', url: '/settings', category: '页面', icon: 'bi-gear' }
+        ];
+
+        // 从API获取活动节点并更新建议
+        async function updateNodeSuggestions() {
+            try {
+                const response = await fetch('/api/nodes');
+                const result = await response.json();
+                
+                // 处理API响应格式：{success: true, nodes: [...]}
+                const nodes = result.success ? (result.nodes || []) : [];
+                
+                activeNodeSuggestions = nodes.map(node => {
+                    const nodeId = node.node_id || node.device_id || node.id;
+                    if (!nodeId) return null;
+                    const displayName = (node.display_name || nodeId).trim();
+                    const hasCustomName = displayName && displayName !== nodeId;
+                    
+                    const online = !!node.online;
+                    const statusText = online ? '在线' : '离线';
+                    
+                    return {
+                        name: hasCustomName ? `${displayName} (${nodeId} · ${statusText})` : `${nodeId} (${statusText})`,
+                        url: `/overview?select=${encodeURIComponent(nodeId)}`,
+                        category: '节点',
+                        icon: 'bi-cpu',
+                        nodeId: nodeId,
+                        status: online ? 'online' : 'offline',
+                        keywords: [nodeId.toLowerCase(), displayName.toLowerCase(), '节点', 'node']
+                    };
+                }).filter(item => item !== null); // 过滤掉null值
+            } catch (error) {
+                console.error('Failed to fetch active nodes for suggestions:', error);
+                activeNodeSuggestions = [];
+            }
+        }
+
+        // 过滤建议项（支持关键词匹配）
+        function filterSuggestions(query) {
+            if (!query || query.trim() === '') {
+                return [];
+            }
+
+            const queryLower = query.toLowerCase().trim();
+            const allSuggestions = [...staticNavTargets, ...activeNodeSuggestions];
+            
+            return allSuggestions.filter(item => {
+                const nameLower = item.name.toLowerCase();
+                
+                // 1. 匹配名称
+                if (nameLower.includes(queryLower)) return true;
+                
+                // 2. 匹配关键词（keywords字段）
+                if (item.keywords && Array.isArray(item.keywords)) {
+                    const keywordMatch = item.keywords.some(keyword => 
+                        keyword.toLowerCase().includes(queryLower) || 
+                        queryLower.includes(keyword.toLowerCase())
+                    );
+                    if (keywordMatch) return true;
+                }
+                
+                // 3. 匹配节点ID（如果是节点）
+                if (item.nodeId && item.nodeId.toLowerCase().includes(queryLower)) return true;
+                
+                // 4. 匹配URL路径
+                if (item.url.toLowerCase().includes(queryLower)) return true;
+                
+                return false;
+            });
+        }
+
+        // 渲染建议下拉框
+        function renderSuggestions(filtered) {
+            const dropdown = document.getElementById('searchSuggestions');
+            if (!dropdown) return;
+
+            if (filtered.length === 0) {
+                dropdown.innerHTML = '<div class="search-empty">未找到匹配项</div>';
+                dropdown.classList.add('show');
+                return;
+            }
+
+            // 按类别分组
+            // 仅保留：页面 + 节点（清理故障/诊断相关入口）
+            const grouped = {
+                '页面': [],
+                '节点': []
+            };
+
+            filtered.forEach(item => {
+                if (grouped[item.category]) {
+                    grouped[item.category].push(item);
+                }
+            });
+
+            let html = '';
+            
+            let itemIndex = 0;  // 全局索引计数器
+
+            // 渲染页面
+            if (grouped['页面'].length > 0) {
+                html += '<div class="search-section-header">页面</div>';
+                grouped['页面'].forEach((item) => {
+                    html += `
+                        <div class="search-item" data-index="${itemIndex++}" data-url="${item.url}">
+                            <div style="display: flex; align-items: center; flex: 1;">
+                                <i class="bi ${item.icon} search-item-icon"></i>
+                                <span class="search-item-name">${item.name}</span>
+                            </div>
+                            <span class="search-item-category">${item.category}</span>
+                        </div>
+                    `;
+                });
+            }
+
+            // 渲染节点
+            if (grouped['节点'].length > 0) {
+                html += '<div class="search-section-header">节点</div>';
+                grouped['节点'].forEach((item) => {
+                    const statusClass = item.status === 'online' ? 'text-success' : 
+                                       (item.status === 'fault' || item.status === 'faulty') ? 'text-danger' : 'text-secondary';
+                    html += `
+                        <div class="search-item" data-index="${itemIndex++}" data-url="${item.url}">
+                            <div style="display: flex; align-items: center; flex: 1;">
+                                <i class="bi ${item.icon} search-item-icon ${statusClass}"></i>
+                                <span class="search-item-name">${item.name}</span>
+                            </div>
+                            <span class="search-item-category">${item.category}</span>
+                        </div>
+                    `;
+                });
+            }
+
+            // 注意：已移除“监测组件/监测参数/故障查询”等分类，避免引入故障诊断相关入口
+
+            dropdown.innerHTML = html;
+            dropdown.classList.add('show');
+            currentHighlightIndex = -1;
+
+            // 绑定点击事件
+            dropdown.querySelectorAll('.search-item').forEach((item, index) => {
+                item.addEventListener('click', function() {
+                    const url = this.getAttribute('data-url');
+                    if (url) {
+                        window.location.href = url;
+                    }
+                });
+            });
+        }
+
+        // 处理键盘导航
+        function handleKeyboardNavigation(e, filtered) {
+            const dropdown = document.getElementById('searchSuggestions');
+            const items = dropdown ? dropdown.querySelectorAll('.search-item') : [];
+            
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                currentHighlightIndex = Math.min(currentHighlightIndex + 1, items.length - 1);
+                updateHighlight(items);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                currentHighlightIndex = Math.max(currentHighlightIndex - 1, -1);
+                updateHighlight(items);
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (currentHighlightIndex >= 0 && items[currentHighlightIndex]) {
+                    const url = items[currentHighlightIndex].getAttribute('data-url');
+                    if (url) {
+                        window.location.href = url;
+                    }
+                } else {
+                    // 如果没有高亮项，执行原来的搜索逻辑
+                    executeSearch(searchInput.value.trim());
+                }
+            } else if (e.key === 'Escape') {
+                hideSuggestions();
+            }
+        }
+
+        // 更新高亮
+        function updateHighlight(items) {
+            items.forEach((item, index) => {
+                if (index === currentHighlightIndex) {
+                    item.classList.add('highlighted');
+                    item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                } else {
+                    item.classList.remove('highlighted');
+                }
+            });
+        }
+
+        // 隐藏建议
+        function hideSuggestions() {
+            const dropdown = document.getElementById('searchSuggestions');
+            if (dropdown) {
+                dropdown.classList.remove('show');
+                currentHighlightIndex = -1;
+            }
+        }
+
+        // 执行搜索（原来的逻辑）
+        function executeSearch(query) {
+            if (!query) return;
+
+            const queryLower = query.toLowerCase();
+
+            // Logic 1: 页面导航
+            if (queryLower.includes('概览') || queryLower.includes('overview')) {
+                window.location.href = '/overview';
+                return;
+            }
+            if (queryLower.includes('实时') || queryLower.includes('监测') || queryLower.includes('monitor')) {
+                window.location.href = '/monitor';
+                return;
+            }
+            if (queryLower.includes('设置') || queryLower.includes('settings')) {
+                window.location.href = '/settings';
+                return;
+            }
+
+            // Logic 2: 节点识别
+            const nodePattern = /^(stm32[_\s]?node[_\s]?)?(\d{3})$/i;
+            const nodeMatch = query.match(nodePattern);
+            if (nodeMatch) {
+                const nodeNum = nodeMatch[2].padStart(3, '0');
+                const nodeId = `STM32_Node_${nodeNum}`;
+                window.location.href = `/overview?select=${encodeURIComponent(nodeId)}`;
+                return;
+            }
+            if (query.toUpperCase().includes('STM32_NODE_')) {
+                const nodeId = query.toUpperCase().replace(/[^A-Z0-9_]/g, '');
+                window.location.href = `/overview?select=${encodeURIComponent(nodeId)}`;
+                return;
+            }
+
+            // Default: 回到数据概览页（并把搜索词当作节点ID尝试传递）
+            window.location.href = `/overview?select=${encodeURIComponent(query)}`;
+        }
+
+        // 初始化全局搜索
+        function initGlobalSearch() {
+            const searchInput = document.getElementById('globalSearchInput');
+            if (!searchInput) return;
+
+            // 输入事件：显示建议
+            searchInput.addEventListener('input', function(e) {
+                const query = this.value.trim();
+                
+                if (query.length > 0) {
+                    const filtered = filterSuggestions(query);
+                    renderSuggestions(filtered);
+                } else {
+                    hideSuggestions();
+                }
+            });
+
+            // 键盘事件：导航和确认
+            searchInput.addEventListener('keydown', function(e) {
+                const query = this.value.trim();
+                const filtered = filterSuggestions(query);
+                handleKeyboardNavigation(e, filtered);
+            });
+
+            // 回车键（如果没有建议显示，执行搜索）
+            searchInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    const dropdown = document.getElementById('searchSuggestions');
+                    const isVisible = dropdown && dropdown.classList.contains('show');
+                    if (!isVisible) {
+                        executeSearch(this.value.trim());
+                    }
+                }
+            });
+
+            // 点击外部区域隐藏建议
+            document.addEventListener('click', function(e) {
+                const searchBox = document.querySelector('.search-box');
+                if (searchBox && !searchBox.contains(e.target)) {
+                    hideSuggestions();
+                }
+            });
+
+            // 初始加载节点建议
+            updateNodeSuggestions();
+            // 定期更新节点建议（每10秒）
+            setInterval(updateNodeSuggestions, 10000);
+        }
+
+        // ========== 消息中心功能 ==========
+        const MESSAGE_STORAGE_KEY = 'windsight_message_history';
+        const MAX_MESSAGES = 500; // 最多存储500条消息，但显示时超过99显示"99+"
+
+        // 获取消息历史
+        function getMessageHistory() {
+            try {
+                const stored = localStorage.getItem(MESSAGE_STORAGE_KEY);
+                return stored ? JSON.parse(stored) : [];
+            } catch (e) {
+                console.error('Failed to load message history:', e);
+                return [];
+            }
+        }
+
+        // 保存消息历史
+        function saveMessageHistory(messages) {
+            try {
+                localStorage.setItem(MESSAGE_STORAGE_KEY, JSON.stringify(messages));
+            } catch (e) {
+                console.error('Failed to save message history:', e);
+            }
+        }
+
+        // 格式化相对时间
+        function formatRelativeTime(timestamp) {
+            const now = Date.now();
+            const diff = now - timestamp;
+            const seconds = Math.floor(diff / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const hours = Math.floor(minutes / 60);
+            const days = Math.floor(hours / 24);
+
+            if (seconds < 60) {
+                return '刚刚';
+            } else if (minutes < 60) {
+                return `${minutes}分钟前`;
+            } else if (hours < 24) {
+                return `${hours}小时前`;
+            } else if (days < 7) {
+                return `${days}天前`;
+            } else {
+                const date = new Date(timestamp);
+                // 统一使用北京时间展示（不受本机时区影响）
+                return date.toLocaleString('zh-CN', {
+                    timeZone: 'Asia/Shanghai',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            }
+        }
+
+        // 添加消息到历史
+        function addMessageToHistory(title, type = 'info') {
+            const messages = getMessageHistory();
+            const newMessage = {
+                id: Date.now(),
+                title: title,
+                type: type,
+                timestamp: Date.now()
+            };
+
+            // 添加到开头，限制最多50条
+            messages.unshift(newMessage);
+            if (messages.length > MAX_MESSAGES) {
+                messages.splice(MAX_MESSAGES);
+            }
+
+            saveMessageHistory(messages);
+            updateMessageUI();
+        }
+
+        // 更新消息UI
+        function updateMessageUI() {
+            const messages = getMessageHistory();
+            const badge = document.getElementById('msgCount');
+            const dropdown = document.getElementById('msgDropdown');
+            const content = document.getElementById('msgListContent');
+            const emptyState = document.getElementById('msgEmptyState');
+
+            // 更新徽章计数
+            if (badge) {
+                const unreadCount = messages.length;
+                if (unreadCount > 0) {
+                    badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+                    badge.classList.add('show');
+                } else {
+                    badge.classList.remove('show');
+                }
+            }
+
+            // 渲染消息列表
+            if (content) {
+                if (messages.length === 0) {
+                    content.innerHTML = `
+                        <div class="text-center text-muted py-4" id="msgEmptyState">
+                            <i class="bi bi-inbox"></i><br>
+                            <small>暂无新消息</small>
+                        </div>
+                    `;
+                } else {
+                    const typeConfig = {
+                        'success': { icon: 'bi-circle-fill', class: 'online' },
+                        'warning': { icon: 'bi-circle-fill', class: 'offline' },
+                        'error': { icon: 'bi-circle-fill', class: 'fault' },
+                        'fault': { icon: 'bi-circle-fill', class: 'fault' },
+                        'info': { icon: 'bi-circle-fill', class: 'info' }
+                    };
+
+                    const html = messages.map(msg => {
+                        const config = typeConfig[msg.type] || typeConfig['info'];
+                        return `
+                            <div class="msg-item ${config.class}">
+                                <i class="bi ${config.icon} msg-item-icon"></i>
+                                <div class="msg-item-content">
+                                    <div class="msg-item-text">${msg.title}</div>
+                                    <div class="msg-time">${formatRelativeTime(msg.timestamp)}</div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+
+                    content.innerHTML = html;
+                }
+            }
+        }
+
+        // 清空所有消息
+        function clearAllMessages() {
+            if (confirm('确定要清空所有消息吗？')) {
+                saveMessageHistory([]);
+                updateMessageUI();
+            }
+        }
+
+        // 初始化消息中心
+        function initMessageCenter() {
+            const bell = document.getElementById('messageBell');
+            const dropdown = document.getElementById('msgDropdown');
+            const clearBtn = document.getElementById('clearMsgs');
+
+            if (!bell || !dropdown) return;
+
+            // 点击铃铛切换下拉菜单
+            bell.addEventListener('click', function(e) {
+                e.stopPropagation();
+                dropdown.classList.toggle('show');
+            });
+
+            // 点击外部关闭下拉菜单
+            document.addEventListener('click', function(e) {
+                if (!bell.contains(e.target) && !dropdown.contains(e.target)) {
+                    dropdown.classList.remove('show');
+                }
+            });
+
+            // 清空按钮
+            if (clearBtn) {
+                clearBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    clearAllMessages();
+                });
+            }
+
+            // 初始化UI
+            updateMessageUI();
+        }
+
+        // 全局函数：供其他页面调用
+        window.addMessageToHistory = addMessageToHistory;
+        
+        // ========== 全局 Toast 通知函数 ==========
+        // 确保在所有页面都可用
+        window.showToast = function(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            if (!container) {
+                console.log(`[Toast] ${type}: ${message}`);
+                return;
+            }
+            
+            // 类型映射
+            const typeConfig = {
+                'success': { icon: '✅', color: 'success' },
+                'warning': { icon: '⚠️', color: 'warning' },
+                'error': { icon: '❌', color: 'error' },
+                'info': { icon: 'ℹ️', color: 'info' }
+            };
+            
+            const config = typeConfig[type] || typeConfig['info'];
+            
+            // 创建 Toast 元素
+            const toast = document.createElement('div');
+            toast.className = `custom-toast ${config.color}`;
+            toast.innerHTML = `
+                <span class="custom-toast-icon">${config.icon}</span>
+                <div class="custom-toast-content">
+                    <div class="custom-toast-message">${message}</div>
+                </div>
+                <span class="custom-toast-close" onclick="this.parentElement.remove()">×</span>
+            `;
+            
+            // 优化：立即添加到DOM，然后使用requestAnimationFrame触发显示动画
+            container.appendChild(toast);
+            
+            // 优化：使用requestAnimationFrame立即触发显示动画，减少延迟
+            requestAnimationFrame(() => {
+                // 强制重排，确保动画立即生效
+                toast.offsetHeight; // 触发重排
+                // 直接设置样式，避免CSS动画延迟
+                toast.style.opacity = '1';
+                toast.style.transform = 'translateX(0)';
+            });
+            
+            // 自动移除（5秒后）
+            setTimeout(() => {
+                toast.classList.add('fade-out');
+                setTimeout(() => {
+                    if (toast.parentElement) {
+                        toast.remove();
+                    }
+                }, 300);
+            }, 5000);
+        };
+        
+        // ========== 统一系统事件发布函数（去重：按 message+type）==========
+        // 说明：已清理“故障诊断/故障码(E01-E05)”相关逻辑，这里只做通用去重。
+        const DEBOUNCE_TIME = 1000;  // 1秒去重窗口
+
+        window.publishSystemEvent = function(message, type = 'info') {
+            const now = Date.now();
+            const messageKey = `${message}_${type}`;
+            const recentMessages = window._recentMessages || new Map();
+            window._recentMessages = recentMessages;
+            const lastTime = recentMessages.get(messageKey);
+
+            if (lastTime && (now - lastTime) < DEBOUNCE_TIME) {
+                return;
+            }
+            recentMessages.set(messageKey, now);
+
+            // 清理过期记录（保留最近2分钟）
+            const twoMinutesAgo = now - 120000;
+            for (const [key, timestamp] of recentMessages.entries()) {
+                if (timestamp < twoMinutesAgo) {
+                    recentMessages.delete(key);
+                }
+            }
+
+            // 1) 消息中心
+            addMessageToHistory(message, type);
+            // 2) Toast
+            if (typeof window.showToast === 'function') {
+                requestAnimationFrame(() => window.showToast(message, type));
+            }
+        };
+
+        // ========== 全局节点监控系统 ==========
+        let globalLastNodeIds = null;  // 存储上一次的节点ID数组，null表示第一次加载
+        // 清理：不再维护“故障码/故障状态变化”逻辑
+        
+        // 全局节点监控函数（在所有页面运行）
+        async function globalNodeMonitor() {
+            try {
+                const response = await fetch('/api/get_active_nodes');
+                const result = await response.json();
+                
+                if (!result.success) {
+                    console.error('[全局监控] 获取节点列表失败:', result.error);
+                    return;
+                }
+                
+                const nodes = result.nodes || [];
+                
+                // 提取节点ID数组
+                const currentIds = nodes.map(node => node.node_id || node.device_id || node.id).filter(Boolean);
+                const suppressGlobalNodeEventToast = document.body?.dataset?.userRole === 'admin';
+                
+                // 首次加载：建立基线，不显示通知
+                if (globalLastNodeIds === null) {
+                    globalLastNodeIds = currentIds;
+                    return;
+                }
+                
+                // 检测新节点（出现在当前列表但不在上一次列表中）
+                currentIds.forEach(id => {
+                    if (!globalLastNodeIds.includes(id)) {
+                        if (!suppressGlobalNodeEventToast && typeof window.publishSystemEvent === 'function') {
+                            window.publishSystemEvent(`[系统动态] 新节点 ${id} 已通过自注册接入系统`, 'success');
+                        } else {
+                            console.log(`[全局监控] 新节点: ${id}`);
+                        }
+                    }
+                });
+                
+                // 检测断开节点（出现在上一次列表但不在当前列表中）
+                globalLastNodeIds.forEach(id => {
+                    if (!currentIds.includes(id)) {
+                        if (!suppressGlobalNodeEventToast && typeof window.publishSystemEvent === 'function') {
+                            window.publishSystemEvent(`[系统动态] 节点 ${id} 通信超时，已自动注销`, 'warning');
+                        } else {
+                            console.log(`[全局监控] 节点断开: ${id}`);
+                        }
+                    }
+                });
+                
+                // 更新上一次的节点ID集合和状态
+                globalLastNodeIds = currentIds;
+            } catch (e) {
+                console.error('[全局监控] 轮询失败:', e);
+            }
+        }
+        
+        // ========== 跨标签页存储同步 ==========
+        // 监听 localStorage 变化（跨标签页同步）
+        window.addEventListener('storage', function(e) {
+            if (e.key === MESSAGE_STORAGE_KEY) {
+                // 消息历史在其他标签页更新，刷新UI
+                updateMessageUI();
+            } else if (e.key === THEME_STORAGE_KEY && (e.newValue === 'light' || e.newValue === 'dark')) {
+                applyTheme(e.newValue, { persist: false, emit: true });
+            }
+        });
+        
+        // 清理：移除“故障诊断弹窗/跳转”等逻辑
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initThemeToggle();
+            initResizableSidebar();
+            rememberSidebarSelectionContext();
+            updateContextPageLinks();
+            initSidebarGroups();
+            initAdminUserTreeNav();
+            initMyDeviceTreeNav();
+            bindSidebarSelectionLinks(document);
+            initSidebarLocationDialog();
+            setActiveAdminNav();
+            setActiveDeviceAction();
+            updateSidebarStatus();
+            initGlobalSearch(); // 初始化全局搜索
+            window.addEventListener('windsight:nodes-renamed', function() {
+                initAdminUserTreeNav();
+                initMyDeviceTreeNav();
+                updateNodeSuggestions();
+            });
+            
+            // 清理可能过期的 localStorage 状态（防止阻塞新消息）
+            try {
+                const messageHistory = getMessageHistory();
+                if (messageHistory.length > MAX_MESSAGES) {
+                    // 只保留最新的消息
+                    const recentMessages = messageHistory.slice(0, MAX_MESSAGES);
+                    saveMessageHistory(recentMessages);
+                    console.log('[消息中心] 已清理过期消息历史');
+                }
+            } catch (e) {
+                console.warn('[消息中心] 清理消息历史时出错:', e);
+            }
+            
+            initMessageCenter(); // 初始化消息中心
+            
+            // 启动全局节点监控（快速轮询模式：从localStorage读取设置，默认800ms）
+            const fastPollingEnabled = localStorage.getItem('fastPollingEnabled') !== 'false';
+            const globalPollingInterval = fastPollingEnabled ? 800 : 3000;
+            globalNodeMonitor(); // 立即执行一次
+            setInterval(globalNodeMonitor, globalPollingInterval);
+            
+            setInterval(updateSidebarStatus, 1000); // 每1秒更新一次（优化响应速度）
+        });
+    </script>
+    
+    <script>
+        window.WindSightAmapConfig = {{ windsight_amap_config | default({}) | tojson }};
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
+
