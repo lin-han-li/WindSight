@@ -68,6 +68,7 @@ sudo cp /opt/wind-turbine-demo/current/deploy/aliyun/wind-turbine-demo.env.examp
 sudo editor /etc/wind-turbine-demo/wind-turbine-demo.env
 sudo chown root:winddemo /etc/wind-turbine-demo/wind-turbine-demo.env
 sudo chmod 640 /etc/wind-turbine-demo/wind-turbine-demo.env
+# 640 + root:winddemo 已允许 winddemo 通过所属组读取此文件。
 ```
 
 安装并启动 Systemd 服务：
