@@ -21,6 +21,7 @@ cd WindSight
 
 - 风电协议与模拟器：`wind-turbine-demo/使用说明.md`
 - 任意传感器 JSON：`wanwu-data-platform/使用说明.md`
+- 万物数驱页面操作与终端接入：[wanwu-data-platform/操作文档.md](./wanwu-data-platform/操作文档.md)
 - 服务器部署、节点认证和完整上报协议：[`部署与终端节点上传协议.md`](./部署与终端节点上传协议.md)
 - 风电版 Alibaba Cloud Linux 3 部署模板：[`wind-turbine-demo/deploy/aliyun/`](./wind-turbine-demo/deploy/aliyun/)
 - 万物数驱 Alibaba Cloud Linux 3 部署模板：[`wanwu-data-platform/deploy/aliyun/`](./wanwu-data-platform/deploy/aliyun/)
